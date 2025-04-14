@@ -188,22 +188,13 @@ const Index = () => {
       {/* Landing Hero - Shown when no analysis has been done */}
       {!code && !analysis && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="container max-w-3xl text-center animate-fade-in opacity-10 select-none">
+          <div className="container max-w-3xl text-center animate-fade-in opacity-10 select-none absolute z-0">
             <h1 className="text-6xl md:text-8xl font-bold mb-4 text-muted-foreground/20">
               <span className="text-gradient-primary">Code</span>Alchemist
             </h1>
-            <p className="text-2xl text-muted-foreground/10 mb-8 max-w-2xl mx-auto">
-              Analyze, Fix, and Master Your Code in Real-Time — With AI
-            </p>
           </div>
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-auto z-10">
             <div className="container max-w-3xl text-center">
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">
-                <span className="text-gradient-primary">Transform Your Code</span>
-              </h1>
-              <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-                Analyze, Fix, and Master Your Code in Real-Time — With AI.
-              </p>
               <div className="flex flex-col md:flex-row gap-4 justify-center pointer-events-auto">
                 <Button 
                   size="lg" 
