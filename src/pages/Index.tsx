@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,8 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { NavigationMenu, NavigationMenuContent, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger } from "@/components/ui/navigation-menu";
+import { cn } from "@/lib/utils";
 
 const Index = () => {
   const [code, setCode] = useState<string>("");
@@ -53,6 +56,33 @@ const Index = () => {
     });
   };
 
+  // Navigation menu item styles
+  const ListItem = React.forwardRef<
+    React.ElementRef<"a">,
+    React.ComponentPropsWithoutRef<"a">
+  >(({ className, title, children, ...props }, ref) => {
+    return (
+      <li>
+        <NavigationMenuLink asChild>
+          <a
+            ref={ref}
+            className={cn(
+              "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+              className
+            )}
+            {...props}
+          >
+            <div className="text-sm font-medium leading-none">{title}</div>
+            <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
+              {children}
+            </p>
+          </a>
+        </NavigationMenuLink>
+      </li>
+    );
+  });
+  ListItem.displayName = "ListItem";
+
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground grid-pattern">
       {/* Header */}
@@ -62,11 +92,31 @@ const Index = () => {
             <CodeSquare className="h-7 w-7 text-primary animate-pulse-glow" />
             <h1 className="text-xl font-bold tracking-tight">
               <span className="text-gradient-primary">Code</span>Alchemist
+              <span className="text-xs text-muted-foreground ml-2">by Mandar Borkar</span>
             </h1>
           </div>
-          <p className="hidden md:block text-sm text-muted-foreground">
-            Analyze, Fix, and Master Your Code in Real-Time — With AI.
-          </p>
+          
+          <NavigationMenu>
+            <NavigationMenuList>
+              <NavigationMenuItem>
+                <NavigationMenuTrigger>Languages</NavigationMenuTrigger>
+                <NavigationMenuContent>
+                  <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+                    {programmingLanguages.map((lang) => (
+                      <ListItem
+                        key={lang.id}
+                        title={lang.name}
+                        onClick={() => setSelectedLanguage(lang)}
+                      >
+                        {lang.fileExtension} files
+                      </ListItem>
+                    ))}
+                  </ul>
+                </NavigationMenuContent>
+              </NavigationMenuItem>
+            </NavigationMenuList>
+          </NavigationMenu>
+          
           <div className="flex items-center gap-2">
             <HoverCard>
               <HoverCardTrigger asChild>
@@ -110,8 +160,8 @@ const Index = () => {
           direction="horizontal" 
           className="h-[calc(100vh-8rem)] rounded-lg overflow-hidden border border-border futuristic-border"
         >
-          {/* Left Panel - Code Editor */}
-          <ResizablePanel defaultSize={50} minSize={30} className="bg-black/30">
+          {/* Code Editor Panel */}
+          <ResizablePanel defaultSize={50} minSize={20} maxSize={80}>
             <div className="flex flex-col h-full">
               <div className="flex justify-between items-center p-3 border-b border-border bg-black/50">
                 <h2 className="text-lg font-semibold flex items-center">
@@ -157,8 +207,8 @@ const Index = () => {
           
           <ResizableHandle withHandle className="bg-border/50" />
           
-          {/* Right Panel - Analysis Display */}
-          <ResizablePanel defaultSize={50} minSize={30} className="bg-black/30">
+          {/* Analysis Display Panel */}
+          <ResizablePanel defaultSize={50} minSize={20} maxSize={80}>
             <div className="flex flex-col h-full">
               <div className="flex justify-between items-center p-3 border-b border-border bg-black/50">
                 <h2 className="text-lg font-semibold flex items-center">
@@ -233,7 +283,7 @@ const Index = () => {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <p className="text-sm text-muted-foreground">
-              © 2025 CodeAlchemist. All rights reserved.
+              © 2025 CodeAlchemist by Mandar Borkar. All rights reserved.
             </p>
             <div className="flex items-center gap-4 mt-4 md:mt-0">
               <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">
