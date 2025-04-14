@@ -5,7 +5,7 @@ import { CodeQualityMeter } from "./CodeQualityMeter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TestCaseDisplay from "./TestCaseDisplay";
-import { AlertTriangle, CheckCircle, Code, Eye, EyeOff, Terminal, Flask, PenSquare, Layers, Bot } from "lucide-react";
+import { AlertTriangle, CheckCircle, Code, Eye, EyeOff, Terminal, Beaker, PenSquare, Layers, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +40,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
               <p className="text-xs text-muted-foreground">Feasibility Check</p>
             </div>
             <div className="text-center">
-              <Flask className="w-8 h-8 text-primary/70 mx-auto mb-2" />
+              <Beaker className="w-8 h-8 text-primary/70 mx-auto mb-2" />
               <p className="text-xs text-muted-foreground">Test Case Execution</p>
             </div>
             <div className="text-center">
@@ -121,7 +121,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                 Quality
               </TabsTrigger>
               <TabsTrigger value="tests" className="data-[state=active]:bg-primary/20">
-                <Flask className="h-4 w-4 mr-2" />
+                <Beaker className="h-4 w-4 mr-2" />
                 Tests
               </TabsTrigger>
               <TabsTrigger value="feedback" className="data-[state=active]:bg-primary/20">
