@@ -6,11 +6,12 @@ import { programmingLanguages } from "@/data/languages";
 import { useToast } from "@/hooks/use-toast";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 
-// Import the new components
+// Import the components
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import EditorPanel from "@/components/EditorPanel";
 import AnalysisPanel from "@/components/AnalysisPanel";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const Index = () => {
   const [code, setCode] = useState<string>("");
@@ -18,6 +19,7 @@ const Index = () => {
   const [analysis, setAnalysis] = useState<CodeAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   // States for HTML/CSS/JS
   const [htmlCode, setHtmlCode] = useState<string>("");
@@ -82,33 +84,67 @@ const Index = () => {
       <Header />
       
       <main className="flex-1 container mx-auto px-4 py-6">
-        <ResizablePanelGroup direction="horizontal" className="h-[calc(100vh-8rem)]">
-          <ResizablePanel defaultSize={50} minSize={30}>
-            <EditorPanel
-              code={code}
-              setCode={setCode}
-              selectedLanguage={selectedLanguage}
-              setSelectedLanguage={setSelectedLanguage}
-              isAnalyzing={isAnalyzing}
-              onAnalyzeCode={handleAnalyzeCode}
-              htmlCode={htmlCode}
-              setHtmlCode={setHtmlCode}
-              cssCode={cssCode}
-              setCssCode={setCssCode}
-              jsCode={jsCode}
-              setJsCode={setJsCode}
-            />
-          </ResizablePanel>
-          
-          <ResizableHandle withHandle />
-          
-          <ResizablePanel defaultSize={50} minSize={30}>
-            <AnalysisPanel 
-              analysis={analysis} 
-              onApplyCorrection={handleApplyCorrection} 
-            />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+        {isMobile ? (
+          <div className="flex flex-col space-y-4">
+            <div className="card-futuristic rounded-lg overflow-hidden p-4">
+              <EditorPanel
+                code={code}
+                setCode={setCode}
+                selectedLanguage={selectedLanguage}
+                setSelectedLanguage={setSelectedLanguage}
+                isAnalyzing={isAnalyzing}
+                onAnalyzeCode={handleAnalyzeCode}
+                htmlCode={htmlCode}
+                setHtmlCode={setHtmlCode}
+                cssCode={cssCode}
+                setCssCode={setCssCode}
+                jsCode={jsCode}
+                setJsCode={setJsCode}
+              />
+            </div>
+            <div className="card-futuristic rounded-lg overflow-hidden p-4">
+              <AnalysisPanel 
+                analysis={analysis} 
+                onApplyCorrection={handleApplyCorrection} 
+              />
+            </div>
+          </div>
+        ) : (
+          <ResizablePanelGroup 
+            direction="horizontal" 
+            className="h-[calc(100vh-8rem)] card-futuristic rounded-lg overflow-hidden"
+          >
+            <ResizablePanel defaultSize={50} minSize={30}>
+              <div className="h-full p-4">
+                <EditorPanel
+                  code={code}
+                  setCode={setCode}
+                  selectedLanguage={selectedLanguage}
+                  setSelectedLanguage={setSelectedLanguage}
+                  isAnalyzing={isAnalyzing}
+                  onAnalyzeCode={handleAnalyzeCode}
+                  htmlCode={htmlCode}
+                  setHtmlCode={setHtmlCode}
+                  cssCode={cssCode}
+                  setCssCode={setCssCode}
+                  jsCode={jsCode}
+                  setJsCode={setJsCode}
+                />
+              </div>
+            </ResizablePanel>
+            
+            <ResizableHandle withHandle className="glow-effect" />
+            
+            <ResizablePanel defaultSize={50} minSize={30}>
+              <div className="h-full p-4">
+                <AnalysisPanel 
+                  analysis={analysis} 
+                  onApplyCorrection={handleApplyCorrection} 
+                />
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
       </main>
       
       <Footer />
