@@ -2,7 +2,6 @@
 import React, { useState } from "react";
 import { ProgrammingLanguage } from "@/types";
 import { FileCode, FileText, AlertCircle } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 interface CodeEditorProps {
   code: string;
@@ -33,7 +32,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, language, onChange, webCo
   }
 
   return (
-    <div className="relative w-full h-full rounded-md bg-code overflow-hidden border border-border hover:border-primary/50 transition-colors duration-300">
+    <div className="relative w-full h-full rounded-md bg-code overflow-hidden border border-border">
       <div className="flex items-center justify-between px-4 py-2 bg-code border-b border-border">
         <div className="flex items-center">
           <span className="text-sm font-medium text-muted-foreground">
@@ -51,7 +50,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, language, onChange, webCo
       </div>
       <div className="relative h-[calc(100%-2.5rem)]">
         <textarea
-          className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin w-full h-full resize-none"
+          className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin"
           value={code}
           onChange={(e) => onChange(e.target.value)}
           spellCheck={false}
@@ -78,10 +77,8 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
   onChangeCss,
   onChangeJs,
 }) => {
-  const isMobile = useIsMobile();
-  
   return (
-    <div className="relative w-full h-full rounded-md bg-code overflow-hidden border border-border hover:border-primary/50 transition-colors duration-300">
+    <div className="relative w-full h-full rounded-md bg-code overflow-hidden border border-border">
       <div className="flex flex-col h-full">
         {/* HTML Panel - Fixed 33.3% height */}
         <div className="h-1/3 min-h-0">
@@ -107,7 +104,6 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
               value={html}
               onChange={(e) => onChangeHtml(e.target.value)}
               spellCheck={false}
-              placeholder={isMobile ? "Enter HTML code..." : "<!DOCTYPE html>\n<html>\n<head>\n  <title>Web Preview</title>\n</head>\n<body>\n  <!-- Your HTML code here -->\n</body>\n</html>"}
             />
           </div>
         </div>
@@ -136,7 +132,6 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
               value={css}
               onChange={(e) => onChangeCss(e.target.value)}
               spellCheck={false}
-              placeholder={isMobile ? "Enter CSS code..." : "body {\n  /* Your CSS code here */\n}"}
             />
           </div>
         </div>
@@ -165,7 +160,6 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
               value={js}
               onChange={(e) => onChangeJs(e.target.value)}
               spellCheck={false}
-              placeholder={isMobile ? "Enter JavaScript code..." : "// Your JavaScript code here\ndocument.addEventListener('DOMContentLoaded', function() {\n  // Code here executes when the document is loaded\n});"}
             />
           </div>
         </div>
