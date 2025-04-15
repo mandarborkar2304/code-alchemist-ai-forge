@@ -43,6 +43,12 @@
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 240 5% 15%;
     --sidebar-ring: 267 84% 64%;
+    
+    --code: 240 10% 3.9%;
+    --code-foreground: 0 0% 98%;
+    --code-red: 0 100% 50%;
+    --code-yellow: 60 100% 50%;
+    --code-green: 120 100% 50%;
   }
 }
 

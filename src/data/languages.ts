@@ -2,6 +2,7 @@
 import { ProgrammingLanguage } from "@/types";
 
 export const programmingLanguages: ProgrammingLanguage[] = [
+  { id: "bash", name: "Bash", fileExtension: ".sh" },
   { id: "c", name: "C", fileExtension: ".c" },
   { id: "cpp", name: "C++", fileExtension: ".cpp" },
   { id: "csharp", name: "C#", fileExtension: ".cs" },
@@ -18,5 +19,6 @@ export const programmingLanguages: ProgrammingLanguage[] = [
   { id: "objc", name: "Objective-C", fileExtension: ".m" },
   { id: "perl", name: "Perl", fileExtension: ".pl" },
   { id: "php", name: "PHP", fileExtension: ".php" },
+  { id: "r", name: "R", fileExtension: ".r" },
   { id: "web", name: "HTML/CSS/JS", fileExtension: ".html" },
 ];
