@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { ProgrammingLanguage } from "@/types";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
@@ -83,7 +84,7 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
         direction="vertical"
         className="w-full h-full"
       >
-        <ResizablePanel defaultSize={33}>
+        <ResizablePanel defaultSize={33} minSize={20}>
           <div className="h-full">
             <div className="flex items-center justify-between px-4 py-2 bg-code border-b border-border">
               <div className="flex items-center">
@@ -112,7 +113,7 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
           </div>
         </ResizablePanel>
         <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={33}>
+        <ResizablePanel defaultSize={33} minSize={20}>
           <div className="h-full">
             <div className="flex items-center justify-between px-4 py-2 bg-code border-b border-border">
               <div className="flex items-center">
@@ -141,7 +142,7 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
           </div>
         </ResizablePanel>
         <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={33}>
+        <ResizablePanel defaultSize={33} minSize={20}>
           <div className="h-full">
             <div className="flex items-center justify-between px-4 py-2 bg-code border-b border-border">
               <div className="flex items-center">

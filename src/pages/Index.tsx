@@ -114,7 +114,7 @@ const Index = () => {
       <main className="flex-1 container mx-auto px-4 py-6">
         <ResizablePanelGroup direction="horizontal" className="h-[calc(100vh-8rem)]">
           {/* Code Editor Panel */}
-          <ResizablePanel defaultSize={50}>
+          <ResizablePanel defaultSize={50} minSize={30}>
             <div className="flex flex-col h-full">
               <div className="flex flex-col space-y-2">
                 <div className="flex justify-between items-center">
@@ -176,7 +176,7 @@ const Index = () => {
           <ResizableHandle withHandle />
           
           {/* Analysis Panel */}
-          <ResizablePanel defaultSize={50}>
+          <ResizablePanel defaultSize={50} minSize={30}>
             <div className="flex flex-col h-full">
               <div className="flex flex-col space-y-2">
                 <div className="flex justify-between items-center">
@@ -191,7 +191,7 @@ const Index = () => {
                 </div>
                 <Separator className="bg-border" />
               </div>
-              <div className="flex-1 min-h-0 mt-4">
+              <div className="flex-1 min-h-0 mt-4 overflow-auto">
                 <CodeAnalysisDisplay 
                   analysis={analysis} 
                   onApplyCorrection={handleApplyCorrection} 

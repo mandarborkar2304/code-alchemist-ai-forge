@@ -97,4 +97,22 @@
     @apply resize-none w-full h-full;
     font-family: 'Fira Code', 'Consolas', monospace;
   }
+  
+  /* Enhanced resizable panel styling */
+  [data-panel-handle]:hover {
+    @apply bg-primary/30;
+  }
+  
+  [data-panel-handle][data-panel-handle-active] {
+    @apply bg-primary/50;
+  }
+  
+  [data-panel-handle] div {
+    @apply opacity-0 transition-opacity;
+  }
+  
+  [data-panel-handle]:hover div,
+  [data-panel-handle][data-panel-handle-active] div {
+    @apply opacity-100;
+  }
 }
