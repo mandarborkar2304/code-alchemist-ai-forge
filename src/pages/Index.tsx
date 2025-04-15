@@ -1,17 +1,16 @@
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import CodeEditor from "@/components/CodeEditor";
-import { LanguageSelector } from "@/components/LanguageSelector";
-import CodeAnalysisDisplay from "@/components/CodeAnalysisDisplay";
-import { programmingLanguages } from "@/data/languages";
 import { CodeAnalysis, ProgrammingLanguage } from "@/types";
 import { generateMockAnalysis } from "@/utils/mockAnalysis";
-import { Brain, Code, CodeSquare, Play, PlusCircle } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
+import { programmingLanguages } from "@/data/languages";
 import { useToast } from "@/hooks/use-toast";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import LanguageVersions from "@/components/LanguageVersions";
+
+// Import the new components
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import EditorPanel from "@/components/EditorPanel";
+import AnalysisPanel from "@/components/AnalysisPanel";
 
 const Index = () => {
   const [code, setCode] = useState<string>("");
@@ -78,136 +77,41 @@ const Index = () => {
     });
   };
 
-  const handleLanguageChange = (language: ProgrammingLanguage) => {
-    setSelectedLanguage(language);
-    // Reset analysis when language changes
-    setAnalysis(null);
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      {/* Header */}
-      <header className="border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <CodeSquare className="h-7 w-7 text-primary animate-pulse-glow" />
-            <h1 className="text-xl font-bold tracking-tight">
-              <span className="text-gradient-primary">Code</span>Alchemist
-            </h1>
-            <p className="text-sm text-muted-foreground ml-4">by Mandar Borkar</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <LanguageVersions />
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="text-xs border-primary/20 hover:border-primary/50 bg-background"
-            >
-              <PlusCircle className="h-3.5 w-3.5 mr-1.5" />
-              New Project
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
+      <Header />
+      
       <main className="flex-1 container mx-auto px-4 py-6">
         <ResizablePanelGroup direction="horizontal" className="h-[calc(100vh-8rem)]">
-          {/* Code Editor Panel */}
           <ResizablePanel defaultSize={50} minSize={30}>
-            <div className="flex flex-col h-full">
-              <div className="flex flex-col space-y-2">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-semibold flex items-center">
-                    <Code className="h-5 w-5 mr-2 text-primary" />
-                    Code Editor
-                  </h2>
-                  <div className="w-48">
-                    <LanguageSelector 
-                      languages={programmingLanguages} 
-                      selected={selectedLanguage} 
-                      onSelect={handleLanguageChange} 
-                    />
-                  </div>
-                </div>
-                <Separator className="bg-border" />
-              </div>
-              <div className="flex-1 min-h-0 mt-4">
-                <CodeEditor 
-                  code={code} 
-                  language={selectedLanguage} 
-                  onChange={setCode}
-                  webContent={
-                    selectedLanguage.id === "web" 
-                      ? {
-                          html: htmlCode,
-                          css: cssCode,
-                          js: jsCode,
-                          onChangeHtml: setHtmlCode,
-                          onChangeCss: setCssCode,
-                          onChangeJs: setJsCode,
-                        } 
-                      : undefined
-                  }
-                />
-              </div>
-              <div className="flex justify-end mt-4">
-                <Button 
-                  className="gap-2"
-                  disabled={isAnalyzing}
-                  onClick={handleAnalyzeCode}
-                >
-                  {isAnalyzing ? (
-                    <>
-                      <span className="animate-spin h-4 w-4 border-2 border-t-transparent border-r-transparent rounded-full"></span>
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <Brain className="h-4 w-4" />
-                      Analyze Code
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
+            <EditorPanel
+              code={code}
+              setCode={setCode}
+              selectedLanguage={selectedLanguage}
+              setSelectedLanguage={setSelectedLanguage}
+              isAnalyzing={isAnalyzing}
+              onAnalyzeCode={handleAnalyzeCode}
+              htmlCode={htmlCode}
+              setHtmlCode={setHtmlCode}
+              cssCode={cssCode}
+              setCssCode={setCssCode}
+              jsCode={jsCode}
+              setJsCode={setJsCode}
+            />
           </ResizablePanel>
           
           <ResizableHandle withHandle />
           
-          {/* Analysis Panel */}
           <ResizablePanel defaultSize={50} minSize={30}>
-            <div className="flex flex-col h-full">
-              <div className="flex flex-col space-y-2">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-semibold flex items-center">
-                    <Brain className="h-5 w-5 mr-2 text-primary" />
-                    AI Analysis
-                  </h2>
-                  <Button variant="outline" size="sm" className="text-xs">
-                    <Play className="h-3.5 w-3.5 mr-1.5" />
-                    Run Tests
-                  </Button>
-                </div>
-                <Separator className="bg-border" />
-              </div>
-              <div className="flex-1 min-h-0 mt-4 overflow-auto">
-                <CodeAnalysisDisplay 
-                  analysis={analysis} 
-                  onApplyCorrection={handleApplyCorrection} 
-                />
-              </div>
-            </div>
+            <AnalysisPanel 
+              analysis={analysis} 
+              onApplyCorrection={handleApplyCorrection} 
+            />
           </ResizablePanel>
         </ResizablePanelGroup>
       </main>
       
-      {/* Footer */}
-      <footer className="border-t border-border py-4">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>© 2025 CodeAlchemist by Mandar Borkar. All rights reserved.</p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 };
