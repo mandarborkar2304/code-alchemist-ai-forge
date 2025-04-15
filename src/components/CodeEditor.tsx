@@ -1,7 +1,6 @@
 
 import React, { useState } from "react";
 import { ProgrammingLanguage } from "@/types";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { FileCode, FileText, AlertCircle } from "lucide-react";
 
 interface CodeEditorProps {
@@ -80,97 +79,91 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
 }) => {
   return (
     <div className="relative w-full h-full rounded-md bg-code overflow-hidden border border-border">
-      <ResizablePanelGroup
-        direction="vertical"
-        className="w-full h-full"
-      >
-        <ResizablePanel defaultSize={33} minSize={20}>
-          <div className="h-full">
-            <div className="flex items-center justify-between px-4 py-2 bg-code border-b border-border">
-              <div className="flex items-center">
-                <FileText className="w-4 h-4 mr-2 text-orange-400" />
-                <span className="text-sm font-medium text-muted-foreground">
-                  HTML
-                </span>
-                <span className="ml-2 text-xs text-muted-foreground">
-                  .html
-                </span>
-              </div>
-              <div className="flex space-x-1">
-                <div className="w-3 h-3 rounded-full bg-code-red"></div>
-                <div className="w-3 h-3 rounded-full bg-code-yellow"></div>
-                <div className="w-3 h-3 rounded-full bg-code-green"></div>
-              </div>
+      <div className="flex flex-col h-full">
+        {/* HTML Panel - Fixed 33.3% height */}
+        <div className="h-1/3 min-h-0">
+          <div className="flex items-center justify-between px-4 py-2 bg-code border-b border-border">
+            <div className="flex items-center">
+              <FileText className="w-4 h-4 mr-2 text-orange-400" />
+              <span className="text-sm font-medium text-muted-foreground">
+                HTML
+              </span>
+              <span className="ml-2 text-xs text-muted-foreground">
+                .html
+              </span>
             </div>
-            <div className="h-[calc(100%-2.5rem)]">
-              <textarea
-                className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin"
-                value={html}
-                onChange={(e) => onChangeHtml(e.target.value)}
-                spellCheck={false}
-              />
+            <div className="flex space-x-1">
+              <div className="w-3 h-3 rounded-full bg-code-red"></div>
+              <div className="w-3 h-3 rounded-full bg-code-yellow"></div>
+              <div className="w-3 h-3 rounded-full bg-code-green"></div>
             </div>
           </div>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={33} minSize={20}>
-          <div className="h-full">
-            <div className="flex items-center justify-between px-4 py-2 bg-code border-b border-border">
-              <div className="flex items-center">
-                <FileCode className="w-4 h-4 mr-2 text-blue-400" />
-                <span className="text-sm font-medium text-muted-foreground">
-                  CSS
-                </span>
-                <span className="ml-2 text-xs text-muted-foreground">
-                  .css
-                </span>
-              </div>
-              <div className="flex space-x-1">
-                <div className="w-3 h-3 rounded-full bg-code-red"></div>
-                <div className="w-3 h-3 rounded-full bg-code-yellow"></div>
-                <div className="w-3 h-3 rounded-full bg-code-green"></div>
-              </div>
+          <div className="h-[calc(100%-2.5rem)] overflow-auto">
+            <textarea
+              className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin"
+              value={html}
+              onChange={(e) => onChangeHtml(e.target.value)}
+              spellCheck={false}
+            />
+          </div>
+        </div>
+        
+        {/* CSS Panel - Fixed 33.3% height */}
+        <div className="h-1/3 min-h-0 border-t border-border">
+          <div className="flex items-center justify-between px-4 py-2 bg-code border-b border-border">
+            <div className="flex items-center">
+              <FileCode className="w-4 h-4 mr-2 text-blue-400" />
+              <span className="text-sm font-medium text-muted-foreground">
+                CSS
+              </span>
+              <span className="ml-2 text-xs text-muted-foreground">
+                .css
+              </span>
             </div>
-            <div className="h-[calc(100%-2.5rem)]">
-              <textarea
-                className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin"
-                value={css}
-                onChange={(e) => onChangeCss(e.target.value)}
-                spellCheck={false}
-              />
+            <div className="flex space-x-1">
+              <div className="w-3 h-3 rounded-full bg-code-red"></div>
+              <div className="w-3 h-3 rounded-full bg-code-yellow"></div>
+              <div className="w-3 h-3 rounded-full bg-code-green"></div>
             </div>
           </div>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={33} minSize={20}>
-          <div className="h-full">
-            <div className="flex items-center justify-between px-4 py-2 bg-code border-b border-border">
-              <div className="flex items-center">
-                <AlertCircle className="w-4 h-4 mr-2 text-yellow-400" />
-                <span className="text-sm font-medium text-muted-foreground">
-                  JavaScript
-                </span>
-                <span className="ml-2 text-xs text-muted-foreground">
-                  .js
-                </span>
-              </div>
-              <div className="flex space-x-1">
-                <div className="w-3 h-3 rounded-full bg-code-red"></div>
-                <div className="w-3 h-3 rounded-full bg-code-yellow"></div>
-                <div className="w-3 h-3 rounded-full bg-code-green"></div>
-              </div>
+          <div className="h-[calc(100%-2.5rem)] overflow-auto">
+            <textarea
+              className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin"
+              value={css}
+              onChange={(e) => onChangeCss(e.target.value)}
+              spellCheck={false}
+            />
+          </div>
+        </div>
+        
+        {/* JS Panel - Fixed 33.3% height */}
+        <div className="h-1/3 min-h-0 border-t border-border">
+          <div className="flex items-center justify-between px-4 py-2 bg-code border-b border-border">
+            <div className="flex items-center">
+              <AlertCircle className="w-4 h-4 mr-2 text-yellow-400" />
+              <span className="text-sm font-medium text-muted-foreground">
+                JavaScript
+              </span>
+              <span className="ml-2 text-xs text-muted-foreground">
+                .js
+              </span>
             </div>
-            <div className="h-[calc(100%-2.5rem)]">
-              <textarea
-                className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin"
-                value={js}
-                onChange={(e) => onChangeJs(e.target.value)}
-                spellCheck={false}
-              />
+            <div className="flex space-x-1">
+              <div className="w-3 h-3 rounded-full bg-code-red"></div>
+              <div className="w-3 h-3 rounded-full bg-code-yellow"></div>
+              <div className="w-3 h-3 rounded-full bg-code-green"></div>
             </div>
           </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+          <div className="h-[calc(100%-2.5rem)] overflow-auto">
+            <textarea
+              className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin"
+              value={js}
+              onChange={(e) => onChangeJs(e.target.value)}
+              spellCheck={false}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
