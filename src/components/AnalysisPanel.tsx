@@ -19,14 +19,14 @@ const AnalysisPanel = ({ analysis, onApplyCorrection }: AnalysisPanelProps) => {
             <Brain className="h-5 w-5 mr-2 text-primary" />
             AI Analysis
           </h2>
-          <Button variant="outline" size="sm" className="text-xs">
+          <Button variant="outline" size="sm" className="text-xs border-primary/50 hover:bg-primary/10">
             <Play className="h-3.5 w-3.5 mr-1.5" />
             Run Tests
           </Button>
         </div>
         <Separator className="bg-border" />
       </div>
-      <div className="flex-1 min-h-0 mt-4 overflow-auto">
+      <div className="flex-1 min-h-0 mt-2 mb-2 overflow-auto">
         <CodeAnalysisDisplay 
           analysis={analysis} 
           onApplyCorrection={onApplyCorrection} 

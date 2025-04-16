@@ -59,7 +59,7 @@ const EditorPanel = ({
         </div>
         <Separator className="bg-border" />
       </div>
-      <div className="flex-1 min-h-0 mt-4">
+      <div className="flex-1 min-h-0 mt-2 mb-2">
         <CodeEditor 
           code={code} 
           language={selectedLanguage} 
@@ -78,9 +78,9 @@ const EditorPanel = ({
           }
         />
       </div>
-      <div className="flex justify-end mt-4">
+      <div className="flex justify-end">
         <Button 
-          className="gap-2"
+          className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-primary/20"
           disabled={isAnalyzing}
           onClick={onAnalyzeCode}
         >
