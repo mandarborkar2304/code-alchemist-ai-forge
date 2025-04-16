@@ -18,6 +18,32 @@ interface CodeEditorProps {
 }
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ code, language, onChange, webContent }) => {
+  // Generate default placeholder instructions based on language
+  const getDefaultInstructions = () => {
+    const langId = language.id;
+    
+    if (langId === "python" || langId === "python3") {
+      return "# Start by importing necessary modules\n# Use proper indentation for blocks\n\n";
+    } else if (langId === "pythonml" || langId === "pytorch" || langId === "tensorflow") {
+      return "# Import data science libraries (numpy, pandas, etc.)\n# Initialize models with appropriate parameters\n\n";
+    } else if (langId === "java" || langId === "java19") {
+      return "// Define a class with proper access modifiers\n// Include a main method to run your program\n\n";
+    } else if (langId === "javascript" || langId === "nodejs") {
+      return "// Initialize variables with const or let\n// Use modern ES6+ syntax when possible\n\n";
+    } else if (langId === "c" || langId === "cpp" || langId === "csharp") {
+      return "// Include necessary header files\n// Remember to free allocated memory\n\n";
+    } else if (langId === "go") {
+      return "// Import required packages\n// Define proper error handling\n\n";
+    } else if (langId === "shell" || langId === "bash") {
+      return "#!/bin/bash\n# Use proper file permissions\n# Handle command errors with proper exit codes\n\n";
+    } else {
+      return "// Write your code here\n// Follow best practices for this language\n\n";
+    }
+  };
+
+  // Use instructions if code is empty
+  const displayedCode = code.trim() === "" ? getDefaultInstructions() : code;
+
   if (language.id === "web" && webContent) {
     return (
       <WebCodeEditor 
@@ -51,7 +77,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, language, onChange, webCo
       <div className="relative h-[calc(100%-2.5rem)]">
         <textarea
           className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin"
-          value={code}
+          value={displayedCode}
           onChange={(e) => onChange(e.target.value)}
           spellCheck={false}
         />
@@ -77,6 +103,11 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
   onChangeCss,
   onChangeJs,
 }) => {
+  // Default instructions for web languages
+  const htmlInstructions = html.trim() === "" ? "<!-- Structure your page with semantic HTML -->\n<!-- Use proper indentation for nested elements -->\n\n" : html;
+  const cssInstructions = css.trim() === "" ? "/* Use responsive units (rem, %, etc.) */\n/* Group related styles together */\n\n" : css;
+  const jsInstructions = js.trim() === "" ? "// Initialize variables at the top\n// Add event listeners after DOM is loaded\n\n" : js;
+
   return (
     <div className="relative w-full h-full rounded-md bg-code overflow-hidden border border-border">
       <div className="flex flex-col h-full">
@@ -101,7 +132,7 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
           <div className="h-[calc(100%-2.5rem)] overflow-auto">
             <textarea
               className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin"
-              value={html}
+              value={htmlInstructions}
               onChange={(e) => onChangeHtml(e.target.value)}
               spellCheck={false}
             />
@@ -129,7 +160,7 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
           <div className="h-[calc(100%-2.5rem)] overflow-auto">
             <textarea
               className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin"
-              value={css}
+              value={cssInstructions}
               onChange={(e) => onChangeCss(e.target.value)}
               spellCheck={false}
             />
@@ -157,7 +188,7 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
           <div className="h-[calc(100%-2.5rem)] overflow-auto">
             <textarea
               className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin"
-              value={js}
+              value={jsInstructions}
               onChange={(e) => onChangeJs(e.target.value)}
               spellCheck={false}
             />

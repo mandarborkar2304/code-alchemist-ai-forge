@@ -81,8 +81,8 @@ const Editor = () => {
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Header />
       
-      <main className="flex-1 container mx-auto px-4 py-6">
-        <ResizablePanelGroup direction="horizontal" className="h-[calc(100vh-8rem)]">
+      <main className="flex-1 container mx-auto px-4 py-2">
+        <ResizablePanelGroup direction="horizontal" className="h-[calc(100vh-5rem)]">
           <ResizablePanel defaultSize={50} minSize={30}>
             <EditorPanel
               code={code}
