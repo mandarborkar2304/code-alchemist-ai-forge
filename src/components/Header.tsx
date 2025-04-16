@@ -1,29 +1,55 @@
 
-import { CodeSquare } from "lucide-react";
-import LanguageVersions from "@/components/LanguageVersions";
 import { Button } from "@/components/ui/button";
-import { PlusCircle } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { BrainCircuit } from "lucide-react";
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+  navigationMenuTriggerStyle,
+} from "@/components/ui/navigation-menu";
 
 const Header = () => {
+  const location = useLocation();
+  const isHomePage = location.pathname === "/";
+  const isEditorPage = location.pathname === "/editor";
+
   return (
-    <header className="border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-10">
-      <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <CodeSquare className="h-7 w-7 text-primary animate-pulse-glow" />
-          <h1 className="text-xl font-bold tracking-tight">
-            <span className="text-gradient-primary">Code</span>Alchemist
-          </h1>
-          <p className="text-sm text-muted-foreground ml-4">by Mandar Borkar</p>
-        </div>
+    <header className="border-b border-border/40 backdrop-blur-sm bg-background/90 sticky top-0 z-50">
+      <div className="container mx-auto flex items-center justify-between h-16 px-4">
+        <Link to="/" className="flex items-center gap-2">
+          <BrainCircuit className="h-6 w-6 text-primary" />
+          <span className="font-bold text-lg">CodeAlchemist</span>
+        </Link>
+
+        <NavigationMenu>
+          <NavigationMenuList>
+            <NavigationMenuItem>
+              <Link to="/">
+                <NavigationMenuLink className={navigationMenuTriggerStyle()} active={isHomePage}>
+                  Home
+                </NavigationMenuLink>
+              </Link>
+            </NavigationMenuItem>
+            <NavigationMenuItem>
+              <Link to="/editor">
+                <NavigationMenuLink className={navigationMenuTriggerStyle()} active={isEditorPage}>
+                  Code Editor
+                </NavigationMenuLink>
+              </Link>
+            </NavigationMenuItem>
+          </NavigationMenuList>
+        </NavigationMenu>
+
         <div className="flex items-center gap-4">
-          <LanguageVersions />
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="text-xs border-primary/20 hover:border-primary/50 bg-background"
-          >
-            <PlusCircle className="h-3.5 w-3.5 mr-1.5" />
-            New Project
+          <Button variant="outline" size="sm">
+            Sign In
+          </Button>
+          <Button size="sm">
+            Sign Up
           </Button>
         </div>
       </div>
