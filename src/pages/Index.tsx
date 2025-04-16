@@ -6,11 +6,12 @@ import { programmingLanguages } from "@/data/languages";
 import { useToast } from "@/hooks/use-toast";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 
-// Import the new components
+// Import the components
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import EditorPanel from "@/components/EditorPanel";
 import AnalysisPanel from "@/components/AnalysisPanel";
+import HeroSection from "@/components/HeroSection";
 
 const Index = () => {
   const [code, setCode] = useState<string>("");
@@ -81,8 +82,10 @@ const Index = () => {
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Header />
       
+      <HeroSection />
+      
       <main className="flex-1 container mx-auto px-4 py-6">
-        <ResizablePanelGroup direction="horizontal" className="h-[calc(100vh-8rem)]">
+        <ResizablePanelGroup direction="horizontal" className="h-[calc(100vh-24rem)]">
           <ResizablePanel defaultSize={50} minSize={30}>
             <EditorPanel
               code={code}
