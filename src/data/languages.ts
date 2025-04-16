@@ -10,7 +10,7 @@ export const programmingLanguages: ProgrammingLanguage[] = [
   { id: "go", name: "Go", fileExtension: ".go" },
   { id: "python", name: "Python", fileExtension: ".py" },
   { id: "python3", name: "Python 3", fileExtension: ".py" },
-  { id: "pythonml", name: "Python with ML Libraries", fileExtension: ".py" },
+  { id: "pythonml", name: "Python for Data Science", fileExtension: ".py" },
   { id: "java", name: "Java", fileExtension: ".java" },
   { id: "java19", name: "Java 19", fileExtension: ".java" },
   { id: "kotlin", name: "Kotlin", fileExtension: ".kt" },
@@ -20,5 +20,8 @@ export const programmingLanguages: ProgrammingLanguage[] = [
   { id: "perl", name: "Perl", fileExtension: ".pl" },
   { id: "php", name: "PHP", fileExtension: ".php" },
   { id: "r", name: "R", fileExtension: ".r" },
+  { id: "shell", name: "Shell Script", fileExtension: ".sh" },
+  { id: "pytorch", name: "PyTorch", fileExtension: ".py" },
+  { id: "tensorflow", name: "TensorFlow", fileExtension: ".py" },
   { id: "web", name: "HTML/CSS/JS", fileExtension: ".html" },
 ];

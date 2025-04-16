@@ -40,7 +40,7 @@ const Index = () => {
                 </div>
                 <h3 className="text-xl font-semibold mb-2">Multi-Language Support</h3>
                 <p className="text-muted-foreground">
-                  With support for over 50 programming languages, you can analyze and improve code in Python, JavaScript, Java, C++, and many more.
+                  With support for 20+ programming languages, including Python for Data Science with PyTorch and TensorFlow libraries, Java, JavaScript, C++, and more.
                 </p>
               </div>
               
