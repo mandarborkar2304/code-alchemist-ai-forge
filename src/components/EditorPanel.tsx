@@ -43,8 +43,8 @@ const EditorPanel = ({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex flex-col space-y-2">
-        <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center space-x-4">
           <h2 className="text-lg font-semibold flex items-center">
             <Code className="h-5 w-5 mr-2 text-primary" />
             Code Editor
@@ -57,28 +57,6 @@ const EditorPanel = ({
             />
           </div>
         </div>
-        <Separator className="bg-border" />
-      </div>
-      <div className="flex-1 min-h-0 mt-4">
-        <CodeEditor 
-          code={code} 
-          language={selectedLanguage} 
-          onChange={setCode}
-          webContent={
-            selectedLanguage.id === "web" 
-              ? {
-                  html: htmlCode,
-                  css: cssCode,
-                  js: jsCode,
-                  onChangeHtml: setHtmlCode,
-                  onChangeCss: setCssCode,
-                  onChangeJs: setJsCode,
-                } 
-              : undefined
-          }
-        />
-      </div>
-      <div className="flex justify-end mt-4">
         <Button 
           className="gap-2"
           disabled={isAnalyzing}
@@ -96,6 +74,26 @@ const EditorPanel = ({
             </>
           )}
         </Button>
+      </div>
+      <Separator className="bg-border mb-4" />
+      <div className="flex-1 min-h-0">
+        <CodeEditor 
+          code={code} 
+          language={selectedLanguage} 
+          onChange={setCode}
+          webContent={
+            selectedLanguage.id === "web" 
+              ? {
+                  html: htmlCode,
+                  css: cssCode,
+                  js: jsCode,
+                  onChangeHtml: setHtmlCode,
+                  onChangeCss: setCssCode,
+                  onChangeJs: setJsCode,
+                } 
+              : undefined
+          }
+        />
       </div>
     </div>
   );
