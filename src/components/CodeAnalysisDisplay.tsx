@@ -1,4 +1,3 @@
-
 import { CodeAnalysis } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -68,7 +67,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
               <TabsTrigger value="feedback">AI Feedback</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="metrics" className="space-y-4 animate-fade-in">
+            <TabsContent value="metrics" className="space-y-4 min-h-[400px] animate-fade-in">
               <div className="space-y-4">
                 <div className="grid gap-4">
                   <Card>
@@ -143,22 +142,22 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
               </div>
             </TabsContent>
 
-            <TabsContent value="tests">
+            <TabsContent value="tests" className="min-h-[400px]">
               <TestCaseDisplay testCases={analysis.testCases} />
             </TabsContent>
 
-            <TabsContent value="feedback" className="space-y-4">
+            <TabsContent value="feedback" className="space-y-4 min-h-[400px]">
               <div className="space-y-3">
-                <h3 className="text-sm font-medium">AI Suggestions</h3>
-                <div className="p-3 rounded-md bg-muted border border-border text-sm">
-                  <p className="whitespace-pre-line">{analysis.aiSuggestions}</p>
+                <h3 className="text-sm font-medium">AI Code Review</h3>
+                <div className="p-3 rounded-md bg-muted border border-border text-sm h-[calc(100vh-400px)] overflow-y-auto whitespace-pre-line">
+                  {analysis.aiSuggestions}
                 </div>
               </div>
 
               {analysis.correctedCode && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium">AI Corrected Code</h3>
+                    <h3 className="text-sm font-medium">Improved Code</h3>
                     <Button
                       variant="outline"
                       size="sm"
