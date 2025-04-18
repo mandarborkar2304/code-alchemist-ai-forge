@@ -6,20 +6,23 @@ export interface TestCase {
   passed?: boolean;
 }
 
+export interface CodeQualityRating {
+  score: 'A' | 'B' | 'C' | 'D';
+  description: string;
+}
+
+export interface CodeViolations {
+  major: number;
+  minor: number;
+  details: string[];
+}
+
 export interface CodeAnalysis {
-  feasibility: {
-    score: number;
-    issues: string[];
-  };
+  cyclomaticComplexity: CodeQualityRating;
+  maintainability: CodeQualityRating;
+  reliability: CodeQualityRating;
+  violations: CodeViolations;
   testCases: TestCase[];
-  codeQuality: {
-    readability: number;
-    structure: number;
-    naming: number;
-    efficiency: number;
-    overall: number;
-  };
-  robustness: number;
   aiSuggestions: string;
   correctedCode?: string;
 }

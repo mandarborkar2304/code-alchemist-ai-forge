@@ -1,18 +1,27 @@
 
-import { CodeAnalysis } from "@/types";
+import { CodeAnalysis, CodeQualityRating } from "@/types";
+
+const getRating = (value: number): CodeQualityRating => {
+  if (value >= 90) {
+    return { score: 'A', description: 'Good' };
+  } else if (value >= 70) {
+    return { score: 'B', description: 'Medium' };
+  } else if (value >= 50) {
+    return { score: 'C', description: 'High' };
+  } else {
+    return { score: 'D', description: 'Extreme' };
+  }
+};
 
 export const generateMockAnalysis = (code: string, language: string): CodeAnalysis => {
   // This is a mock implementation that would be replaced with actual AI analysis
   const hasErrors = code.length < 50; // Simplified check for demo purposes
   
-  // Generate random scores for demonstration
-  const getRandomScore = (min = 60, max = 95) => Math.floor(Math.random() * (max - min + 1)) + min;
+  // Generate mock ratings based on code characteristics
+  const cyclomaticScore = hasErrors ? 45 : 85;
+  const maintainabilityScore = hasErrors ? 55 : 75;
+  const reliabilityScore = hasErrors ? 40 : 95;
   
-  // Mock issues based on code length
-  const issues = hasErrors 
-    ? ["Input/output format does not match requirements", "Missing proper error handling"] 
-    : [];
-    
   // Create mock test cases
   const testCases = [
     {
@@ -34,68 +43,53 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
       passed: !hasErrors,
     },
   ];
-  
-  // Base score modifier on code length (for demo)
-  const lengthModifier = Math.min(100, Math.max(40, code.length / 5));
-  
-  const readability = getRandomScore(hasErrors ? 40 : 65, hasErrors ? 65 : 95);
-  const structure = getRandomScore(hasErrors ? 40 : 60, hasErrors ? 70 : 90);
-  const naming = getRandomScore(hasErrors ? 50 : 70, hasErrors ? 75 : 95);
-  const efficiency = getRandomScore(hasErrors ? 30 : 60, hasErrors ? 70 : 90);
-  
-  const overall = Math.floor((readability + structure + naming + efficiency) / 4);
-  const robustness = getRandomScore(hasErrors ? 30 : 60, hasErrors ? 65 : 95);
-  
-  const aiSuggestions = hasErrors
-    ? "Your code has some issues:\n\n1. The input parsing doesn't handle the first line that indicates the number of elements.\n2. There's no error handling for invalid inputs.\n3. Consider adding comments to explain your logic.\n4. The variable names could be more descriptive."
-    : "Your code looks good overall! Some suggestions for improvement:\n\n1. Consider adding more comments to explain complex logic.\n2. You could optimize the time complexity by using a more efficient algorithm.\n3. Add more robust error handling for edge cases.";
-  
-  // Example corrected code with improvements
-  const correctedCode = hasErrors
-    ? `// Improved solution with proper input handling
-function processArray(input) {
-  // Parse input string into lines
-  const lines = input.trim().split('\\n');
-  // Get number of elements from first line
-  const n = parseInt(lines[0], 10);
-  // Parse the array from second line
-  const arr = lines[1].split(' ').map(Number);
-  
-  // Validate input
-  if (arr.length !== n) {
-    throw new Error('Input format error: array length does not match n');
-  }
-  
-  // Calculate the sum
-  const sum = arr.reduce((acc, val) => acc + val, 0);
-  
-  return sum.toString();
-}
 
-// Example usage
-try {
-  const result = processArray(input);
-  console.log(result);
-} catch (error) {
-  console.error('Error:', error.message);
-}`
-    : undefined;
-  
+  // Generate mock violations
+  const violations = {
+    major: hasErrors ? 2 : 0,
+    minor: hasErrors ? 3 : 1,
+    details: hasErrors 
+      ? [
+          "Major: Potential null pointer dereference",
+          "Major: Memory leak detected",
+          "Minor: Variable naming convention violation",
+          "Minor: Missing function documentation",
+          "Minor: Unused import statement"
+        ]
+      : [
+          "Minor: Consider adding more inline documentation"
+        ]
+  };
+
+  const aiSuggestions = hasErrors
+    ? "Critical issues found:\n\n1. High cyclomatic complexity in main function\n2. Poor maintainability due to lack of modularization\n3. Reliability issues with error handling\n4. Multiple major violations need immediate attention"
+    : "Minor improvements suggested:\n\n1. Consider adding more inline documentation\n2. Some functions could be modularized better\n3. Consider implementing more error handling";
+
   return {
-    feasibility: {
-      score: getRandomScore(hasErrors ? 40 : 75, hasErrors ? 70 : 98),
-      issues,
-    },
+    cyclomaticComplexity: getRating(cyclomaticScore),
+    maintainability: getRating(maintainabilityScore),
+    reliability: getRating(reliabilityScore),
+    violations,
     testCases,
-    codeQuality: {
-      readability,
-      structure,
-      naming,
-      efficiency,
-      overall,
-    },
-    robustness,
     aiSuggestions,
-    correctedCode,
+    correctedCode: hasErrors 
+      ? `// Improved solution with better structure and error handling
+function processArray(input) {
+  try {
+    const lines = input.trim().split('\\n');
+    const n = parseInt(lines[0], 10);
+    const arr = lines[1].split(' ').map(Number);
+    
+    if (arr.length !== n) {
+      throw new Error('Input format error');
+    }
+    
+    return arr.reduce((sum, val) => sum + val, 0).toString();
+  } catch (error) {
+    console.error('Error:', error.message);
+    return 'Error: Invalid input format';
+  }
+}`
+      : undefined
   };
 };
