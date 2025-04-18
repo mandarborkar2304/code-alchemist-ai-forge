@@ -9,6 +9,7 @@ export interface TestCase {
 export interface CodeQualityRating {
   score: 'A' | 'B' | 'C' | 'D';
   description: string;
+  reason?: string;
 }
 
 export interface CodeViolations {

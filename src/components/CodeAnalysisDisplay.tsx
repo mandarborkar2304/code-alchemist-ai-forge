@@ -1,11 +1,13 @@
+
 import { CodeAnalysis } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TestCaseDisplay from "./TestCaseDisplay";
-import { AlertTriangle, CheckCircle, Code, AlertOctagon, AlertCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle, Code, AlertOctagon, AlertCircle, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface CodeAnalysisDisplayProps {
   analysis: CodeAnalysis | null;
@@ -73,13 +75,26 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                   <Card>
                     <CardHeader className="p-4">
                       <div className="flex justify-between items-center">
-                        <CardTitle className="text-sm">Cyclomatic Complexity</CardTitle>
+                        <CardTitle className="text-sm flex items-center">
+                          Cyclomatic Complexity
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-4 w-4 ml-1 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs">Source code complexity that correlates to number of coding errors</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </CardTitle>
                         <Badge className={getRatingColor(analysis.cyclomaticComplexity.score)}>
                           {analysis.cyclomaticComplexity.score}
                         </Badge>
                       </div>
-                      <CardDescription className="text-xs">
-                        Source code complexity correlation to coding errors
+                      <CardDescription className="text-xs flex flex-col">
+                        <span className="font-semibold mt-1">Rating: {analysis.cyclomaticComplexity.description}</span>
+                        <span className="mt-1">{analysis.cyclomaticComplexity.reason}</span>
                       </CardDescription>
                     </CardHeader>
                   </Card>
@@ -87,13 +102,26 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                   <Card>
                     <CardHeader className="p-4">
                       <div className="flex justify-between items-center">
-                        <CardTitle className="text-sm">Maintainability</CardTitle>
+                        <CardTitle className="text-sm flex items-center">
+                          Maintainability
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-4 w-4 ml-1 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs">The ability to update and modify the code under test</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </CardTitle>
                         <Badge className={getRatingColor(analysis.maintainability.score)}>
                           {analysis.maintainability.score}
                         </Badge>
                       </div>
-                      <CardDescription className="text-xs">
-                        Code update and modification capability
+                      <CardDescription className="text-xs flex flex-col">
+                        <span className="font-semibold mt-1">Rating: {analysis.maintainability.description}</span>
+                        <span className="mt-1">{analysis.maintainability.reason}</span>
                       </CardDescription>
                     </CardHeader>
                   </Card>
@@ -101,13 +129,26 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                   <Card>
                     <CardHeader className="p-4">
                       <div className="flex justify-between items-center">
-                        <CardTitle className="text-sm">Reliability</CardTitle>
+                        <CardTitle className="text-sm flex items-center">
+                          Reliability
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-4 w-4 ml-1 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs">The ability to perform consistently as per specifications and uncover bugs/issues</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </CardTitle>
                         <Badge className={getRatingColor(analysis.reliability.score)}>
                           {analysis.reliability.score}
                         </Badge>
                       </div>
-                      <CardDescription className="text-xs">
-                        Consistency and bug-free performance
+                      <CardDescription className="text-xs flex flex-col">
+                        <span className="font-semibold mt-1">Rating: {analysis.reliability.description}</span>
+                        <span className="mt-1">{analysis.reliability.reason}</span>
                       </CardDescription>
                     </CardHeader>
                   </Card>
@@ -149,7 +190,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
             <TabsContent value="feedback" className="space-y-4 min-h-[400px]">
               <div className="space-y-3">
                 <h3 className="text-sm font-medium">AI Code Review</h3>
-                <div className="p-3 rounded-md bg-muted border border-border text-sm h-[calc(100vh-400px)] overflow-y-auto whitespace-pre-line">
+                <div className="p-3 rounded-md bg-muted border border-border text-sm h-[calc(100vh-400px)] overflow-y-auto whitespace-pre-line markdown">
                   {analysis.aiSuggestions}
                 </div>
               </div>
