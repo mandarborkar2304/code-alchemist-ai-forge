@@ -4,18 +4,22 @@ export interface TestCase {
   expectedOutput: string;
   actualOutput?: string;
   passed?: boolean;
+  executionDetails?: string; // Detailed execution information
 }
 
 export interface CodeQualityRating {
   score: 'A' | 'B' | 'C' | 'D';
   description: string;
   reason?: string;
+  issues?: string[]; // Specific issues found
+  improvements?: string[]; // Suggested improvements
 }
 
 export interface CodeViolations {
   major: number;
   minor: number;
   details: string[];
+  lineReferences?: {line: number, issue: string}[]; // References to specific lines
 }
 
 export interface CodeAnalysis {
@@ -26,6 +30,12 @@ export interface CodeAnalysis {
   testCases: TestCase[];
   aiSuggestions: string;
   correctedCode?: string;
+  metrics?: {
+    linesOfCode: number;
+    commentPercentage: number;
+    functionCount: number;
+    averageFunctionLength: number;
+  };
 }
 
 export interface ProgrammingLanguage {
