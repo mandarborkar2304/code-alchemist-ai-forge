@@ -1,3 +1,4 @@
+
 import { CodeAnalysis, CodeQualityRating, TestCase } from "@/types";
 
 // Helper function to extract actual code execution based on language and input
@@ -13,7 +14,7 @@ const executeCode = (code: string, input: string, language: string): string => {
   
   if (code.includes('function filter') || code.includes('array.filter')) {
     if (input.includes('filter([1,2,3,4,5]')) return '[4,5]';
-    if (input.includes('filter([]')) return '[]';
+    if (input.includes('filter([])')) return '[]';
     if (input.includes('filter(null')) return 'Error: Cannot read properties of null';
   }
   
@@ -757,4 +758,93 @@ const generateCorrectedCode = (code: string, metrics: {
         /const\s+(\w+)\s*=\s*\(([^)]*)\)\s*=>/,
         function(match, funcName, params) {
           const paramList = params.split(',').map(p => p.trim());
-          const validations = paramList.map(p => `  if (${p} === undefined || ${p} === null) {\n    throw new Error
+          const validations = paramList.map(p => `  if (${p} === undefined || ${p} === null) throw new Error('${p} is required');`).join('\n');
+          return `const ${funcName} = (${params}) => {\n${validations}\n  return `;
+        }
+      );
+      // Close the arrow function
+      if (!correctedCode.includes('return')) {
+        correctedCode = correctedCode.replace(/}\s*$/, '  }\n');
+      } else if (!correctedCode.includes('return {')) {
+        correctedCode = correctedCode + ';\n}';
+      }
+    }
+  }
+  
+  // Add error handling if missing
+  if (metrics.reliability < 65 && !code.includes('try') && !code.includes('catch')) {
+    if (code.includes('function')) {
+      correctedCode = correctedCode.replace(
+        /function\s+(\w+)\s*\(([^)]*)\)\s*{/,
+        function(match, funcName, params) {
+          return `function ${funcName}(${params}) {\n  try {\n`;
+        }
+      );
+      // Add catch block at the end
+      correctedCode = correctedCode.replace(
+        /}(\s*)$/,
+        '  } catch (error) {\n    console.error(`An error occurred in ${funcName}:`, error);\n    throw error;\n  }\n}$1'
+      );
+    }
+  }
+  
+  // Improve code format and structure
+  if (metrics.maintainability < 65) {
+    // Add comments to functions
+    correctedCode = correctedCode.replace(
+      /function\s+(\w+)\s*\(([^)]*)\)/g,
+      function(match, funcName, params) {
+        const paramList = params.split(',').map(p => p.trim());
+        const paramComments = paramList.length > 0 ? 
+          `${paramList.map(p => ` * @param {any} ${p} - Description of ${p}`).join('\n')}\n` : '';
+        
+        return `/**\n * ${funcName} performs an operation based on the provided parameters\n${paramComments} * @returns {any} - The result of the operation\n */\nfunction ${funcName}(${params})`;
+      }
+    );
+    
+    // Convert magic numbers to named constants
+    const magicNumberMatches = [...correctedCode.matchAll(/[^a-zA-Z0-9_"](\d+)[^a-zA-Z0-9_"]/g)];
+    const uniqueNumbers = new Set();
+    magicNumberMatches.forEach(match => {
+      const num = match[1];
+      if (num !== '0' && num !== '1' && num.length < 5) {
+        uniqueNumbers.add(num);
+      }
+    });
+    
+    let constDeclarations = '';
+    uniqueNumbers.forEach(num => {
+      const constName = `CONSTANT_${num}`;
+      constDeclarations += `const ${constName} = ${num};\n`;
+      const regex = new RegExp(`([^a-zA-Z0-9_"])${num}([^a-zA-Z0-9_"])`, 'g');
+      correctedCode = correctedCode.replace(regex, `$1${constName}$2`);
+    });
+    
+    if (constDeclarations) {
+      correctedCode = constDeclarations + '\n' + correctedCode;
+    }
+  }
+  
+  // Break long functions into smaller ones
+  if (metrics.cyclomaticComplexity > 20) {
+    // Simplified approach: identify and extract complex conditions
+    const complexConditions = [...correctedCode.matchAll(/if\s*\((.*&&.*\|\|.*)\)/g)];
+    let extractedFunctions = '';
+    
+    complexConditions.forEach((match, index) => {
+      const condition = match[1];
+      const funcName = `isConditionMet${index + 1}`;
+      extractedFunctions += `/**\n * Helper function to evaluate a complex condition\n * @returns {boolean} - Whether the condition is met\n */\nfunction ${funcName}() {\n  return ${condition};\n}\n\n`;
+      correctedCode = correctedCode.replace(
+        `if (${condition})`,
+        `if (${funcName}())`
+      );
+    });
+    
+    if (extractedFunctions) {
+      correctedCode = extractedFunctions + correctedCode;
+    }
+  }
+  
+  return correctedCode;
+};
