@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import CodeEditor from "@/components/CodeEditor";
 import { LanguageSelector } from "@/components/LanguageSelector";
@@ -7,6 +7,8 @@ import { ProgrammingLanguage } from "@/types";
 import { Code, Brain } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { programmingLanguages } from "@/data/languages";
+import { detectCodeLanguage } from "@/utils/codeExecution";
+import { useToast } from "@/hooks/use-toast";
 
 interface EditorPanelProps {
   code: string;
@@ -37,8 +39,40 @@ const EditorPanel = ({
   jsCode,
   setJsCode,
 }: EditorPanelProps) => {
+  const { toast } = useToast();
+  const [hasLanguageMismatch, setHasLanguageMismatch] = useState(false);
+
+  useEffect(() => {
+    if (code.trim() && selectedLanguage.id !== 'web') {
+      const detectedLang = detectCodeLanguage(code);
+      if (detectedLang && detectedLang !== selectedLanguage.id) {
+        setHasLanguageMismatch(true);
+        toast({
+          title: "Language Mismatch Detected",
+          description: `Selected compiler is ${selectedLanguage.name}, but code appears to be ${detectedLang}. Please verify your input.`,
+          variant: "destructive",
+        });
+      } else {
+        setHasLanguageMismatch(false);
+      }
+    }
+  }, [code, selectedLanguage]);
+
+  const handleAnalyzeClick = () => {
+    if (hasLanguageMismatch) {
+      toast({
+        title: "Cannot Analyze Code",
+        description: "Please resolve the language mismatch before analyzing.",
+        variant: "destructive",
+      });
+      return;
+    }
+    onAnalyzeCode();
+  };
+
   const handleLanguageChange = (language: ProgrammingLanguage) => {
     setSelectedLanguage(language);
+    setHasLanguageMismatch(false);
   };
 
   return (
@@ -50,8 +84,8 @@ const EditorPanel = ({
             Code Editor
           </h2>
         </div>
-        <div className="flex items-center space-x-3">
-          <div className="w-48">
+        <div className="flex items-center gap-2">
+          <div className="w-36">
             <LanguageSelector 
               languages={programmingLanguages} 
               selected={selectedLanguage} 
@@ -59,26 +93,28 @@ const EditorPanel = ({
             />
           </div>
           <Button 
-            className="gap-2"
-            disabled={isAnalyzing}
-            onClick={onAnalyzeCode}
+            variant="default"
+            size="sm"
+            className="gap-1 h-8"
+            disabled={isAnalyzing || hasLanguageMismatch}
+            onClick={handleAnalyzeClick}
           >
             {isAnalyzing ? (
               <>
-                <span className="animate-spin h-4 w-4 border-2 border-t-transparent border-r-transparent rounded-full"></span>
-                Analyzing...
+                <span className="animate-spin h-3 w-3 border-2 border-t-transparent border-r-transparent rounded-full"></span>
+                Analyzing
               </>
             ) : (
               <>
-                <Brain className="h-4 w-4" />
-                Analyze Code
+                <Brain className="h-3 w-3" />
+                Analyze
               </>
             )}
           </Button>
         </div>
       </div>
       <Separator className="bg-border mb-4" />
-      <div className="flex-1 min-h-0 h-[calc(100vh-12rem)]">
+      <div className="flex-1 min-h-0 h-[calc(100vh-8rem)]">
         <CodeEditor 
           code={code} 
           language={selectedLanguage} 
@@ -102,3 +138,4 @@ const EditorPanel = ({
 };
 
 export default EditorPanel;
+
