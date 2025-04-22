@@ -1,8 +1,7 @@
 
 import { CodeAnalysis } from "@/types";
 import CodeAnalysisDisplay from "@/components/CodeAnalysisDisplay";
-import { Brain, Play } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Brain } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface AnalysisPanelProps {
@@ -17,12 +16,8 @@ const AnalysisPanel = ({ analysis, onApplyCorrection }: AnalysisPanelProps) => {
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold flex items-center">
             <Brain className="h-5 w-5 mr-2 text-primary" />
-            AI Analysis
+            Static Analysis
           </h2>
-          <Button variant="outline" size="sm" className="text-xs">
-            <Play className="h-3.5 w-3.5 mr-1.5" />
-            Run Tests
-          </Button>
         </div>
         <Separator className="bg-border" />
       </div>

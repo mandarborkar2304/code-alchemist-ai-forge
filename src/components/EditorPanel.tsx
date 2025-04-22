@@ -2,11 +2,9 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import CodeEditor from "@/components/CodeEditor";
-import { LanguageSelector } from "@/components/LanguageSelector";
 import { ProgrammingLanguage } from "@/types";
 import { Code, Brain } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { programmingLanguages } from "@/data/languages";
 import { detectCodeLanguage } from "@/utils/codeExecution";
 import { useToast } from "@/hooks/use-toast";
 
@@ -70,11 +68,6 @@ const EditorPanel = ({
     onAnalyzeCode();
   };
 
-  const handleLanguageChange = (language: ProgrammingLanguage) => {
-    setSelectedLanguage(language);
-    setHasLanguageMismatch(false);
-  };
-
   return (
     <div className="flex flex-col h-full">
       <div className="flex justify-between items-center mb-4">
@@ -85,13 +78,6 @@ const EditorPanel = ({
           </h2>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-36">
-            <LanguageSelector 
-              languages={programmingLanguages} 
-              selected={selectedLanguage} 
-              onSelect={handleLanguageChange} 
-            />
-          </div>
           <Button 
             variant="default"
             size="sm"
@@ -138,4 +124,3 @@ const EditorPanel = ({
 };
 
 export default EditorPanel;
-

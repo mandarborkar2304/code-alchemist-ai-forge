@@ -6,13 +6,21 @@ export const getRatingFromScore = (score: number, metricType: 'cyclomaticComplex
   // Adjust scoring criteria based on metric type
   if (metricType === 'cyclomaticComplexity') {
     // For cyclomatic complexity, lower is better
-    if (score <= 10) {
+    if (score <= 5) {
       return { 
         score: 'A', 
         description: 'Low complexity', 
         reason: 'The code has a straightforward control flow with minimal decision points.',
         issues: [],
         improvements: ['Code maintains an excellent level of simplicity']
+      };
+    } else if (score <= 10) {
+      return { 
+        score: 'A', 
+        description: 'Low complexity', 
+        reason: 'The code has a straightforward flow that is easy to follow and maintain.',
+        issues: [],
+        improvements: ['Code maintains a good level of simplicity']
       };
     } else if (score <= 20) {
       return { 

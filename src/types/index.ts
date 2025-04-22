@@ -1,12 +1,4 @@
 
-export interface TestCase {
-  input: string;
-  expectedOutput: string;
-  actualOutput?: string;
-  passed?: boolean;
-  executionDetails?: string; // Detailed execution information
-}
-
 export interface CodeQualityRating {
   score: 'A' | 'B' | 'C' | 'D';
   description: string;
@@ -27,8 +19,6 @@ export interface CodeAnalysis {
   maintainability: CodeQualityRating;
   reliability: CodeQualityRating;
   violations: CodeViolations;
-  testCases: TestCase[];
-  aiSuggestions: string;
   correctedCode?: string;
   overallGrade?: 'A' | 'B' | 'C' | 'D'; // Overall code quality grade
   metrics?: {
