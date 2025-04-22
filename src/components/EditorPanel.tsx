@@ -43,12 +43,14 @@ const EditorPanel = ({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex flex-col space-y-2">
-        <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center">
           <h2 className="text-lg font-semibold flex items-center">
             <Code className="h-5 w-5 mr-2 text-primary" />
             Code Editor
           </h2>
+        </div>
+        <div className="flex items-center space-x-3">
           <div className="w-48">
             <LanguageSelector 
               languages={programmingLanguages} 
@@ -56,10 +58,27 @@ const EditorPanel = ({
               onSelect={handleLanguageChange} 
             />
           </div>
+          <Button 
+            className="gap-2"
+            disabled={isAnalyzing}
+            onClick={onAnalyzeCode}
+          >
+            {isAnalyzing ? (
+              <>
+                <span className="animate-spin h-4 w-4 border-2 border-t-transparent border-r-transparent rounded-full"></span>
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <Brain className="h-4 w-4" />
+                Analyze Code
+              </>
+            )}
+          </Button>
         </div>
-        <Separator className="bg-border" />
       </div>
-      <div className="flex-1 min-h-0 mt-4">
+      <Separator className="bg-border mb-4" />
+      <div className="flex-1 min-h-0">
         <CodeEditor 
           code={code} 
           language={selectedLanguage} 
@@ -77,25 +96,6 @@ const EditorPanel = ({
               : undefined
           }
         />
-      </div>
-      <div className="flex justify-end mt-4">
-        <Button 
-          className="gap-2"
-          disabled={isAnalyzing}
-          onClick={onAnalyzeCode}
-        >
-          {isAnalyzing ? (
-            <>
-              <span className="animate-spin h-4 w-4 border-2 border-t-transparent border-r-transparent rounded-full"></span>
-              Analyzing...
-            </>
-          ) : (
-            <>
-              <Brain className="h-4 w-4" />
-              Analyze Code
-            </>
-          )}
-        </Button>
       </div>
     </div>
   );
