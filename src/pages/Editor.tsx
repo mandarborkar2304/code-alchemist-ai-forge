@@ -14,7 +14,7 @@ import AnalysisPanel from "@/components/AnalysisPanel";
 
 const Editor = () => {
   const [code, setCode] = useState<string>("");
-  const [selectedLanguage, setSelectedLanguage] = useState<ProgrammingLanguage>(programmingLanguages[0]); // Default to first language
+  const [selectedLanguage, setSelectedLanguage] = useState<ProgrammingLanguage>(programmingLanguages[5]); // Default to Python
   const [analysis, setAnalysis] = useState<CodeAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
