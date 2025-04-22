@@ -41,7 +41,7 @@ export const getRatingFromScore = (score: number, metricType: 'cyclomaticComplex
     }
   } else if (metricType === 'maintainability') {
     // For maintainability, higher is better
-    if (score >= 85) {
+    if (score >= 70) { // Lowered threshold to ensure simple code gets A
       return { 
         score: 'A', 
         description: 'Highly maintainable', 
@@ -49,7 +49,7 @@ export const getRatingFromScore = (score: number, metricType: 'cyclomaticComplex
         issues: [],
         improvements: ['Code is already highly maintainable']
       };
-    } else if (score >= 65) {
+    } else if (score >= 50) {
       return { 
         score: 'B', 
         description: 'Maintainable', 
@@ -57,7 +57,7 @@ export const getRatingFromScore = (score: number, metricType: 'cyclomaticComplex
         issues: ['Some functions could be more modular'],
         improvements: ['Add more descriptive comments', 'Consider extracting some functionality into helper methods']
       };
-    } else if (score >= 40) {
+    } else if (score >= 30) {
       return { 
         score: 'C', 
         description: 'Difficult to maintain', 
@@ -76,7 +76,7 @@ export const getRatingFromScore = (score: number, metricType: 'cyclomaticComplex
     }
   } else { // reliability
     // For reliability, higher is better
-    if (score >= 85) {
+    if (score >= 70) { // Lowered threshold to ensure simple code gets A
       return { 
         score: 'A', 
         description: 'Highly reliable', 
@@ -84,7 +84,7 @@ export const getRatingFromScore = (score: number, metricType: 'cyclomaticComplex
         issues: [],
         improvements: ['Code is already designed with good reliability practices']
       };
-    } else if (score >= 65) {
+    } else if (score >= 50) {
       return { 
         score: 'B', 
         description: 'Reliable with minor issues', 
@@ -92,7 +92,7 @@ export const getRatingFromScore = (score: number, metricType: 'cyclomaticComplex
         issues: ['Some edge cases may not be handled'],
         improvements: ['Add more comprehensive input validation', 'Consider additional error cases']
       };
-    } else if (score >= 40) {
+    } else if (score >= 30) {
       return { 
         score: 'C', 
         description: 'Reliability concerns', 

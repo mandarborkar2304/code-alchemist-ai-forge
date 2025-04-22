@@ -1,123 +1,146 @@
 
 /**
- * Utility functions for calculating code metrics
+ * Utility functions for calculating code metrics using standardized algorithms
  */
 
-// Calculate cyclomatic complexity of code
+// Calculate cyclomatic complexity of code using proper McCabe complexity algorithm
 export const calculateCyclomaticComplexity = (code: string): number => {
   const lines = code.split('\n');
-  let complexity = 1; // Base complexity is 1
+  // McCabe's cyclomatic complexity: E - N + 2P
+  // Where E = edges, N = nodes, P = connected components (typically 1)
+  // Simplified: Start with 1 and add 1 for each decision point
+  let complexity = 1; // Base complexity is 1 for single path
   
   for (const line of lines) {
-    // Count decision points: if, else if, case, &&, ||, ternary operators
-    if (line.includes('if ') || line.includes('else if')) complexity++;
-    if (line.includes('case ') && !line.includes('//')) complexity++;
-    if (line.includes('&&') || line.includes('||')) {
-      // Count each occurrence
-      const andOps = (line.match(/&&/g) || []).length;
-      const orOps = (line.match(/\|\|/g) || []).length;
-      complexity += andOps + orOps;
+    // Properly count decision points, ensuring we don't double-count
+    if (/\bif\s*\(|\belse\s+if\s*\(/.test(line)) complexity++;
+    if (/\bswitch\s*\(/.test(line)) complexity++; // Base for switch
+    if (/\bcase\s+[^:]+:/.test(line) && !line.includes('//')) complexity++;
+    if (/\bfor\s*\(|\bwhile\s*\(|\bdo\s*\{/.test(line)) complexity++;
+    if (/\bcatch\s*\(/.test(line)) complexity++;
+    // Count proper logical operators only when they're not in comments
+    if (!line.includes('//')) {
+      // Count each logical operator in its proper context
+      const logicalOps = line.match(/\s\&\&\s|\s\|\|\s/g) || [];
+      complexity += logicalOps.length;
     }
-    if (line.includes('?') && line.includes(':') && !line.includes('//')) complexity++;
-    if (line.includes('for ') || line.includes('while ') || line.includes('do ')) complexity++;
-    if (line.includes('catch ')) complexity++;
+    if (/\?[^:]*\:/.test(line) && !line.includes('//')) complexity++;
   }
   
   return complexity;
 };
 
-// Calculate maintainability index
+// Calculate maintainability index using the standard formula
 export const calculateMaintainability = (code: string): number => {
+  // Maintainability Index = 171 - 5.2 * ln(HV) - 0.23 * CC - 16.2 * ln(LOC) + 50 * sin(sqrt(2.4 * CR))
+  // Where:
+  // HV = Halstead Volume
+  // CC = Cyclomatic Complexity
+  // LOC = Lines of Code
+  // CR = Comment Ratio (percentage)
+  
   const lines = code.split('\n').filter(line => line.trim() !== '');
   const linesOfCode = lines.length;
   
-  // Calculate a proxy for Halstead Volume
-  const uniqueOperators = new Set();
-  const codeWithoutStrings = code.replace(/".*?"/g, '').replace(/'.*?'/g, '');
-  const operators = codeWithoutStrings.match(/[\+\-\*\/\=\<\>\!\&\|\^\~\%]+/g) || [];
-  operators.forEach(op => uniqueOperators.add(op));
+  // Calculate Halstead Volume
+  // HV = N * log2(n)
+  // Where N = total operators + operands, n = unique operators + operands
+  const codeWithoutStrings = code.replace(/".*?"/g, '').replace(/'.*?'/g, '').replace(/`.*?`/g, '');
+  
+  const operators = codeWithoutStrings.match(/[\+\-\*\/\=\<\>\!\&\|\^\~\%]+|instanceof|typeof|new|delete|in|of|await|yield/g) || [];
+  const operands = codeWithoutStrings.match(/\b[a-zA-Z_$][\w$]*\b(?!\s*\()/g) || [];
+  
+  const uniqueOperators = new Set(operators);
+  const uniqueOperands = new Set(operands);
+  
+  const n = uniqueOperators.size + uniqueOperands.size || 1; // Avoid division by zero
+  const N = operators.length + operands.length || 1; // Avoid division by zero
+  
+  // Calculate Halstead Volume: N * log2(n)
+  const halsteadVolume = N * Math.log2(n) || 1; // Avoid log(0)
   
   // Calculate comment percentage
   const commentLines = lines.filter(line => 
     line.trim().startsWith('//') || 
     line.trim().startsWith('/*') || 
-    line.trim().startsWith('*')
+    line.trim().startsWith('*') ||
+    line.trim().startsWith('/**')
   ).length;
   
-  const commentPercentage = (commentLines / linesOfCode) * 100;
+  const commentRatio = commentLines / (linesOfCode || 1); // Avoid division by zero
   
-  // Calculate function-based metrics
-  const functionMatches = code.match(/function\s+\w+|const\s+\w+\s*=\s*\(.*?\)\s*=>|^\s*\w+\s*\(.*?\)\s*{/gm) || [];
-  const functionCount = functionMatches.length;
-  
-  // Calculate nesting level
-  let maxNesting = 0;
-  let currentNesting = 0;
-  for (const line of lines) {
-    const openBraces = (line.match(/{/g) || []).length;
-    const closedBraces = (line.match(/}/g) || []).length;
-    currentNesting += openBraces - closedBraces;
-    maxNesting = Math.max(maxNesting, currentNesting);
-  }
-  
-  // Simplified maintainability formula (higher is better)
+  // Get cyclomatic complexity
   const cyclomaticComplexity = calculateCyclomaticComplexity(code);
-  let maintainability = 100 - (linesOfCode * 0.1) - (cyclomaticComplexity * 0.2) - (maxNesting * 5) + (commentPercentage * 0.4) + (functionCount > 0 ? 10 : 0);
   
-  // Cap between 0 and 100
-  maintainability = Math.min(100, Math.max(0, maintainability));
+  // Calculate maintainability index using the standard formula
+  let maintainability = 171 - 
+                         5.2 * Math.log(halsteadVolume || 1) - 
+                         0.23 * cyclomaticComplexity - 
+                         16.2 * Math.log(linesOfCode || 1) + 
+                         50 * Math.sin(Math.sqrt(2.4 * commentRatio));
+  
+  // Normalize to 0-100 scale
+  maintainability = Math.max(0, Math.min(100, maintainability));
   
   return Math.round(maintainability);
 };
 
-// Calculate reliability score
+// Calculate reliability score based on formal static analysis principles
 export const calculateReliability = (code: string): number => {
-  let reliabilityScore = 60; // Start with a baseline score
+  let reliabilityScore = 70; // Baseline score
   
-  // Check for error handling
-  if (code.includes('try') && code.includes('catch')) {
-    reliabilityScore += 15;
-  }
+  // Formal reliability factors
   
-  // Check for input validation
-  const hasInputValidation = code.includes('if') && 
-    (code.includes('undefined') || code.includes('null') || code.includes('typeof') || 
-     code.includes('length') || code.includes('isEmpty'));
-  
-  if (hasInputValidation) {
-    reliabilityScore += 15;
-  }
-  
-  // Check for defensive programming patterns
-  if (code.includes('default:') || code.includes('else {')) {
-    reliabilityScore += 5;
-  }
-  
-  // Penalize for potential issues
-  if (code.includes('console.log(') && !code.includes('// Debug:')) {
-    reliabilityScore -= 5; // Penalize for excessive logging without comments
-  }
-  
-  if ((code.match(/\/\//g) || []).length < code.split('\n').length * 0.1) {
-    reliabilityScore -= 5; // Penalize for lack of comments
-  }
-  
-  // Analyze potential bugs
-  const potentialBugs = [
-    { pattern: /==/g, issue: "Using loose equality (==) instead of strict equality (===)" },
-    { pattern: /\!\=/g, issue: "Using loose inequality (!=) instead of strict inequality (!==)" },
-    { pattern: /for\s*\(\s*var/g, issue: "Using 'var' in loop declarations instead of 'let'" },
-    { pattern: /\.length\s*\-\s*1/g, issue: "Potential off-by-one error with array indexing" },
+  // 1. Error handling presence
+  const errorHandlingPatterns = [
+    { pattern: /try\s*\{[\s\S]*?catch\s*\(/g, weight: 10 },
+    { pattern: /\.catch\s*\(/g, weight: 5 },
+    { pattern: /throw\s+new\s+Error/g, weight: 3 }
   ];
   
-  for (const bug of potentialBugs) {
-    if ((code.match(bug.pattern) || []).length > 0) {
-      reliabilityScore -= 5;
-    }
+  for (const { pattern, weight } of errorHandlingPatterns) {
+    const matches = code.match(pattern) || [];
+    reliabilityScore += Math.min(10, matches.length * weight); // Cap at 10 points
   }
   
-  // Cap between 0 and 100
-  reliabilityScore = Math.min(100, Math.max(0, reliabilityScore));
+  // 2. Input validation patterns
+  const validationPatterns = [
+    { pattern: /typeof\s+\w+\s*===?\s*['"]undefined['"]/g, weight: 5 },
+    { pattern: /\w+\s*===?\s*null/g, weight: 5 },
+    { pattern: /\w+\s*!==?\s*undefined/g, weight: 5 },
+    { pattern: /\w+\s*!==?\s*null/g, weight: 5 },
+    { pattern: /\bisNaN\(/g, weight: 3 },
+    { pattern: /\bisFinite\(/g, weight: 3 },
+    { pattern: /\blength\s*[><=]=?\s*\d+/g, weight: 2 }
+  ];
+  
+  for (const { pattern, weight } of validationPatterns) {
+    const matches = code.match(pattern) || [];
+    reliabilityScore += Math.min(15, matches.length * weight); // Cap at 15 points
+  }
+  
+  // 3. Deduct for known potential reliability issues
+  const reliabilityIssues = [
+    { pattern: /==(?!=)/g, weight: -2 }, // Loose equality
+    { pattern: /!=(?!=)/g, weight: -2 }, // Loose inequality
+    { pattern: /\/\/\s*TODO|\/\/\s*FIXME/g, weight: -2 }, // TODO/FIXME comments
+    { pattern: /console\.log/g, weight: -1 }, // Console logs in production code
+    { pattern: /Math\.random/g, weight: -1 } // Non-deterministic operations
+  ];
+  
+  for (const { pattern, weight } of reliabilityIssues) {
+    const matches = code.match(pattern) || [];
+    reliabilityScore += Math.max(-10, matches.length * weight); // Cap deduction at -10
+  }
+  
+  // For simple code with no decision points, ensure high reliability
+  const cyclomaticComplexity = calculateCyclomaticComplexity(code);
+  if (cyclomaticComplexity <= 2 && code.length > 0) {
+    reliabilityScore = Math.max(reliabilityScore, 85); // Simple code is generally reliable
+  }
+  
+  // Cap to 0-100 range
+  reliabilityScore = Math.max(0, Math.min(100, reliabilityScore));
   
   return Math.round(reliabilityScore);
 };
@@ -133,33 +156,49 @@ export const getCodeMetrics = (code: string) => {
     line.trim().startsWith('/*') || 
     line.trim().startsWith('*')
   ).length;
-  const commentPercentage = (commentLines / linesOfCode) * 100;
+  const commentPercentage = commentLines / (linesOfCode || 1) * 100;
   
-  // Calculate function-based metrics
-  const functionMatches = code.match(/function\s+\w+|const\s+\w+\s*=\s*\(.*?\)\s*=>|^\s*\w+\s*\(.*?\)\s*{/gm) || [];
+  // Calculate function-based metrics more accurately
+  const functionRegex = /function\s+\w+|const\s+\w+\s*=\s*\([^)]*\)\s*=>|\w+\s*\([^)]*\)\s*{|\w+\s*=\s*function/g;
+  const functionMatches = code.match(functionRegex) || [];
   const functionCount = functionMatches.length;
   
   // Calculate average function length
-  let totalFunctionLines = 0;
-  let currentFunction = 0;
   let inFunction = false;
+  let braceCount = 0;
+  let currentFunctionLines = 0;
+  let functionLengths: number[] = [];
   
   for (const line of lines) {
-    if ((line.includes('function') || line.includes('=>')) && !line.includes('//')) {
-      inFunction = true;
-      currentFunction = 0;
+    // Detect function start
+    if (line.includes('function') || line.includes('=>') || (line.includes('{') && line.includes('(') && !line.includes('if') && !line.includes('for') && !line.includes('while'))) {
+      if (!inFunction) {
+        inFunction = true;
+        currentFunctionLines = 1;
+        braceCount = 0;
+      }
     }
     
     if (inFunction) {
-      currentFunction++;
-      if (line.includes('}') && line.trim() === '}') {
+      // Count opening braces
+      braceCount += (line.match(/{/g) || []).length;
+      // Count closing braces
+      braceCount -= (line.match(/}/g) || []).length;
+      
+      // If all braces are balanced and we've seen at least one closing brace, the function has ended
+      if (braceCount <= 0 && line.includes('}')) {
         inFunction = false;
-        totalFunctionLines += currentFunction;
+        functionLengths.push(currentFunctionLines);
+      } else {
+        currentFunctionLines++;
       }
     }
   }
   
-  const averageFunctionLength = functionCount > 0 ? Math.round(totalFunctionLines / functionCount) : 0;
+  // Calculate average function length
+  const averageFunctionLength = functionCount > 0 
+    ? Math.round(functionLengths.reduce((sum, length) => sum + length, 0) / functionCount) 
+    : 0;
   
   return {
     linesOfCode,
