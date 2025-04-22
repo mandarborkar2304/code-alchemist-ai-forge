@@ -78,7 +78,7 @@ const EditorPanel = ({
         </div>
       </div>
       <Separator className="bg-border mb-4" />
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 h-[calc(100vh-12rem)]">
         <CodeEditor 
           code={code} 
           language={selectedLanguage} 

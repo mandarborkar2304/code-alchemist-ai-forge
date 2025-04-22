@@ -22,6 +22,23 @@ export const executeCode = (code: string, input: string, language: string): stri
     }
   }
   
+  // Handle common web scenarios
+  if (language === 'web') {
+    if (input.includes('querySelector') || input.includes('getElementById')) {
+      return 'Element reference';
+    }
+    if (input.includes('addEventListener')) {
+      return 'Event registered successfully';
+    }
+  }
+  
+  // Handle common patterns
+  if (code.includes('async') || code.includes('await')) {
+    if (input.includes('Promise') || input.includes('fetch')) {
+      return 'Promise resolved with data';
+    }
+  }
+  
   // Default response based on expected patterns
   if (input.includes('sort')) return 'Sorted array';
   if (input.includes('map')) return 'Transformed array';

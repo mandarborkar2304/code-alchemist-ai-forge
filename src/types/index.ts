@@ -30,6 +30,7 @@ export interface CodeAnalysis {
   testCases: TestCase[];
   aiSuggestions: string;
   correctedCode?: string;
+  overallGrade?: 'A' | 'B' | 'C' | 'D'; // Overall code quality grade
   metrics?: {
     linesOfCode: number;
     commentPercentage: number;
