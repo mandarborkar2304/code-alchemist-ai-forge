@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { CodeAnalysis, ProgrammingLanguage } from "@/types";
 import { generateMockAnalysis } from "@/utils/mockAnalysis";
@@ -93,7 +94,10 @@ const Editor = () => {
       <Header />
       
       <main className="flex-1 container mx-auto px-4 py-2">
-        <ResizablePanelGroup direction="horizontal" className="h-[calc(100vh-5rem)]">
+        <ResizablePanelGroup 
+          direction="horizontal" 
+          className="h-[calc(100vh-5rem)] border-none"
+        >
           <ResizablePanel defaultSize={50} minSize={30}>
             <EditorPanel
               code={code}
