@@ -63,7 +63,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           <div className="w-3 h-3 rounded-full bg-code-green"></div>
         </div>
       </div>
-      <div className="relative h-[calc(100%-2.5rem)]">
+      <div className="flex flex-col flex-1 overflow-hidden">
         <textarea value={displayedCode} onChange={e => onChange(e.target.value)} spellCheck={false} className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin rounded-none h-full" />
       </div>
     </div>;
@@ -155,7 +155,8 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
             </div>
           </div>
           <div className="h-[calc(100%-2.5rem)] overflow-auto">
-            <textarea className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin" value={jsInstructions} onChange={e => onChangeJs(e.target.value)} spellCheck={false} />
+            <textarea className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin rounded-none flex-1 w-full h-auto resize-none" value={jsInstructions} onChange={e => onChangeJs(e.target.value)} spellCheck={false} />
+
           </div>
         </div>
       </div>
