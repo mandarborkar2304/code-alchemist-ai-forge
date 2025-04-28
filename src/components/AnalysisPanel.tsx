@@ -12,7 +12,7 @@ const AnalysisPanel = ({
 }: AnalysisPanelProps) => {
   return <div className="flex flex-col h-full">
       <div className="flex flex-col space-y-2">
-        <div className="flex justify-between items-center my-[5px]">
+        <div className="flex justify-between items-center my-[10px]">
           <h2 className="text-lg font-semibold flex items-center">
             <Brain className="h-5 w-5 mr-2 text-primary" />
             Static Analysis
