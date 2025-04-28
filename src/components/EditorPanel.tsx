@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import CodeEditor from "@/components/CodeEditor";
@@ -78,53 +79,53 @@ const EditorPanel = ({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center">
+      <div className="flex flex-col space-y-2">
+        <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold flex items-center">
             <Code className="h-5 w-5 mr-2 text-primary" />
             Code Editor
           </h2>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-36">
-            <LanguageSelector 
-              languages={programmingLanguages} 
-              selected={selectedLanguage} 
-              onSelect={handleLanguageChange} 
-            />
+          <div className="flex items-center gap-2">
+            <div className="w-36">
+              <LanguageSelector 
+                languages={programmingLanguages} 
+                selected={selectedLanguage} 
+                onSelect={handleLanguageChange} 
+              />
+            </div>
+            <Button 
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              onClick={onReset}
+            >
+              <RefreshCw className="h-3 w-3" />
+              Reset
+            </Button>
+            <Button 
+              variant="default"
+              size="sm"
+              className="gap-1"
+              disabled={isAnalyzing || hasLanguageMismatch}
+              onClick={handleAnalyzeClick}
+            >
+              {isAnalyzing ? (
+                <>
+                  <span className="animate-spin h-3 w-3 border-2 border-t-transparent border-r-transparent rounded-full"></span>
+                  Analyzing
+                </>
+              ) : (
+                <>
+                  <Brain className="h-3 w-3" />
+                  Analyze
+                </>
+              )}
+            </Button>
           </div>
-          <Button 
-            variant="outline"
-            size="sm"
-            className="gap-1 h-8"
-            onClick={onReset}
-          >
-            <RefreshCw className="h-3 w-3" />
-            Reset
-          </Button>
-          <Button 
-            variant="default"
-            size="sm"
-            className="gap-1 h-8"
-            disabled={isAnalyzing || hasLanguageMismatch}
-            onClick={handleAnalyzeClick}
-          >
-            {isAnalyzing ? (
-              <>
-                <span className="animate-spin h-3 w-3 border-2 border-t-transparent border-r-transparent rounded-full"></span>
-                Analyzing
-              </>
-            ) : (
-              <>
-                <Brain className="h-3 w-3" />
-                Analyze
-              </>
-            )}
-          </Button>
         </div>
+        <Separator className="bg-border" />
       </div>
-      <Separator className="bg-border mb-4" />
-      <div className="flex-1 min-h-0 h-[calc(100vh-8rem)]">
+      <div className="flex-1 min-h-0 h-[calc(100vh-8rem)] mt-4">
         <CodeEditor 
           code={code} 
           language={selectedLanguage} 
