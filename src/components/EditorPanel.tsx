@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import CodeEditor from "@/components/CodeEditor";
@@ -79,7 +78,7 @@ const EditorPanel = ({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex justify-between items-center h-[52px] mb-4">
+      <div className="flex justify-between items-center mb-4">
         <div className="flex items-center">
           <h2 className="text-lg font-semibold flex items-center">
             <Code className="h-5 w-5 mr-2 text-primary" />
@@ -97,7 +96,7 @@ const EditorPanel = ({
           <Button 
             variant="outline"
             size="sm"
-            className="gap-1 h-9"
+            className="gap-1 h-8"
             onClick={onReset}
           >
             <RefreshCw className="h-3 w-3" />
@@ -106,7 +105,7 @@ const EditorPanel = ({
           <Button 
             variant="default"
             size="sm"
-            className="gap-1 h-9"
+            className="gap-1 h-8"
             disabled={isAnalyzing || hasLanguageMismatch}
             onClick={handleAnalyzeClick}
           >
