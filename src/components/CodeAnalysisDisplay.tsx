@@ -1,4 +1,3 @@
-
 import { CodeAnalysis } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,6 +36,39 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
   analysis,
   onApplyCorrection,
 }) => {
+  const getComplexityTooltip = () => (
+    <p className="max-w-xs">
+      A source code complexity that correlates to a number of coding errors.<br/><br/>
+      <strong>Complexity Ratings:</strong><br/>
+      A- Good<br/>
+      B- Medium complexity<br/>
+      C- High complexity<br/>
+      D- Extreme complexity
+    </p>
+  );
+
+  const getMaintainabilityTooltip = () => (
+    <p className="max-w-xs">
+      The ability to update or modify the system under test.<br/><br/>
+      <strong>Maintainability Ratings:</strong><br/>
+      A- Low maintainability required<br/>
+      B- Medium maintainability required<br/>
+      C- High maintainability required<br/>
+      D- Extreme maintainability required
+    </p>
+  );
+
+  const getReliabilityTooltip = () => (
+    <p className="max-w-xs">
+      The ability to perform consistently as per the specifications and uncover bugs/issues in code.<br/><br/>
+      <strong>Reliability Ratings:</strong><br/>
+      A- 0 Bugs<br/>
+      B- At least 1 Minor Bug<br/>
+      C- At least 1 Major Bug<br/>
+      D- At least 1 Critical Bug
+    </p>
+  );
+
   if (!analysis) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -120,7 +152,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                                 <Info className="h-4 w-4 ml-1 text-muted-foreground cursor-help" />
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p className="max-w-xs">Source code complexity that correlates to number of coding errors</p>
+                                {getComplexityTooltip()}
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -169,7 +201,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                                 <Info className="h-4 w-4 ml-1 text-muted-foreground cursor-help" />
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p className="max-w-xs">The ability to update and modify the code under test</p>
+                                {getMaintainabilityTooltip()}
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -218,7 +250,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                                 <Info className="h-4 w-4 ml-1 text-muted-foreground cursor-help" />
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p className="max-w-xs">The ability to perform consistently as per specifications and uncover bugs/issues</p>
+                                {getReliabilityTooltip()}
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { CodeAnalysis, ProgrammingLanguage } from "@/types";
 import { generateMockAnalysis } from "@/utils/mockAnalysis";
@@ -77,6 +76,18 @@ const Editor = () => {
     });
   };
 
+  const handleReset = () => {
+    setCode("");
+    setHtmlCode("");
+    setCssCode("");
+    setJsCode("");
+    setAnalysis(null);
+    toast({
+      title: "Editor Reset",
+      description: "All code and analysis have been cleared.",
+    });
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Header />
@@ -97,6 +108,7 @@ const Editor = () => {
               setCssCode={setCssCode}
               jsCode={jsCode}
               setJsCode={setJsCode}
+              onReset={handleReset}
             />
           </ResizablePanel>
           

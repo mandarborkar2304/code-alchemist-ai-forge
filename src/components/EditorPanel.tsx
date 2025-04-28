@@ -1,10 +1,9 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import CodeEditor from "@/components/CodeEditor";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { ProgrammingLanguage } from "@/types";
-import { Code, Brain } from "lucide-react";
+import { Code, Brain, RefreshCw } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { programmingLanguages } from "@/data/languages";
 import { detectCodeLanguage } from "@/utils/codeExecution";
@@ -23,6 +22,7 @@ interface EditorPanelProps {
   setCssCode: (css: string) => void;
   jsCode: string;
   setJsCode: (js: string) => void;
+  onReset: () => void;
 }
 
 const EditorPanel = ({
@@ -38,6 +38,7 @@ const EditorPanel = ({
   setCssCode,
   jsCode,
   setJsCode,
+  onReset,
 }: EditorPanelProps) => {
   const { toast } = useToast();
   const [hasLanguageMismatch, setHasLanguageMismatch] = useState(false);
@@ -93,6 +94,15 @@ const EditorPanel = ({
             />
           </div>
           <Button 
+            variant="outline"
+            size="sm"
+            className="gap-1 h-8"
+            onClick={onReset}
+          >
+            <RefreshCw className="h-3 w-3" />
+            Reset
+          </Button>
+          <Button 
             variant="default"
             size="sm"
             className="gap-1 h-8"
@@ -138,4 +148,3 @@ const EditorPanel = ({
 };
 
 export default EditorPanel;
-
