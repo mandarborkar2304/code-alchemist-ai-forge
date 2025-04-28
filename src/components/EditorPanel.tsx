@@ -8,7 +8,6 @@ import { Separator } from "@/components/ui/separator";
 import { programmingLanguages } from "@/data/languages";
 import { detectCodeLanguage } from "@/utils/codeExecution";
 import { useToast } from "@/hooks/use-toast";
-
 interface EditorPanelProps {
   code: string;
   setCode: (code: string) => void;
@@ -24,7 +23,6 @@ interface EditorPanelProps {
   setJsCode: (js: string) => void;
   onReset: () => void;
 }
-
 const EditorPanel = ({
   code,
   setCode,
@@ -40,9 +38,10 @@ const EditorPanel = ({
   setJsCode,
   onReset
 }: EditorPanelProps) => {
-  const { toast } = useToast();
+  const {
+    toast
+  } = useToast();
   const [hasLanguageMismatch, setHasLanguageMismatch] = useState(false);
-
   useEffect(() => {
     if (code.trim() && selectedLanguage.id !== 'web') {
       const detectedLang = detectCodeLanguage(code);
@@ -58,7 +57,6 @@ const EditorPanel = ({
       }
     }
   }, [code, selectedLanguage]);
-
   const handleAnalyzeClick = () => {
     if (hasLanguageMismatch) {
       toast({
@@ -70,21 +68,19 @@ const EditorPanel = ({
     }
     onAnalyzeCode();
   };
-
   const handleLanguageChange = (language: ProgrammingLanguage) => {
     setSelectedLanguage(language);
     setHasLanguageMismatch(false);
   };
-
   return <div className="flex flex-col h-full">
-      <div className="flex justify-between items-center pb-4">
+      <div className="flex justify-between items-center mb-4">
         <div className="flex items-center">
           <h2 className="text-lg font-semibold flex items-center">
             <Code className="h-5 w-5 mr-2 text-primary" />
             Code Editor
           </h2>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1\n">
           <div className="w-36">
             <LanguageSelector languages={programmingLanguages} selected={selectedLanguage} onSelect={handleLanguageChange} />
           </div>
@@ -92,7 +88,7 @@ const EditorPanel = ({
             <RefreshCw className="h-3 w-3" />
             Reset
           </Button>
-          <Button variant="default" size="sm" disabled={isAnalyzing || hasLanguageMismatch} onClick={handleAnalyzeClick} className="gap-1 h-8 mx-[8px]">
+          <Button variant="default" size="sm" className="gap-1 h-8" disabled={isAnalyzing || hasLanguageMismatch} onClick={handleAnalyzeClick}>
             {isAnalyzing ? <>
                 <span className="animate-spin h-3 w-3 border-2 border-t-transparent border-r-transparent rounded-full"></span>
                 Analyzing
@@ -116,5 +112,4 @@ const EditorPanel = ({
       </div>
     </div>;
 };
-
 export default EditorPanel;
