@@ -97,12 +97,8 @@
   }
 
   .code-editor-container {
-    @apply resize-none w-full;
+    @apply resize-none w-full h-full;
     font-family: 'Fira Code', 'Consolas', monospace;
-    height: 100%;
-    box-sizing: border-box;
-    display: block;
-    min-height: 100%;
   }
   
   /* Enhanced resizable panel styling */

@@ -1,8 +1,6 @@
-
 import React, { useState } from "react";
 import { ProgrammingLanguage } from "@/types";
 import { FileCode, FileText, AlertCircle } from "lucide-react";
-
 interface CodeEditorProps {
   code: string;
   language: ProgrammingLanguage;
@@ -16,7 +14,6 @@ interface CodeEditorProps {
     onChangeJs: (value: string) => void;
   };
 }
-
 const CodeEditor: React.FC<CodeEditorProps> = ({
   code,
   language,
@@ -47,20 +44,10 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
   // Use instructions if code is empty
   const displayedCode = code.trim() === "" ? getDefaultInstructions() : code;
-  
   if (language.id === "web" && webContent) {
-    return <WebCodeEditor 
-      html={webContent.html} 
-      css={webContent.css} 
-      js={webContent.js} 
-      onChangeHtml={webContent.onChangeHtml} 
-      onChangeCss={webContent.onChangeCss} 
-      onChangeJs={webContent.onChangeJs} 
-    />;
+    return <WebCodeEditor html={webContent.html} css={webContent.css} js={webContent.js} onChangeHtml={webContent.onChangeHtml} onChangeCss={webContent.onChangeCss} onChangeJs={webContent.onChangeJs} />;
   }
-  
-  return (
-    <div className="relative w-full h-full rounded-md bg-code overflow-hidden border border-border">
+  return <div className="relative w-full h-full rounded-md bg-code overflow-hidden border border-border">
       <div className="flex items-center justify-between px-4 py-2 bg-code border-b border-border">
         <div className="flex items-center">
           <span className="text-sm font-medium text-muted-foreground">
@@ -77,17 +64,10 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         </div>
       </div>
       <div className="flex flex-col flex-1 overflow-hidden">
-        <textarea 
-          value={displayedCode} 
-          onChange={e => onChange(e.target.value)} 
-          spellCheck={false} 
-          className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin rounded-none h-full" 
-        />
+        <textarea value={displayedCode} onChange={e => onChange(e.target.value)} spellCheck={false} className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin rounded-none h-full" />
       </div>
-    </div>
-  );
+    </div>;
 };
-
 interface WebCodeEditorProps {
   html: string;
   css: string;
@@ -96,7 +76,6 @@ interface WebCodeEditorProps {
   onChangeCss: (value: string) => void;
   onChangeJs: (value: string) => void;
 }
-
 const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
   html,
   css,
@@ -109,12 +88,10 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
   const htmlInstructions = html.trim() === "" ? "<!-- Structure your page with semantic HTML -->\n<!-- Use proper indentation for nested elements -->\n\n" : html;
   const cssInstructions = css.trim() === "" ? "/* Use responsive units (rem, %, etc.) */\n/* Group related styles together */\n\n" : css;
   const jsInstructions = js.trim() === "" ? "// Initialize variables at the top\n// Add event listeners after DOM is loaded\n\n" : js;
-  
-  return (
-    <div className="relative w-full h-full rounded-md bg-code overflow-hidden border border-border">
+  return <div className="relative w-full h-full rounded-md bg-code overflow-hidden border border-border">
       <div className="flex flex-col h-full">
         {/* HTML Panel - Fixed 33.3% height */}
-        <div className="h-1/3 min-h-0 flex flex-col">
+        <div className="h-1/3 min-h-0">
           <div className="flex items-center justify-between px-4 py-2 bg-code border-b border-border">
             <div className="flex items-center">
               <FileText className="w-4 h-4 mr-2 text-orange-400" />
@@ -131,16 +108,13 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
               <div className="w-3 h-3 rounded-full bg-code-green"></div>
             </div>
           </div>
-          <textarea 
-            className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin flex-1 w-full resize-none" 
-            value={htmlInstructions} 
-            onChange={e => onChangeHtml(e.target.value)} 
-            spellCheck={false} 
-          />
+          <div className="h-[calc(100%-2.5rem)] overflow-auto">
+            <textarea className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin" value={htmlInstructions} onChange={e => onChangeHtml(e.target.value)} spellCheck={false} />
+          </div>
         </div>
         
         {/* CSS Panel - Fixed 33.3% height */}
-        <div className="h-1/3 min-h-0 border-t border-border flex flex-col">
+        <div className="h-1/3 min-h-0 border-t border-border">
           <div className="flex items-center justify-between px-4 py-2 bg-code border-b border-border">
             <div className="flex items-center">
               <FileCode className="w-4 h-4 mr-2 text-blue-400" />
@@ -157,16 +131,13 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
               <div className="w-3 h-3 rounded-full bg-code-green"></div>
             </div>
           </div>
-          <textarea 
-            className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin flex-1 w-full resize-none" 
-            value={cssInstructions} 
-            onChange={e => onChangeCss(e.target.value)} 
-            spellCheck={false} 
-          />
+          <div className="h-[calc(100%-2.5rem)] overflow-auto">
+            <textarea className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin" value={cssInstructions} onChange={e => onChangeCss(e.target.value)} spellCheck={false} />
+          </div>
         </div>
         
         {/* JS Panel - Fixed 33.3% height */}
-        <div className="h-1/3 min-h-0 border-t border-border flex flex-col">
+        <div className="h-1/3 min-h-0 border-t border-border">
           <div className="flex items-center justify-between px-4 py-2 bg-code border-b border-border">
             <div className="flex items-center">
               <AlertCircle className="w-4 h-4 mr-2 text-yellow-400" />
@@ -183,16 +154,12 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
               <div className="w-3 h-3 rounded-full bg-code-green"></div>
             </div>
           </div>
-          <textarea 
-            className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin flex-1 w-full resize-none" 
-            value={jsInstructions} 
-            onChange={e => onChangeJs(e.target.value)} 
-            spellCheck={false} 
-          />
+          <div className="h-[calc(100%-2.5rem)] overflow-auto">
+            <textarea className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin rounded-none flex-1 w-full h-auto resize-none" value={jsInstructions} onChange={e => onChangeJs(e.target.value)} spellCheck={false} />
+
+          </div>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default CodeEditor;
