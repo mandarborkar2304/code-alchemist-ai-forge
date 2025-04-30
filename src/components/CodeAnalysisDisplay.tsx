@@ -119,15 +119,15 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                       <LineChart className="h-4 w-4 mr-1.5" />
                       Code Metrics
                     </CardTitle>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground">Lines of Code</p>
                         <p className="text-sm font-medium">{analysis.metrics.linesOfCode}</p>
                       </div>
-                      <div className="space-y-1">
+                      {/* <div className="space-y-1">
                         <p className="text-xs text-muted-foreground">Comment Coverage</p>
                         <p className="text-sm font-medium">{analysis.metrics.commentPercentage.toFixed(1)}%</p>
-                      </div>
+                      </div> */}
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground">Function Count</p>
                         <p className="text-sm font-medium">{analysis.metrics.functionCount}</p>
