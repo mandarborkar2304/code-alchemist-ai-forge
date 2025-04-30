@@ -119,7 +119,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                       <LineChart className="h-4 w-4 mr-1.5" />
                       Code Metrics
                     </CardTitle>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground">Lines of Code</p>
                         <p className="text-sm font-medium">{analysis.metrics.linesOfCode}</p>
