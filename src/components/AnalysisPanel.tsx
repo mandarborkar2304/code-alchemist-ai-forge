@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { CodeAnalysis } from "@/types";
 import CodeAnalysisDisplay from "@/components/CodeAnalysisDisplay";
 import { Brain } from "lucide-react";
@@ -13,22 +12,8 @@ const AnalysisPanel = ({
   analysis,
   onApplyCorrection
 }: AnalysisPanelProps) => {
-  // Legacy View Mode toggle
-  const [legacyView, setLegacyView] = useState(false);
-
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-end p-2">
-        <label className="flex items-center space-x-2 text-sm">
-          <input
-            type="checkbox"
-            checked={legacyView}
-            onChange={() => setLegacyView(v => !v)}
-            className="form-checkbox"
-          />
-          <span>Legacy View Mode</span>
-        </label>
-      </div>
       <div className="flex flex-col space-y-2">
         <div className="flex justify-between items-center my-[10px] mx-[5px]">
           <h2 className="text-lg font-semibold flex items-center">
@@ -42,7 +27,6 @@ const AnalysisPanel = ({
         <CodeAnalysisDisplay
           analysis={analysis}
           onApplyCorrection={onApplyCorrection}
-          legacyView={legacyView}
         />
       </div>
     </div>

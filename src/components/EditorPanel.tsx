@@ -134,15 +134,6 @@ const EditorPanel = ({
           }
         />
       </div>
-      <div className="mt-4">
-        <div className="flex justify-between">
-          <span className="font-semibold">Major Violations:</span>
-          <span>{majorViolations}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="font-semibold">Minor Violations:</span>
-          <span>{minorViolations}</span>
-        </div>
       </div>
     </div>
   );
