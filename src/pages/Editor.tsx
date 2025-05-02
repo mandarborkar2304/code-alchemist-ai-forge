@@ -113,6 +113,7 @@ const Editor = () => {
               jsCode={jsCode}
               setJsCode={setJsCode}
               onReset={handleReset}
+              analysisResults={analysis}
             />
           </ResizablePanel>
           
