@@ -44,11 +44,13 @@
     --sidebar-border: 240 5% 15%;
     --sidebar-ring: 267 84% 64%;
     
-    --code: 240 10% 3.9%;
-    --code-foreground: 0 0% 98%;
+    --code: rgb(30, 30, 30);
+    --code-foreground: #e6e6e6;
     --code-red: 0 100% 50%;
     --code-yellow: 60 100% 50%;
     --code-green: 120 100% 50%;
+    --code-blue: 210 100% 60%;
+    --code-purple: 270 100% 60%;
   }
 }
 
@@ -129,6 +131,35 @@
   [data-panel-handle]:hover div,
   [data-panel-handle][data-panel-handle-active] div {
     @apply opacity-100;
+  }
+  
+  /* Code editor syntax highlighting */
+  .syntax-keyword {
+    color: #569cd6;
+  }
+  
+  .syntax-string {
+    color: #ce9178;
+  }
+  
+  .syntax-number {
+    color: #b5cea8;
+  }
+  
+  .syntax-comment {
+    color: #6a9955;
+  }
+  
+  .syntax-function {
+    color: #dcdcaa;
+  }
+  
+  .syntax-class {
+    color: #4ec9b0;
+  }
+  
+  .syntax-operator {
+    color: #d4d4d4;
   }
   
   /* Animation utilities */

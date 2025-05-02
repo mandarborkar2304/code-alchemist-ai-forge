@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { ProgrammingLanguage } from "@/types";
-import { Code, Brain, RefreshCw, FilePlus } from "lucide-react";
+import { Code, Brain, RefreshCw, FilePlus, File } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { programmingLanguages } from "@/data/languages";
 import { detectCodeLanguage } from "@/utils/codeExecution";
@@ -50,6 +50,7 @@ const EditorPanel = ({
   // Create files array for tabs editor
   const [files, setFiles] = useState<CodeFile[]>([]);
   const [activeFileId, setActiveFileId] = useState<string>('');
+  const [fileCounter, setFileCounter] = useState(1);
   
   // Setup initial files based on selected language
   useEffect(() => {
@@ -58,9 +59,9 @@ const EditorPanel = ({
     if (selectedLanguage.id === 'web') {
       // Create separate files for HTML, CSS, JS
       newFiles = [
-        { id: 'html', name: 'index.html', language: programmingLanguages.find(lang => lang.id === 'web')!, content: htmlCode },
-        { id: 'css', name: 'styles.css', language: programmingLanguages.find(lang => lang.id === 'web')!, content: cssCode },
-        { id: 'js', name: 'script.js', language: programmingLanguages.find(lang => lang.id === 'web')!, content: jsCode }
+        { id: 'html', name: 'index.html', language: programmingLanguages.find(lang => lang.id === 'html') || selectedLanguage, content: htmlCode },
+        { id: 'css', name: 'styles.css', language: programmingLanguages.find(lang => lang.id === 'css') || selectedLanguage, content: cssCode },
+        { id: 'js', name: 'script.js', language: programmingLanguages.find(lang => lang.id === 'javascript') || selectedLanguage, content: jsCode }
       ];
       setActiveFileId('html');
     } else {
@@ -73,7 +74,32 @@ const EditorPanel = ({
     }
     
     setFiles(newFiles);
-  }, [selectedLanguage.id, code, htmlCode, cssCode, jsCode]);
+  }, [selectedLanguage.id]);
+  
+  // Update files when code changes
+  useEffect(() => {
+    if (selectedLanguage.id !== 'web' && files.length > 0) {
+      // Update main file content
+      const mainFile = files.find(file => file.id === 'main');
+      if (mainFile && mainFile.content !== code) {
+        setFiles(prev => prev.map(file => 
+          file.id === 'main' ? { ...file, content: code } : file
+        ));
+      }
+    }
+  }, [code, selectedLanguage.id]);
+  
+  // Update html, css, js files when their content changes
+  useEffect(() => {
+    if (selectedLanguage.id === 'web') {
+      // Update html file content
+      setFiles(prev => prev.map(file => 
+        file.id === 'html' ? { ...file, content: htmlCode } :
+        file.id === 'css' ? { ...file, content: cssCode } :
+        file.id === 'js' ? { ...file, content: jsCode } : file
+      ));
+    }
+  }, [htmlCode, cssCode, jsCode, selectedLanguage.id]);
   
   // Handle file content changes
   const handleFileContentChange = (fileId: string, newContent: string) => {
@@ -84,15 +110,79 @@ const EditorPanel = ({
         setCssCode(newContent);
       } else if (fileId === 'js') {
         setJsCode(newContent);
+      } else {
+        // For additional files in web mode
+        setFiles(prev => prev.map(file => 
+          file.id === fileId ? { ...file, content: newContent } : file
+        ));
       }
     } else {
-      setCode(newContent);
+      if (fileId === 'main') {
+        setCode(newContent);
+      } else {
+        // For additional files in non-web mode
+        setFiles(prev => prev.map(file => 
+          file.id === fileId ? { ...file, content: newContent } : file
+        ));
+      }
+    }
+  };
+  
+  // Add a new file
+  const handleAddFile = () => {
+    const newFileId = `file-${fileCounter}`;
+    const newFileName = `new-file-${fileCounter}${selectedLanguage.fileExtension}`;
+    
+    const newFile: CodeFile = {
+      id: newFileId,
+      name: newFileName,
+      language: selectedLanguage,
+      content: ''
+    };
+    
+    setFiles(prev => [...prev, newFile]);
+    setActiveFileId(newFileId);
+    setFileCounter(prev => prev + 1);
+    
+    toast({
+      title: "File Added",
+      description: `Created new file: ${newFileName}`,
+    });
+  };
+  
+  // Remove a file
+  const handleRemoveFile = (fileId: string) => {
+    // Don't remove main file or html/css/js files in web mode
+    if (fileId === 'main' || (selectedLanguage.id === 'web' && ['html', 'css', 'js'].includes(fileId))) {
+      toast({
+        title: "Cannot Remove File",
+        description: "This is a required file for the current language.",
+        variant: "destructive"
+      });
+      return;
     }
     
-    // Update files state
-    setFiles(prev => prev.map(file => 
-      file.id === fileId ? { ...file, content: newContent } : file
-    ));
+    // Find next active file
+    const fileIndex = files.findIndex(file => file.id === fileId);
+    let nextActiveId = activeFileId;
+    
+    if (activeFileId === fileId) {
+      if (fileIndex > 0) {
+        nextActiveId = files[fileIndex - 1].id;
+      } else if (files.length > 1) {
+        nextActiveId = files[1].id;
+      } else {
+        nextActiveId = 'main';
+      }
+    }
+    
+    setFiles(prev => prev.filter(file => file.id !== fileId));
+    setActiveFileId(nextActiveId);
+    
+    toast({
+      title: "File Removed",
+      description: `Removed file: ${files.find(file => file.id === fileId)?.name}`,
+    });
   };
 
   useEffect(() => {
@@ -141,6 +231,10 @@ const EditorPanel = ({
           <div className="w-42">
             <LanguageSelector languages={programmingLanguages} selected={selectedLanguage} onSelect={handleLanguageChange} />
           </div>
+          <Button variant="outline" size="sm" className="gap-1 h-8" onClick={handleAddFile}>
+            <FilePlus className="h-3 w-3" />
+            Add File
+          </Button>
           <Button variant="outline" size="sm" className="gap-1 h-8" onClick={onReset}>
             <RefreshCw className="h-3 w-3" />
             Reset
@@ -163,6 +257,7 @@ const EditorPanel = ({
           activeFileId={activeFileId}
           onActiveFileChange={setActiveFileId}
           onFileContentChange={handleFileContentChange}
+          onRemoveFile={handleRemoveFile}
         />
       </div>
     </div>
