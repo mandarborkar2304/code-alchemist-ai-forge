@@ -10,6 +10,12 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CodeQualityMeter } from "./CodeQualityMeter";
 
+// Add the missing interface
+interface CodeAnalysisDisplayProps {
+  analysis: CodeAnalysis | null;
+  onApplyCorrection: (code: string) => void;
+}
+
 const getRatingColor = (rating: 'A' | 'B' | 'C' | 'D') => {
   switch (rating) {
     case 'A': return 'bg-green-500';
