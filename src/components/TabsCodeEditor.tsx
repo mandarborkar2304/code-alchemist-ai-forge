@@ -197,7 +197,7 @@ const CodeEditorWithLineNumbers: React.FC<CodeEditorWithLineNumbersProps> = ({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           spellCheck={false}
-          className="p-1 bg-code text-code-foreground focus:outline-none scrollbar-thin flex-1"
+          className="p-1 bg-code text-code-foreground focus:outline-none flex-1 scrollbar-none"
           style={{ 
             resize: 'none',
             tabSize: 2,

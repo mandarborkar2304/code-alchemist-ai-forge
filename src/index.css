@@ -97,6 +97,14 @@
   .scrollbar-thin::-webkit-scrollbar-thumb {
     @apply bg-muted rounded-full;
   }
+  
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 
   .code-editor-container {
     @apply resize-none w-full h-full;
