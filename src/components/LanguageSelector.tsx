@@ -27,9 +27,15 @@ interface LanguageSelectorProps {
 
 export function LanguageSelector({ languages = [], selected, onSelect }: LanguageSelectorProps) {
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Ensure we have a valid languages array
   const validLanguages = Array.isArray(languages) ? languages : [];
+  
+  // Filter languages based on search query
+  const filteredLanguages = validLanguages.filter(lang => 
+    lang.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
   
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -49,19 +55,25 @@ export function LanguageSelector({ languages = [], selected, onSelect }: Languag
       </PopoverTrigger>
       <PopoverContent className="w-full p-0 bg-background border border-border">
         <Command className="bg-transparent">
-          <CommandInput placeholder="Search language..." className="h-9" />
+          <CommandInput 
+            placeholder="Search language..." 
+            className="h-9" 
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+          />
           <CommandList>
-            {validLanguages.length === 0 ? (
-              <CommandEmpty>No languages available.</CommandEmpty>
+            {filteredLanguages.length === 0 ? (
+              <CommandEmpty>No languages found.</CommandEmpty>
             ) : (
               <CommandGroup className="max-h-64 overflow-y-auto scrollbar-thin">
-                {validLanguages.map((language) => (
+                {filteredLanguages.map((language) => (
                   <CommandItem
                     key={language.id}
                     value={language.name}
                     onSelect={() => {
                       onSelect(language);
                       setOpen(false);
+                      setSearchQuery("");
                     }}
                     className="flex items-center gap-2 aria-selected:bg-accent"
                   >
