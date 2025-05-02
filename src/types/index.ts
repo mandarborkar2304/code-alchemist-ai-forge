@@ -1,3 +1,4 @@
+
 export interface CodeQualityRating {
   score: 'A' | 'B' | 'C' | 'D';
   description: string;
@@ -27,6 +28,7 @@ export interface CodeAnalysis {
     functionCount: number;
     averageFunctionLength: number;
   };
+  testCases: TestCase[]; // Added TestCase array to the CodeAnalysis interface
 }
 
 export interface ProgrammingLanguage {
@@ -34,4 +36,14 @@ export interface ProgrammingLanguage {
   name: string;
   fileExtension: string;
   icon?: React.ReactNode;
+}
+
+export interface TestCase {
+  name?: string;
+  description?: string;
+  input: string;
+  expectedOutput: string;
+  passed?: boolean;
+  actualOutput?: string;
+  executionDetails?: string;
 }

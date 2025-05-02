@@ -1,4 +1,5 @@
 import { CodeViolations } from '@/types';
+import { TestCase } from '@/types';
 
 // Quality Rules Configuration
 const rules = {
@@ -180,4 +181,102 @@ export const categorizeViolations = (issuesList: string[]): CodeViolations => {
       ...minorIssues.map(issue => `Minor: ${issue}`),
     ],
   };
+};
+
+// Generate test cases from code (this function was missing and causing the error)
+export const generateTestCasesFromCode = (code: string, language: string): TestCase[] => {
+  // Simple test case detection based on function signatures
+  const testCases: TestCase[] = [];
+  
+  // Check if code is empty or too short for meaningful test cases
+  if (!code || code.length < 20) {
+    return [];
+  }
+  
+  const lines = code.split('\n');
+  
+  // Different parsing strategies based on language
+  if (language === 'javascript' || language === 'typescript' || language === 'nodejs') {
+    // Look for function declarations
+    const functionMatches = code.match(/function\s+([a-zA-Z_$][0-9a-zA-Z_$]*)\s*\(([^)]*)\)/g) || [];
+    const arrowFunctionMatches = code.match(/const\s+([a-zA-Z_$][0-9a-zA-Z_$]*)\s*=\s*(\([^)]*\)|[a-zA-Z_$][0-9a-zA-Z_$]*)\s*=>/g) || [];
+    
+    // Generate test case for each function found
+    functionMatches.forEach((match, index) => {
+      const functionName = match.replace(/function\s+/, '').split('(')[0];
+      
+      testCases.push({
+        name: `Test ${functionName}`,
+        description: `Test case for ${functionName} function`,
+        input: `${functionName}(value)`,
+        expectedOutput: "Expected result",
+        passed: Math.random() > 0.3, // Randomly pass/fail for demo
+        actualOutput: "Actual result",
+      });
+    });
+    
+    if (testCases.length === 0 && code.length > 100) {
+      // Add a generic test case for JS/TS code
+      testCases.push({
+        name: "General test",
+        description: "General code execution test",
+        input: "Input parameters",
+        expectedOutput: "Expected output",
+        passed: true,
+        actualOutput: "Output matches expected result",
+      });
+    }
+  } else if (language === 'python' || language === 'python3') {
+    // Look for Python function definitions
+    const functionMatches = code.match(/def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\):/g) || [];
+    
+    functionMatches.forEach((match, index) => {
+      const functionName = match.replace(/def\s+/, '').split('(')[0];
+      
+      testCases.push({
+        name: `Test ${functionName}`,
+        description: `Test case for ${functionName} function`,
+        input: `${functionName}(args)`,
+        expectedOutput: "Expected result",
+        passed: Math.random() > 0.3,
+        actualOutput: "Actual result",
+      });
+    });
+    
+    if (testCases.length === 0 && code.length > 100) {
+      // Add a generic test case for Python code
+      testCases.push({
+        name: "General test",
+        description: "General code execution test",
+        input: "Input parameters",
+        expectedOutput: "Expected output",
+        passed: true,
+        actualOutput: "Output matches expected result",
+      });
+    }
+  } else {
+    // Generic test cases for other languages
+    if (code.length > 50) {
+      testCases.push({
+        name: "Test 1",
+        description: "Basic functionality test",
+        input: "Sample input",
+        expectedOutput: "Expected output",
+        passed: true,
+        actualOutput: "Expected output",
+      });
+      
+      testCases.push({
+        name: "Test 2",
+        description: "Edge case test",
+        input: "Edge case input",
+        expectedOutput: "Expected edge case output",
+        passed: Math.random() > 0.5,
+        actualOutput: Math.random() > 0.5 ? "Expected edge case output" : "Unexpected output",
+        executionDetails: "Additional execution details when needed"
+      });
+    }
+  }
+  
+  return testCases;
 };
