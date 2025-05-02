@@ -1,14 +1,15 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import CodeEditor from "@/components/CodeEditor";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { ProgrammingLanguage } from "@/types";
-import { Code, Brain, RefreshCw } from "lucide-react";
+import { Code, Brain, RefreshCw, FilePlus } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { programmingLanguages } from "@/data/languages";
 import { detectCodeLanguage } from "@/utils/codeExecution";
 import { useToast } from "@/hooks/use-toast";
 import { CodeAnalysis } from "@/types";
+import TabsCodeEditor, { CodeFile } from "@/components/TabsCodeEditor";
 
 interface EditorPanelProps {
   code: string;
@@ -43,10 +44,56 @@ const EditorPanel = ({
   onReset,
   analysisResults
 }: EditorPanelProps) => {
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
   const [hasLanguageMismatch, setHasLanguageMismatch] = useState(false);
+  
+  // Create files array for tabs editor
+  const [files, setFiles] = useState<CodeFile[]>([]);
+  const [activeFileId, setActiveFileId] = useState<string>('');
+  
+  // Setup initial files based on selected language
+  useEffect(() => {
+    let newFiles: CodeFile[] = [];
+    
+    if (selectedLanguage.id === 'web') {
+      // Create separate files for HTML, CSS, JS
+      newFiles = [
+        { id: 'html', name: 'index.html', language: programmingLanguages.find(lang => lang.id === 'web')!, content: htmlCode },
+        { id: 'css', name: 'styles.css', language: programmingLanguages.find(lang => lang.id === 'web')!, content: cssCode },
+        { id: 'js', name: 'script.js', language: programmingLanguages.find(lang => lang.id === 'web')!, content: jsCode }
+      ];
+      setActiveFileId('html');
+    } else {
+      // Create a single file for the selected language
+      const fileName = `main${selectedLanguage.fileExtension}`;
+      newFiles = [
+        { id: 'main', name: fileName, language: selectedLanguage, content: code }
+      ];
+      setActiveFileId('main');
+    }
+    
+    setFiles(newFiles);
+  }, [selectedLanguage.id, code, htmlCode, cssCode, jsCode]);
+  
+  // Handle file content changes
+  const handleFileContentChange = (fileId: string, newContent: string) => {
+    if (selectedLanguage.id === 'web') {
+      if (fileId === 'html') {
+        setHtmlCode(newContent);
+      } else if (fileId === 'css') {
+        setCssCode(newContent);
+      } else if (fileId === 'js') {
+        setJsCode(newContent);
+      }
+    } else {
+      setCode(newContent);
+    }
+    
+    // Update files state
+    setFiles(prev => prev.map(file => 
+      file.id === fileId ? { ...file, content: newContent } : file
+    ));
+  };
 
   useEffect(() => {
     if (code.trim() && selectedLanguage.id !== 'web') {
@@ -111,18 +158,11 @@ const EditorPanel = ({
       </div>
       <Separator className="bg-border mb-4" />
       <div className="flex-1 min-h-0 h-[calc(100vh-8rem)]">
-        <CodeEditor 
-          code={code} 
-          language={selectedLanguage} 
-          onChange={setCode} 
-          webContent={selectedLanguage.id === "web" ? {
-            html: htmlCode,
-            css: cssCode,
-            js: jsCode,
-            onChangeHtml: setHtmlCode,
-            onChangeCss: setCssCode,
-            onChangeJs: setJsCode
-          } : undefined} 
+        <TabsCodeEditor 
+          files={files}
+          activeFileId={activeFileId}
+          onActiveFileChange={setActiveFileId}
+          onFileContentChange={handleFileContentChange}
         />
       </div>
     </div>
