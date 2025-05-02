@@ -84,7 +84,7 @@ const EditorPanel = ({
           </h2>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-40">
+          <div className="w-42">
             <LanguageSelector languages={programmingLanguages} selected={selectedLanguage} onSelect={handleLanguageChange} />
           </div>
           <Button variant="outline" size="sm" className="gap-1 h-8" onClick={onReset}>
