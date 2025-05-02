@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { programmingLanguages } from "@/data/languages";
 import { detectCodeLanguage } from "@/utils/codeExecution";
 import { useToast } from "@/hooks/use-toast";
+import { CodeAnalysis } from "@/types";
 
 interface EditorPanelProps {
   code: string;
@@ -23,6 +24,7 @@ interface EditorPanelProps {
   jsCode: string;
   setJsCode: (js: string) => void;
   onReset: () => void;
+  analysisResults: CodeAnalysis | null;
 }
 
 const EditorPanel = ({
@@ -38,7 +40,8 @@ const EditorPanel = ({
   setCssCode,
   jsCode,
   setJsCode,
-  onReset
+  onReset,
+  analysisResults
 }: EditorPanelProps) => {
   const { toast } = useToast();
   const [hasLanguageMismatch, setHasLanguageMismatch] = useState(false);
@@ -76,7 +79,11 @@ const EditorPanel = ({
     setHasLanguageMismatch(false);
   };
 
-  return <div className="flex flex-col h-full">
+  const majorViolations = analysisResults?.violations.major || 0;
+  const minorViolations = analysisResults?.violations.minor || 0;
+
+  return (
+    <div className="flex flex-col h-full">
       <div className="flex justify-between items-center pb-4">
         <div className="flex items-center">
           <h2 className="text-lg font-semibold flex items-center">
@@ -93,28 +100,52 @@ const EditorPanel = ({
             Reset
           </Button>
           <Button variant="default" size="sm" disabled={isAnalyzing || hasLanguageMismatch} onClick={handleAnalyzeClick} className="gap-1 h-8 mx-[8px]">
-            {isAnalyzing ? <>
+            {isAnalyzing ? (
+              <>
                 <span className="animate-spin h-3 w-3 border-2 border-t-transparent border-r-transparent rounded-full"></span>
                 Analyzing
-              </> : <>
+              </>
+            ) : (
+              <>
                 <Brain className="h-3 w-3" />
                 Analyze
-              </>}
+              </>
+            )}
           </Button>
         </div>
       </div>
       <Separator className="bg-border mb-4" />
       <div className="flex-1 min-h-0 h-[calc(100vh-8rem)]">
-        <CodeEditor code={code} language={selectedLanguage} onChange={setCode} webContent={selectedLanguage.id === "web" ? {
-        html: htmlCode,
-        css: cssCode,
-        js: jsCode,
-        onChangeHtml: setHtmlCode,
-        onChangeCss: setCssCode,
-        onChangeJs: setJsCode
-      } : undefined} />
+        <CodeEditor
+          code={code}
+          language={selectedLanguage}
+          onChange={setCode}
+          webContent={
+            selectedLanguage.id === "web"
+              ? {
+                  html: htmlCode,
+                  css: cssCode,
+                  js: jsCode,
+                  onChangeHtml: setHtmlCode,
+                  onChangeCss: setCssCode,
+                  onChangeJs: setJsCode
+                }
+              : undefined
+          }
+        />
       </div>
-    </div>;
+      <div className="mt-4">
+        <div className="flex justify-between">
+          <span className="font-semibold">Major Violations:</span>
+          <span>{majorViolations}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="font-semibold">Minor Violations:</span>
+          <span>{minorViolations}</span>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default EditorPanel;

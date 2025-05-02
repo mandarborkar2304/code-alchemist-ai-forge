@@ -1,12 +1,3 @@
-
-export interface TestCase {
-  input: string;
-  expectedOutput: string;
-  actualOutput?: string;
-  passed?: boolean;
-  executionDetails?: string; // Detailed execution information
-}
-
 export interface CodeQualityRating {
   score: 'A' | 'B' | 'C' | 'D';
   description: string;
@@ -19,7 +10,7 @@ export interface CodeViolations {
   major: number;
   minor: number;
   details: string[];
-  lineReferences?: {line: number, issue: string}[]; // References to specific lines
+  lineReferences?: { line: number; issue: string }[]; // References to specific lines
 }
 
 export interface CodeAnalysis {
@@ -27,7 +18,6 @@ export interface CodeAnalysis {
   maintainability: CodeQualityRating;
   reliability: CodeQualityRating;
   violations: CodeViolations;
-  testCases: TestCase[];
   aiSuggestions: string;
   correctedCode?: string;
   overallGrade?: 'A' | 'B' | 'C' | 'D'; // Overall code quality grade

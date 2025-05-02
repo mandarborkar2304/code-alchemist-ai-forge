@@ -46,7 +46,7 @@ const HeroSection = () => {
           <div className="flex flex-wrap justify-center gap-4 pt-4 animate-fade-in" style={{ animationDelay: '0.4s' }}>
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted text-sm">
               <Code className="h-4 w-4 text-primary" />
-              <span>50+ Languages</span>
+              <span>20+ Languages</span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted text-sm">
               <Zap className="h-4 w-4 text-primary" />
