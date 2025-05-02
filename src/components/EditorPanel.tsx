@@ -79,9 +79,6 @@ const EditorPanel = ({
     setHasLanguageMismatch(false);
   };
 
-  const majorViolations = analysisResults?.violations.major || 0;
-  const minorViolations = analysisResults?.violations.minor || 0;
-
   return (
     <div className="flex flex-col h-full">
       <div className="flex justify-between items-center pb-4">
@@ -133,7 +130,6 @@ const EditorPanel = ({
               : undefined
           }
         />
-      </div>
       </div>
     </div>
   );
