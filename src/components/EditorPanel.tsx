@@ -9,6 +9,7 @@ import { programmingLanguages } from "@/data/languages";
 import { detectCodeLanguage } from "@/utils/codeExecution";
 import { useToast } from "@/hooks/use-toast";
 import { CodeAnalysis } from "@/types";
+
 interface EditorPanelProps {
   code: string;
   setCode: (code: string) => void;
@@ -25,6 +26,7 @@ interface EditorPanelProps {
   onReset: () => void;
   analysisResults: CodeAnalysis | null;
 }
+
 const EditorPanel = ({
   code,
   setCode,
@@ -45,6 +47,7 @@ const EditorPanel = ({
     toast
   } = useToast();
   const [hasLanguageMismatch, setHasLanguageMismatch] = useState(false);
+
   useEffect(() => {
     if (code.trim() && selectedLanguage.id !== 'web') {
       const detectedLang = detectCodeLanguage(code);
@@ -59,7 +62,8 @@ const EditorPanel = ({
         setHasLanguageMismatch(false);
       }
     }
-  }, [code, selectedLanguage]);
+  }, [code, selectedLanguage, toast]);
+
   const handleAnalyzeClick = () => {
     if (hasLanguageMismatch) {
       toast({
@@ -71,11 +75,14 @@ const EditorPanel = ({
     }
     onAnalyzeCode();
   };
+
   const handleLanguageChange = (language: ProgrammingLanguage) => {
     setSelectedLanguage(language);
     setHasLanguageMismatch(false);
   };
-  return <div className="flex flex-col h-full">
+
+  return (
+    <div className="flex flex-col h-full">
       <div className="flex justify-between items-center pb-4">
         <div className="flex items-center">
           <h2 className="text-lg font-semibold flex items-center">
@@ -104,15 +111,22 @@ const EditorPanel = ({
       </div>
       <Separator className="bg-border mb-4" />
       <div className="flex-1 min-h-0 h-[calc(100vh-8rem)]">
-        <CodeEditor code={code} language={selectedLanguage} onChange={setCode} webContent={selectedLanguage.id === "web" ? {
-        html: htmlCode,
-        css: cssCode,
-        js: jsCode,
-        onChangeHtml: setHtmlCode,
-        onChangeCss: setCssCode,
-        onChangeJs: setJsCode
-      } : undefined} />
+        <CodeEditor 
+          code={code} 
+          language={selectedLanguage} 
+          onChange={setCode} 
+          webContent={selectedLanguage.id === "web" ? {
+            html: htmlCode,
+            css: cssCode,
+            js: jsCode,
+            onChangeHtml: setHtmlCode,
+            onChangeCss: setCssCode,
+            onChangeJs: setJsCode
+          } : undefined} 
+        />
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default EditorPanel;
