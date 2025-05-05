@@ -932,12 +932,13 @@ export const categorizeViolations = (
     ...minorIssues
   ].join('\n');
 
+  // Return the object with the reportMarkdown value
   return {
     major: majorIssues.length,
     minor: minorIssues.length,
     details: [],
-    lineReferences: [],
-    reportMarkdown
+    lineReferences: [],  // Ensure this is properly set or removed as needed
+    reportMarkdown: reportMarkdown  // Return the actual reportMarkdown string here
   };
 };
 
