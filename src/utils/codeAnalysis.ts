@@ -1,3 +1,4 @@
+
 import { CodeViolations } from '@/types';
 import { TestCase } from '@/types';
 
@@ -21,6 +22,42 @@ const rules = {
   },
   noGlobalVariables: {
     enabled: true,
+  },
+  // New rule for unhandled exceptions
+  unhandledExceptions: {
+    enabled: true,
+    riskOperations: [
+      {
+        id: "json-parse",
+        pattern: "JSON\\.parse\\s*\\(",
+        message: "Unhandled JSON.parse could throw on invalid JSON"
+      },
+      {
+        id: "file-system",
+        pattern: "fs\\.\\w+Sync\\s*\\(",
+        message: "Unhandled synchronous file operations may throw exceptions"
+      },
+      {
+        id: "null-unsafe",
+        pattern: "\\.\\w+\\s*\\(", 
+        message: "Potential null/undefined property access without checks"
+      },
+      {
+        id: "array-unsafe",
+        pattern: "\\[(\\w+|\\d+)\\]",
+        message: "Array access without bounds checking"
+      },
+      {
+        id: "explicit-throw",
+        pattern: "throw\\s+new\\s+\\w+",
+        message: "Explicit throw statement not within try-catch"
+      },
+      {
+        id: "await-without-catch",
+        pattern: "await\\s+\\w+",
+        message: "Awaited promise without error handling"
+      }
+    ]
   },
   customSmells: [
     {
@@ -144,6 +181,62 @@ export const analyzeCodeForIssues = (code: string): { details: string[], lineRef
     }
   }
 
+  // Analyze for unhandled exceptions
+  if (rules.unhandledExceptions.enabled) {
+    const findTryCatchBlocks = (code: string): {start: number, end: number}[] => {
+      const tryCatchBlocks: {start: number, end: number}[] = [];
+      let inTryBlock = false;
+      let tryStartLine = 0;
+      let braceCounter = 0;
+      
+      lines.forEach((line, i) => {
+        if (line.includes('try') && line.includes('{') && !inTryBlock) {
+          inTryBlock = true;
+          tryStartLine = i;
+          braceCounter = 1;
+        } else if (inTryBlock) {
+          // Count braces to find the end of the try-catch block
+          const openBraces = (line.match(/{/g) || []).length;
+          const closeBraces = (line.match(/}/g) || []).length;
+          braceCounter += openBraces - closeBraces;
+          
+          // When we've reached the end of the try-catch block
+          if (braceCounter === 0 && line.includes('}')) {
+            tryCatchBlocks.push({ start: tryStartLine, end: i });
+            inTryBlock = false;
+          }
+        }
+      });
+      
+      return tryCatchBlocks;
+    };
+    
+    const tryCatchBlocks = findTryCatchBlocks(code);
+    
+    // Check for risky operations outside try-catch blocks
+    rules.unhandledExceptions.riskOperations.forEach(operation => {
+      const regex = new RegExp(operation.pattern);
+      
+      lines.forEach((line, i) => {
+        // Skip comments
+        if (line.trim().startsWith('//') || line.trim().startsWith('*') || line.trim().startsWith('/*')) {
+          return;
+        }
+        
+        if (regex.test(line)) {
+          // Check if this line is within a try-catch block
+          const isInTryCatch = tryCatchBlocks.some(block => i >= block.start && i <= block.end);
+          
+          if (!isInTryCatch) {
+            const issue = `${operation.message} (${operation.id})`;
+            lineReferences.push({ line: i + 1, issue });
+            issues.push(`Line ${i + 1}: ${operation.message}`);
+          }
+        }
+      });
+    });
+  }
+
   rules.customSmells.forEach((smell) => {
     const regex = new RegExp(smell.pattern, "g");
     lines.forEach((line, idx) => {
@@ -162,7 +255,14 @@ export const categorizeViolations = (issuesList: string[]): CodeViolations => {
   const majorIssues = issuesList.filter(issue =>
       issue.includes("Function length exceeds 25") ||
       issue.includes("Nesting level exceeds") ||
-      issue.includes("No error handling")
+      issue.includes("No error handling") ||
+      // Add unhandled exception issues to major violations
+      issue.includes("Unhandled JSON.parse") ||
+      issue.includes("Unhandled synchronous file") ||
+      issue.includes("Potential null/undefined") ||
+      issue.includes("Array access without bounds") ||
+      issue.includes("Explicit throw statement") ||
+      issue.includes("Awaited promise without error")
   );
 
   const minorIssues = issuesList.filter(issue =>
@@ -264,3 +364,4 @@ export const generateTestCasesFromCode = (code: string, language: string): TestC
   
   return testCases;
 };
+
