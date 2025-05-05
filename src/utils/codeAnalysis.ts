@@ -905,7 +905,7 @@ function shouldFlagRiskyOperation(
   return true; // Flag by default
 }
 
-// Categorize violations with major, and minor - improved with deduplication
+// Categorize violations with major, and minor
 export const categorizeViolations = (
   issuesList: string[],
   lineRefs: { line: number; issue: string; severity: 'major' | 'minor' }[]
@@ -913,66 +913,58 @@ export const categorizeViolations = (
   // 1) Group all issues by their message
   const issueOccurrences = new Map<
     string,
-    { lines: number[]; severity: 'major' | 'minor' }
+    { severity: 'major' | 'minor' }
   >();
 
-  // first, from lineRefs
+  // First, categorize from lineRefs
   lineRefs.forEach(ref => {
     const key = ref.issue;
-    const entry = issueOccurrences.get(key) || { lines: [], severity: ref.severity };
-    entry.lines.push(ref.line);
-    // if any occurrence is major, treat whole issue as major
-    if (ref.severity === 'major') entry.severity = 'major';
-    issueOccurrences.set(key, entry);
+    if (!issueOccurrences.has(key)) {
+      issueOccurrences.set(key, { severity: ref.severity });
+    } else {
+      // if already marked as major, keep it major
+      const entry = issueOccurrences.get(key)!;
+      if (ref.severity === 'major') entry.severity = 'major';
+    }
   });
 
-  // then remaining free-form issues
+  // Then categorize remaining free-form issues from issuesList
   issuesList.forEach(issue => {
     if (!issueOccurrences.has(issue)) {
-      issueOccurrences.set(issue, { lines: [], severity: 
-        // decide by keywords or default to minor
+      issueOccurrences.set(issue, { severity: 
+        // Keywords to determine severity
         /Function length exceeds|Nesting level exceeds|No error handling|Unhandled|Potential|Explicit|ArithmeticException|NullPointerException|ArrayIndexOutOfBoundsException/.test(issue)
         ? 'major' : 'minor'
       });
     }
   });
 
-  // 2) Build separate lists
-  const majorLines: string[] = [];
-  const minorLines: string[] = [];
+  // 2) Build separate lists for major and minor
+  const majorIssues: string[] = [];
+  const minorIssues: string[] = [];
 
   issueOccurrences.forEach((occ, issue) => {
     if (occ.severity === 'major') {
-      if (occ.lines.length > 1) {
-        occ.lines.sort((a, b) => a - b);
-        const first = occ.lines[0], last = occ.lines[occ.lines.length - 1];
-        majorLines.push(
-          `- ${issue}${first !== last ? ` (lines ${first}–${last})` : ` (line ${first})`}`
-        );
-      } else if (occ.lines.length === 1) {
-        majorLines.push(`- ${issue} (line ${occ.lines[0]})`);
-      } else {
-        majorLines.push(`- ${issue}`);
-      }
+      majorIssues.push(`- ${issue}`);
     } else {
-      minorLines.push(`- ${issue}`);
+      minorIssues.push(`- ${issue}`);
     }
   });
 
-  // 3) Compose markdown
+  // 3) Create markdown formatted output
   const reportMarkdown = [
-    `### Major Violations (${majorLines.length})`,
-    ...majorLines,
+    `### Major Violations (${majorIssues.length})`,
+    ...majorIssues,
     ``,
-    `### Minor Violations (${minorLines.length})`,
-    ...minorLines
+    `### Minor Violations (${minorIssues.length})`,
+    ...minorIssues
   ].join('\n');
 
   return {
-    major: majorLines.length,
-    minor: minorLines.length,
-    details: [],           // no longer needed if using reportMarkdown
-    lineReferences: [],    // stripped out per your request
+    major: majorIssues.length,
+    minor: minorIssues.length,
+    details: [],  // No longer used for line-based issues
+    lineReferences: [],  // Removed as requested
     reportMarkdown
   };
 };
