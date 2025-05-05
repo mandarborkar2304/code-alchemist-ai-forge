@@ -93,8 +93,11 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
   const passedAllTests = analysis.testCases.every((tc) => tc.passed);
 
   // Separate major and minor violations for display
-  const majorViolations = analysis.violations.lineReferences?.filter(ref => ref.severity === 'major') || [];
-  const minorViolations = analysis.violations.lineReferences?.filter(ref => ref.severity === 'minor') || [];
+  // const majorViolations = analysis.violations.lineReferences?.filter(ref => ref.severity === 'major') || [];
+  // const minorViolations = analysis.violations.lineReferences?.filter(ref => ref.severity === 'minor') || [];
+  const majorViolations = analysis.violations.details.filter(d => d.startsWith('Major: ')).map(d => d.replace(/^Major:\s*/, ''));
+  const minorViolations = analysis.violations.details.filter(d => d.startsWith('Minor: ')).map(d => d.replace(/^Minor:\s*/, ''));
+
 
   return (
     <div className="space-y-4 h-full overflow-y-auto scrollbar-thin pr-2">
@@ -211,85 +214,81 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
             
             {/* Updated Violations Tab with separated Major and Minor sections */}
             <TabsContent value="violations" className="space-y-4 min-h-[400px]">
-              {/* Major Violations Section */}
-              <Alert variant={analysis.violations.major > 0 ? "destructive" : "default"}>
-                <AlertOctagon className="h-4 w-4" />
-                <AlertTitle className="flex justify-between">
-                  <span>Major Violations</span>
-                  <Badge variant={analysis.violations.major > 0 ? "destructive" : "outline"} className="ml-2">
-                    {analysis.violations.major}
-                  </Badge>
-                </AlertTitle>
-                <AlertDescription>
-                  {analysis.violations.major > 0 ? (
-                    <div className="mt-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2"
-                        onClick={() => setExpandedSection(expandedSection === 'major' ? null : 'major')}
-                      >
-                        {expandedSection === 'major' ? 'Collapse' : 'Expand'} details
-                      </Button>
-                      
-                      {expandedSection === 'major' && (
-                        <ul className="mt-2 space-y-1">
-                          {majorViolations.map((ref, i) => (
-                            <li key={i} className="text-sm flex items-start gap-1.5">
-                              <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                              <span>
-                                <span className="font-mono">Line {ref.line}:</span> {ref.issue}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm mt-1">No major violations detected.</p>
-                  )}
-                </AlertDescription>
-              </Alert>
-              
-              {/* Minor Violations Section */}
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertTitle className="flex justify-between">
-                  <span>Minor Violations</span>
-                  <Badge variant="secondary" className="ml-2">
-                    {analysis.violations.minor}
-                  </Badge>
-                </AlertTitle>
-                <AlertDescription>
-                  {analysis.violations.minor > 0 ? (
-                    <div className="mt-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2"
-                        onClick={() => setExpandedSection(expandedSection === 'minor' ? null : 'minor')}
-                      >
-                        {expandedSection === 'minor' ? 'Collapse' : 'Expand'} details
-                      </Button>
-                      
-                      {expandedSection === 'minor' && (
-                        <ul className="mt-2 space-y-1">
-                          {minorViolations.map((ref, i) => (
-                            <li key={i} className="text-sm flex items-start gap-1.5">
-                              <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                              <span>
-                                <span className="font-mono">Line {ref.line}:</span> {ref.issue}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm mt-1">No minor violations detected.</p>
-                  )}
-                </AlertDescription>
-              </Alert>
+  {/* Major Violations Section */}
+  <Alert variant={analysis.violations.major > 0 ? "destructive" : "default"}>
+    <AlertOctagon className="h-4 w-4" />
+    <AlertTitle className="flex justify-between">
+      <span>Major Violations</span>
+      <Badge variant={analysis.violations.major > 0 ? "destructive" : "outline"} className="ml-2">
+        {analysis.violations.major}
+      </Badge>
+    </AlertTitle>
+    <AlertDescription>
+      {majorViolations.length > 0 ? (
+        <div className="mt-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2"
+            onClick={() => setExpandedSection(expandedSection === 'major' ? null : 'major')}
+          >
+            {expandedSection === 'major' ? 'Collapse' : 'Expand'} details
+          </Button>
+
+          {expandedSection === 'major' && (
+            <ul className="mt-2 list-disc list-inside space-y-1">
+              {majorViolations.map((issue, i) => (
+                <li key={i} className="text-sm flex items-start gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                  <span>{issue}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : (
+        <p className="text-sm mt-1">No major violations detected.</p>
+      )}
+    </AlertDescription>
+  </Alert>
+
+  {/* Minor Violations Section */}
+  <Alert>
+    <Info className="h-4 w-4" />
+    <AlertTitle className="flex justify-between">
+      <span>Minor Violations</span>
+      <Badge variant="secondary" className="ml-2">
+        {analysis.violations.minor}
+      </Badge>
+    </AlertTitle>
+    <AlertDescription>
+      {minorViolations.length > 0 ? (
+        <div className="mt-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2"
+            onClick={() => setExpandedSection(expandedSection === 'minor' ? null : 'minor')}
+          >
+            {expandedSection === 'minor' ? 'Collapse' : 'Expand'} details
+          </Button>
+
+          {expandedSection === 'minor' && (
+            <ul className="mt-2 list-disc list-inside space-y-1">
+              {minorViolations.map((issue, i) => (
+                <li key={i} className="text-sm flex items-start gap-1.5">
+                  <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                  <span>{issue}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : (
+        <p className="text-sm mt-1">No minor violations detected.</p>
+      )}
+    </AlertDescription>
+  </Alert>
               
               {/* Improvement Suggestions Section */}
               <Card>
