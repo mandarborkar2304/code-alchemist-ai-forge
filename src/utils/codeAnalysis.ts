@@ -906,57 +906,79 @@ function shouldFlagRiskyOperation(
 }
 
 // Categorize violations with major, and minor - improved with deduplication
+import { CodeViolations } from '@/types';
+
 export const categorizeViolations = (
   issuesList: string[],
-  lineRefs: { line: number, issue: string, severity: 'major' | 'minor' }[]
-): CodeViolations => {
-  const majorIndicators = new Set([
-    "Function length exceeds", "Nesting level exceeds", "No error handling",
-    "Unhandled JSON.parse", "Unhandled synchronous file", "Potential null/undefined",
-    "Array access without bounds", "Explicit throw statement", "Awaited promise without error",
-    "ArithmeticException", "NullPointerException", "ArrayIndexOutOfBoundsException",
-    "ClassCastException", "redundant computation", "inefficient nested", "Deep nesting"
-  ]);
+  lineRefs: { line: number; issue: string; severity: 'major' | 'minor' }[]
+): CodeViolations & { reportMarkdown: string } => {
+  // 1) Group all issues by their message
+  const issueOccurrences = new Map<
+    string,
+    { lines: number[]; severity: 'major' | 'minor' }
+  >();
 
-  const majorIssues: string[] = [];
-  const minorIssues: string[] = [];
-
-  // Classify issues from line references
+  // first, from lineRefs
   lineRefs.forEach(ref => {
-    if (ref.severity === 'major') {
-      majorIssues.push(ref.issue);
-    } else {
-      minorIssues.push(ref.issue);
+    const key = ref.issue;
+    const entry = issueOccurrences.get(key) || { lines: [], severity: ref.severity };
+    entry.lines.push(ref.line);
+    // if any occurrence is major, treat whole issue as major
+    if (ref.severity === 'major') entry.severity = 'major';
+    issueOccurrences.set(key, entry);
+  });
+
+  // then remaining free-form issues
+  issuesList.forEach(issue => {
+    if (!issueOccurrences.has(issue)) {
+      issueOccurrences.set(issue, { lines: [], severity: 
+        // decide by keywords or default to minor
+        /Function length exceeds|Nesting level exceeds|No error handling|Unhandled|Potential|Explicit|ArithmeticException|NullPointerException|ArrayIndexOutOfBoundsException/.test(issue)
+        ? 'major' : 'minor'
+      });
     }
   });
 
-  const allReferencedIssues = new Set([...majorIssues, ...minorIssues]);
+  // 2) Build separate lists
+  const majorLines: string[] = [];
+  const minorLines: string[] = [];
 
-  // Classify remaining issues based on keyword indicators
-  const issuesToCategorize = issuesList.filter(issue =>
-    !allReferencedIssues.has(issue)
-  );
-
-  issuesToCategorize.forEach(issue => {
-    if ([...majorIndicators].some(indicator => issue.includes(indicator))) {
-      majorIssues.push(issue);
+  issueOccurrences.forEach((occ, issue) => {
+    if (occ.severity === 'major') {
+      if (occ.lines.length > 1) {
+        occ.lines.sort((a, b) => a - b);
+        const first = occ.lines[0], last = occ.lines[occ.lines.length - 1];
+        majorLines.push(
+          `- ${issue}${first !== last ? ` (lines ${first}–${last})` : ` (line ${first})`}`
+        );
+      } else if (occ.lines.length === 1) {
+        majorLines.push(`- ${issue} (line ${occ.lines[0]})`);
+      } else {
+        majorLines.push(`- ${issue}`);
+      }
     } else {
-      minorIssues.push(issue);
+      minorLines.push(`- ${issue}`);
     }
   });
 
-  // Return the categorized violations in the required format
+  // 3) Compose markdown
+  const reportMarkdown = [
+    `### Major Violations (${majorLines.length})`,
+    ...majorLines,
+    ``,
+    `### Minor Violations (${minorLines.length})`,
+    ...minorLines
+  ].join('\n');
+
   return {
-    major: majorIssues.length,
-    minor: minorIssues.length,
-    details: [
-      `### Major Violations`,
-      ...majorIssues.map(issue => `- ${issue}`),
-      `### Minor Violations`,
-      ...minorIssues.map(issue => `- ${issue}`)
-    ]
+    major: majorLines.length,
+    minor: minorLines.length,
+    details: [],           // no longer needed if using reportMarkdown
+    lineReferences: [],    // stripped out per your request
+    reportMarkdown
   };
 };
+
 
 // Generate test cases from code
 export const generateTestCasesFromCode = (code: string, language: string): TestCase[] => {
