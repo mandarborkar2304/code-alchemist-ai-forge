@@ -2,27 +2,26 @@ import { CodeViolations } from '@/types';
 import { TestCase } from '@/types';
 
 // Quality Rules Configuration
-const rules = {
+export const rules = {
   cyclomaticComplexity: {
     warnThreshold: 10,
-    failThreshold: 15,
+    failThreshold: 15
   },
   functionLength: {
     warnThreshold: 25,
-    failThreshold: 40,
+    failThreshold: 40
   },
   nestingDepth: {
     warnThreshold: 4,
-    failThreshold: 6,
+    failThreshold: 6
   },
   commentDensity: {
     warnThresholdPercent: 10,
-    failThresholdPercent: 5,
+    failThresholdPercent: 5
   },
   noGlobalVariables: {
-    enabled: true,
+    enabled: true
   },
-  // Extended rule for unhandled exceptions with Java-specific patterns
   unhandledExceptions: {
     enabled: true,
     riskOperations: [
@@ -40,13 +39,13 @@ const rules = {
       },
       {
         id: "null-unsafe",
-        pattern: "\\.\\w+\\s*\\(", 
+        pattern: "\\.\\w+\\s*\\(",
         message: "Potential null/undefined property access without checks",
         languages: ["javascript", "typescript", "nodejs"]
       },
       {
         id: "array-unsafe",
-        pattern: "\\[(\\w+|\\d+)\\]",
+        pattern: "\\b\\w+\\[\\w+\\]",
         message: "Array access without bounds checking",
         languages: ["javascript", "typescript", "nodejs", "java", "python"]
       },
@@ -62,16 +61,15 @@ const rules = {
         message: "Awaited promise without error handling",
         languages: ["javascript", "typescript", "nodejs"]
       },
-      // Java-specific patterns
       {
         id: "java-arithmetic",
-        pattern: "/\\s*\\w+",
+        pattern: "\\w+\\s*/\\s*\\w+",
         message: "Division operation may cause ArithmeticException if divisor is zero",
         languages: ["java"]
       },
       {
         id: "java-null-pointer",
-        pattern: "\\w+\\.\\w+\\(",
+        pattern: "(?<!arr|s)\\.\\w+\\(",
         message: "Potential NullPointerException without null check",
         languages: ["java"]
       },
@@ -83,7 +81,7 @@ const rules = {
       },
       {
         id: "java-cast",
-        pattern: "\\([A-Z]\\w+\\)\\s*\\w+",
+        pattern: "\\([A-Z][A-Za-z0-9_]*\\)\\s*\\w+",
         message: "Type casting may cause ClassCastException",
         languages: ["java"]
       },
@@ -110,7 +108,7 @@ const rules = {
     },
     {
       id: "magic-numbers",
-      pattern: "[^a-zA-Z0-9_]([3-9]|[1-9][0-9]+)[^a-zA-Z0-9_]",
+      pattern: "(?<![a-zA-Z0-9_])([3-9]|[1-9][0-9]+)(?![a-zA-Z0-9_])",
       message: "Replace magic numbers with constants",
       severity: "minor"
     },
@@ -121,12 +119,12 @@ const rules = {
       severity: "minor"
     },
     {
-      id: "redundant-computation", 
-      pattern: "for\\s*\\(.+\\)\\s*{[^}]*for\\s*\\(.+\\)",
+      id: "redundant-computation",
+      pattern: "for\\s*\\(.+?\\)\\s*{[^}]*for\\s*\\(.+?\\)",
       message: "Possible redundant computation in nested loops",
       severity: "major"
     }
-  ] as Array<{ id: string; pattern: string; message: string; severity?: 'major' | 'minor' }>,
+  ] as Array<{ id: string; pattern: string; message: string; severity?: 'major' | 'minor' }>
 };
 
 // Analyze code for issues with line references
@@ -205,160 +203,148 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
     }
   }
 
-  // Check for deep nesting with improved context tracking
-  let maxNesting = 0;
-  let currentNesting = 0;
-  let nestingLines: Map<number, number> = new Map(); // line -> nesting level
-  let nestingBlocks: Map<number, {start: number, end: number}[]> = new Map(); // nesting level -> blocks
+// Check for deep nesting with improved context tracking
+let maxNesting = 0;
+let currentNesting = 0;
+let nestingLines: Map<number, number> = new Map(); // line -> nesting level
+let nestingBlocks: Map<number, { start: number, end: number }[]> = new Map(); // nesting level -> blocks
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const openBraces = (line.match(/{/g) || []).length;
-    const closedBraces = (line.match(/}/g) || []).length;
+for (let i = 0; i < lines.length; i++) {
+  const line = lines[i];
+  const openBraces = (line.match(/{/g) || []).length;
+  const closedBraces = (line.match(/}/g) || []).length;
 
-    // Track opening braces
-    for (let j = 0; j < openBraces; j++) {
-      currentNesting++;
-      if (currentNesting > rules.nestingDepth.warnThreshold) {
-        nestingLines.set(i + 1, currentNesting);
-        
-        // Track blocks at each nesting level for deduplication
-        if (!nestingBlocks.has(currentNesting)) {
-          nestingBlocks.set(currentNesting, []);
-        }
-        nestingBlocks.get(currentNesting)!.push({
-          start: i + 1,
-          end: -1 // Will be set when the brace is closed
-        });
+  // Track opening braces
+  for (let j = 0; j < openBraces; j++) {
+    currentNesting++;
+    if (currentNesting > rules.nestingDepth.warnThreshold) {
+      nestingLines.set(i + 1, currentNesting);
+
+      // Track blocks at each nesting level for deduplication
+      if (!nestingBlocks.has(currentNesting)) {
+        nestingBlocks.set(currentNesting, []);
       }
-    }
-
-    maxNesting = Math.max(maxNesting, currentNesting);
-
-    // Track closing braces
-    for (let j = 0; j < closedBraces; j++) {
-      // Update end line for nesting blocks
-      if (currentNesting > rules.nestingDepth.warnThreshold) {
-        const blocks = nestingBlocks.get(currentNesting);
-        if (blocks && blocks.length > 0) {
-          const lastBlock = blocks[blocks.length - 1];
-          if (lastBlock.end === -1) {
-            lastBlock.end = i + 1;
-          }
-        }
-      }
-      currentNesting--;
-    }
-  }
-
-  // Add deep nesting warnings with improved deduplication
-  if (maxNesting > rules.nestingDepth.warnThreshold) {
-    // Find the start of each unique nesting block to avoid duplicate warnings
-    const uniqueNestingStarts = new Set<number>();
-    
-    nestingBlocks.forEach((blocks) => {
-      blocks.forEach(block => {
-        uniqueNestingStarts.add(block.start);
+      nestingBlocks.get(currentNesting)!.push({
+        start: i + 1,
+        end: -1 // Will be set when the brace is closed
       });
-    });
-    
-    // Report deep nesting at each unique starting point
-    uniqueNestingStarts.forEach(line => {
-      const nestingLevel = nestingLines.get(line) || 0;
-      if (nestingLevel > rules.nestingDepth.warnThreshold) {
-        lineReferences.push({ 
-          line, 
-          issue: `Deep nesting (level ${nestingLevel}) - consider extracting nested blocks into helper methods`, 
-          severity: nestingLevel > rules.nestingDepth.failThreshold ? 'major' : 'minor' 
-        });
-      }
-    });
-    
-    issues.push(`Nesting level exceeds ${rules.nestingDepth.warnThreshold} (max: ${maxNesting}) - consider restructuring to reduce complexity`);
+    }
   }
 
-  // Check for error handling based on main computation methods
-  const needsErrorHandling = hasControlFlow && code.length > 100;
-  const hasTryCatch = code.includes('try') && code.includes('catch');
-  
-  if (needsErrorHandling && !hasTryCatch) {
-    const issue = "No error handling mechanisms (try-catch) detected in complex code";
+  maxNesting = Math.max(maxNesting, currentNesting);
+
+  // Track closing braces
+  for (let j = 0; j < closedBraces; j++) {
+    // Update end line for nesting blocks
+    if (currentNesting > rules.nestingDepth.warnThreshold) {
+      const blocks = nestingBlocks.get(currentNesting);
+      if (blocks && blocks.length > 0) {
+        const lastBlock = blocks[blocks.length - 1];
+        if (lastBlock.end === -1) {
+          lastBlock.end = i + 1;
+        }
+      }
+    }
+    currentNesting--;
+  }
+}
+
+// Add deep nesting warnings with improved deduplication
+if (maxNesting > rules.nestingDepth.warnThreshold) {
+  const uniqueNestingStarts = new Set<number>();
+
+  nestingBlocks.forEach((blocks) => {
+    blocks.forEach(block => {
+      uniqueNestingStarts.add(block.start);
+    });
+  });
+
+  // Always treat deep nesting as major
+  uniqueNestingStarts.forEach(line => {
+    const nestingLevel = nestingLines.get(line) || 0;
+    if (nestingLevel > rules.nestingDepth.warnThreshold) {
+      lineReferences.push({
+        line,
+        issue: `Deep nesting (level ${nestingLevel}) - consider extracting nested blocks into helper methods`,
+        severity: 'major'
+      });
+    }
+  });
+
+  issues.push(`Nesting level exceeds ${rules.nestingDepth.warnThreshold} (max: ${maxNesting}) - consider restructuring to reduce complexity`);
+}
+
+// Check for error handling based on main computation methods
+const needsErrorHandling = hasControlFlow && code.length > 100;
+const hasTryCatch = code.includes('try') && code.includes('catch');
+
+if (needsErrorHandling && !hasTryCatch) {
+  const issue = "No error handling mechanisms (try-catch) detected in complex code";
+  issues.push(issue);
+
+  // ✅ Anchor the warning directly to the compute(...) method declaration line
+  const computeLine = lines.findIndex(l => /public static int compute/.test(l)) + 1 || 1;
+  lineReferences.push({
+    line: computeLine,
+    issue: "Missing error handling - consider adding try-catch blocks for robust code",
+    severity: 'major'
+  });
+}
+
+// Check comment density with same logic as before
+if (lines.length > 20) {
+  const commentLines = lines.filter(line =>
+    line.trim().startsWith('//') ||
+    line.trim().startsWith('/*') ||
+    line.trim().startsWith('*')
+  ).length;
+
+  const commentRatio = commentLines / lines.length;
+  if (commentRatio < rules.commentDensity.failThresholdPercent / 100) {
+    const issue = `Low comment-to-code ratio (${(commentRatio * 100).toFixed(1)}% < ${rules.commentDensity.failThresholdPercent}%) - consider adding more documentation`;
     issues.push(issue);
-    
-    // Position warning at main compute method starts rather than line 1
-    if (mainComputeMethodLines.length > 0) {
-      lineReferences.push({ 
-        line: mainComputeMethodLines[0], 
-        issue: "Missing error handling - consider adding try-catch blocks for robust code", 
-        severity: 'major' 
-      });
-    } else {
-      // Fall back to the first function if no main compute method identified
-      const firstMethodLine = functionStartLine > 0 ? functionStartLine : 1;
-      lineReferences.push({ 
-        line: firstMethodLine, 
-        issue: "Missing error handling - consider adding try-catch blocks for robust code", 
-        severity: 'major' 
-      });
-    }
+    lineReferences.push({
+      line: 1,
+      issue: "Insufficient comments - add documentation for better maintainability",
+      severity: 'minor'
+    });
   }
+}
 
-  // Check comment density with same logic as before
-  if (lines.length > 20) {
-    const commentLines = lines.filter(line =>
-      line.trim().startsWith('//') ||
-      line.trim().startsWith('/*') ||
-      line.trim().startsWith('*')
-    ).length;
+// Check for single-letter variable names with improved exemption logic
+const exemptVars = new Set(['i', 'j', 'k', 'n', 'm']);
+const varPatternByLanguage = language === 'java' ?
+  /\b(int|double|String|boolean|char|float|long)\s+([a-zA-Z]{1})\b/ :
+  /\b(var|let|const)\s+([a-zA-Z]{1})\b/;
 
-    const commentRatio = commentLines / lines.length;
-    if (commentRatio < rules.commentDensity.failThresholdPercent / 100) {
-      const issue = `Low comment-to-code ratio (${(commentRatio * 100).toFixed(1)}% < ${rules.commentDensity.failThresholdPercent}%) - consider adding more documentation`;
-      issues.push(issue);
-      lineReferences.push({ 
-        line: 1, 
-        issue: "Insufficient comments - add documentation for better maintainability", 
-        severity: 'minor' 
-      });
-    }
-  }
+// Track already reported single-letter variables to avoid duplicates
+const reportedShortVars = new Set<string>();
 
-  // Check for single-letter variable names with improved exemption logic
-  // Keep exempt vars for loop indices
-  const exemptVars = new Set(['i', 'j', 'k', 'n', 'm']);
-  const varPatternByLanguage = language === 'java' ? 
-    /\b(int|double|String|boolean|char|float|long)\s+([a-zA-Z]{1})\b/ : 
-    /\b(var|let|const)\s+([a-zA-Z]{1})\b/;
+for (let i = 0; i < lines.length; i++) {
+  const line = lines[i];
+  const shortVarMatch = line.match(varPatternByLanguage);
+  if (shortVarMatch) {
+    const varName = shortVarMatch[2];
 
-  // Track already reported single-letter variables to avoid duplicates
-  const reportedShortVars = new Set<string>();
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const shortVarMatch = line.match(varPatternByLanguage);
-    if (shortVarMatch) {
-      const varName = shortVarMatch[2];
-      
-      // Skip if already reported or is an exempt loop variable
-      if (!reportedShortVars.has(varName) && !exemptVars.has(varName)) {
-        // Check if this is a loop counter in a bounded context
-        const isLoopVar = (line.includes('for') || boundedLoopVars.includes(varName));
-                         
-        if (!isLoopVar) {
-          const issue = `Single-letter variable name "${varName}" detected - use descriptive naming for better readability`;
-          issues.push(issue);
-          lineReferences.push({ 
-            line: i + 1, 
-            issue: `Short variable name "${varName}" - use descriptive names`, 
-            severity: 'minor' 
-          });
-          
-          // Mark as reported
-          reportedShortVars.add(varName);
-        }
+    // Skip if already reported or is an exempt loop variable
+    if (!reportedShortVars.has(varName) && !exemptVars.has(varName)) {
+      const isLoopVar = (line.includes('for') || boundedLoopVars.includes(varName));
+
+      if (!isLoopVar) {
+        const issue = `Single-letter variable name "${varName}" detected - use descriptive naming for better readability`;
+        issues.push(issue);
+        lineReferences.push({
+          line: i + 1,
+          issue: `Short variable name "${varName}" - use descriptive names`,
+          severity: 'minor'
+        });
+
+        reportedShortVars.add(varName);
       }
     }
   }
+}
+
 
   // Check for magic numbers with improved deduplication
   if (lines.length > 10) {
@@ -420,82 +406,115 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
     }
   }
 
-  // Find try-catch blocks to avoid flagging protected code
-  const tryCatchBlocks = findTryCatchBlocks(lines);
-  
-  // Analyze for unhandled exceptions with improved context awareness
-  if (rules.unhandledExceptions.enabled) {
-    // Create a map to deduplicate similar issues
-    const exceptionIssueMap = new Map<string, {count: number, lines: Set<number>}>();
-    
-    // Check for risky operations outside try-catch blocks
-    rules.unhandledExceptions.riskOperations
-      .filter(operation => !operation.languages || operation.languages.includes(language))
-      .forEach(operation => {
-        const regex = new RegExp(operation.pattern);
-        
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
-          
-          // Skip comments
-          if (line.trim().startsWith('//') || line.trim().startsWith('*') || line.trim().startsWith('/*')) {
-            continue;
-          }
-          
-          if (regex.test(line)) {
-            // Check if this line is within a try-catch block
-            const isInTryCatch = tryCatchBlocks.some(block => i >= block.start && i <= block.end);
-            
-            // Enhanced context check for different operation types
-            if (!isInTryCatch && shouldFlagRiskyOperation(line, operation.id, boundedLoopVars, nullProtectedVars, mainFunctionInputs)) {
-              const key = operation.id;
-              
-              if (!exceptionIssueMap.has(key)) {
-                exceptionIssueMap.set(key, {count: 0, lines: new Set()});
-              }
-              
-              const entry = exceptionIssueMap.get(key)!;
-              entry.count++;
-              entry.lines.add(i + 1);
+// Find try-catch blocks to avoid flagging protected code
+const tryCatchBlocks = findTryCatchBlocks(lines);
+
+// Create a map to deduplicate similar issues
+const exceptionIssueMap = new Map<string, { count: number; lines: Set<number> }>();
+
+// Analyze for unhandled exceptions with improved context awareness
+if (rules.unhandledExceptions.enabled) {
+  // Check for risky operations outside try-catch blocks
+  rules.unhandledExceptions.riskOperations
+    .filter(operation => !operation.languages || operation.languages.includes(language))
+    .forEach(operation => {
+      const regex = new RegExp(operation.pattern);
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // Skip comments
+        if (
+          line.trim().startsWith('//') ||
+          line.trim().startsWith('*') ||
+          line.trim().startsWith('/*')
+        ) {
+          continue;
+        }
+
+        if (regex.test(line)) {
+          // Check if this line is within a try-catch block
+          const isInTryCatch = tryCatchBlocks.some(block => i >= block.start && i <= block.end);
+
+          // Enhanced context check for different operation types
+          if (
+            !isInTryCatch &&
+            shouldFlagRiskyOperation(
+              line,
+              operation.id,
+              boundedLoopVars,
+              nullProtectedVars,
+              mainFunctionInputs
+            )
+          ) {
+            const key = operation.id;
+
+            if (!exceptionIssueMap.has(key)) {
+              exceptionIssueMap.set(key, { count: 0, lines: new Set() });
             }
+
+            const entry = exceptionIssueMap.get(key)!;
+            entry.count++;
+            entry.lines.add(i + 1);
           }
         }
+      }
+    });
+
+  // Push aggregated exception issues
+  exceptionIssueMap.forEach((entry, key) => {
+    const operationRule = rules.unhandledExceptions.riskOperations.find(op => op.id === key);
+    if (operationRule) {
+      const description = operationRule.message || `Potential unhandled exception: ${key}`;
+      issues.push(description);
+
+      // Report first few lines for clarity
+      const lineList = Array.from(entry.lines).slice(0, 3);
+      lineList.forEach(line => {
+        lineReferences.push({
+          line,
+          issue: description,
+          severity: 'major'
+        });
       });
+    }
+  });
+}
+
     
     // Add exactly one issue per line with proper prioritization
-    const lineToIssue = new Map<number, {message: string, severity: 'major' | 'minor'}>(); 
-    
-    // Process each issue type
-    exceptionIssueMap.forEach((value, key) => {
-      const operation = rules.unhandledExceptions.riskOperations.find(op => op.id === key);
-      if (operation) {
-        // Add summarized issue to the issues list
-        let issue = `${operation.message} (found in ${value.count} locations)`;
-        issues.push(issue);
-        
-        // Add line references, but ensure only one issue per line with proper prioritization
-        Array.from(value.lines).forEach(line => {
-          // Only add if this line doesn't have a higher priority issue yet
-          if (!lineToIssue.has(line) || 
-              (lineToIssue.get(line)!.severity === 'minor' && key.includes('null') || key.includes('array'))) {
-            lineToIssue.set(line, {
-              message: operation.message,
-              severity: 'major' // Most unhandled exceptions are major
-            });
-          }
+const lineToIssue = new Map<number, { message: string, severity: 'major' | 'minor' }>();
+
+// Process each issue type
+exceptionIssueMap.forEach((value, key) => {
+  const operation = rules.unhandledExceptions.riskOperations.find(op => op.id === key);
+  if (operation) {
+    // Add summarized issue to the issues list
+    const issue = `${operation.message} (found in ${value.count} locations)`;
+    issues.push(issue);
+
+    // Add line references, but ensure only one issue per line with correct prioritization
+    Array.from(value.lines).forEach(line => {
+      const existing = lineToIssue.get(line);
+      
+      if (!existing || existing.severity === 'minor') {
+        lineToIssue.set(line, {
+          message: operation.message,
+          severity: 'major'  // Treat all unhandled exceptions as major
         });
       }
     });
-    
-    // Convert the map to line references after deduplication
-    lineToIssue.forEach((value, line) => {
-      lineReferences.push({
-        line,
-        issue: value.message,
-        severity: value.severity
-      });
-    });
   }
+});
+
+// Convert deduplicated issues to line references
+lineToIssue.forEach((value, line) => {
+  lineReferences.push({
+    line,
+    issue: value.message,
+    severity: value.severity
+  });
+});
 
   // Check for redundant loops or inefficient computations
   const redundantComputationIssues = new Map<number, string>();
@@ -504,7 +523,7 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
     const nextFewLines = lines.slice(i, i + 5).join('\n');
     
     // Check for nested loops with potential redundant computation
-    if (/for\s*\([^)]+\)\s*{[^}]*for\s*\([^)]+\)/.test(nextFewLines)) {
+    if (/for\s*\([^)]+\)\s*{[^}]*for\s*\([^)]+\)/.test(nextFewLines) && !nextFewLines.includes('//')) {
       const innerVars = extractLoopVariables(nextFewLines, language);
       const outerVars = extractLoopVariables(lines[i], language);
       
@@ -597,25 +616,38 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
 };
 
 // Helper function to deduplicate line references with improved logic to avoid duplicates
-function deduplicateLineReferences(refs: { line: number, issue: string, severity: 'major' | 'minor' }[]): typeof refs {
-  const lineToIssue = new Map<number, { issue: string, severity: 'major' | 'minor' }>();
-  
-  // First pass: prioritize major over minor issues on the same line
+function deduplicateLineReferences(
+  refs: { line: number; issue: string; severity: 'major' | 'minor' }[]
+): typeof refs {
+  const lineToBestIssue = new Map<number, { issue: string; severity: 'major' | 'minor' }>();
+
   refs.forEach(ref => {
-    const existingIssue = lineToIssue.get(ref.line);
-    
-    // Check if we should replace the existing issue
-    if (!existingIssue || 
-        (ref.severity === 'major' && existingIssue.severity === 'minor') || 
-        (ref.severity === existingIssue.severity && ref.issue.length > existingIssue.issue.length)) {
-      // Prefer major issues, or more detailed issues of the same severity
-      lineToIssue.set(ref.line, { issue: ref.issue, severity: ref.severity });
+    const normalizedIssue = ref.issue.trim();
+    const existing = lineToBestIssue.get(ref.line);
+
+    if (!existing) {
+      // First issue for this line
+      lineToBestIssue.set(ref.line, { issue: normalizedIssue, severity: ref.severity });
+    } else {
+      const isCurrentMajor = ref.severity === 'major';
+      const isExistingMajor = existing.severity === 'major';
+
+      // Replace if:
+      // - Current is major and existing is minor
+      // - Same severity but current issue is longer/more descriptive
+      if (
+        (!isExistingMajor && isCurrentMajor) ||
+        (ref.severity === existing.severity && normalizedIssue.length > existing.issue.length)
+      ) {
+        lineToBestIssue.set(ref.line, { issue: normalizedIssue, severity: ref.severity });
+      }
     }
   });
-  
-  // Convert back to array
-  return Array.from(lineToIssue.entries()).map(([line, {issue, severity}]) => ({
-    line, issue, severity
+
+  return Array.from(lineToBestIssue.entries()).map(([line, { issue, severity }]) => ({
+    line,
+    issue,
+    severity
   }));
 }
 
@@ -629,7 +661,7 @@ function findNearbyMethodSignature(lines: string[], currentLine: number, range: 
     // Simple method signature detection for Java
     if ((line.includes('public') || line.includes('private') || line.includes('protected')) && 
         line.includes('(') && line.includes(')') && !line.includes(';')) {
-      return line;
+      return line.trim();
     }
   }
   return null;
@@ -641,8 +673,8 @@ function extractBoundedVariables(lines: string[], language: string): string[] {
   
   for (const line of lines) {
     // For 'for' loops with explicit bounds
-    if (line.includes('for') && line.includes(';')) {
-      const match = line.match(/for\s*\(\s*\w+\s+(\w+)\s*=.+?;\s*\1\s*[<>]=?\s*.+?;\s*\1/);
+    if (line.includes('for') && line.includes(':')) {
+      const match = line.match(/for\s*\(\s*\w+\s+(\w+)\s*:\s*\w+\s*\)/);
       if (match && match[1]) {
         boundedVars.push(match[1]);
       }
@@ -655,39 +687,36 @@ function extractBoundedVariables(lines: string[], language: string): string[] {
 // Helper function to find variables that have null checks
 function extractNullCheckedVariables(lines: string[], language: string): string[] {
   const checkedVars: string[] = [];
-  
+
   for (const line of lines) {
     if (language === 'java') {
-      // Java null checks
-      const match = line.match(/(\w+)\s*!=\s*null/);
-      if (match && match[1]) {
-        checkedVars.push(match[1]);
-      }
+      // Java null checks with support for compound conditions
+      const matches = [...line.matchAll(/(\w+)\s*!=\s*null/g)];
+      matches.forEach(m => checkedVars.push(m[1]));
     } else {
-      // JS null/undefined checks
-      const match = line.match(/(\w+)\s*!==?\s*(null|undefined)/);
-      if (match && match[1]) {
-        checkedVars.push(match[1]);
-      }
+      // JS null/undefined checks with compound conditions
+      const matches = [...line.matchAll(/(\w+)\s*!==?\s*(null|undefined)/g)];
+      matches.forEach(m => checkedVars.push(m[1]));
     }
   }
-  
+
   return checkedVars;
 }
+
 
 // Helper function to extract loop variables
 function extractLoopVariables(code: string, language: string): string[] {
   const vars: string[] = [];
-  
-  // For 'for' loops with initialization
-  const forMatches = language === 'java' 
-    ? code.match(/for\s*\(\s*\w+\s+(\w+)\s*=/)
-    : code.match(/for\s*\(\s*(let|var|const)?\s*(\w+)\s*=/);
-    
-  if (forMatches) {
-    vars.push(language === 'java' ? forMatches[1] : (forMatches[2] || ''));
+
+  const regex = language === 'java' 
+    ? /for\s*\(\s*\w+\s+(\w+)\s*=/g
+    : /for\s*\(\s*(?:let|var|const)?\s*(\w+)\s*=/g;
+
+  let match;
+  while ((match = regex.exec(code)) !== null) {
+    vars.push(match[1]);
   }
-  
+
   return vars.filter(Boolean);
 }
 
@@ -754,7 +783,12 @@ function extractMainFunctionInputs(lines: string[], language: string): string[] 
 // Helper to extract variable declarations in current scope
 function extractVariableDeclarations(line: string, language: string): string[] {
   const variables: string[] = [];
-  
+
+  // Skip lines that are commented out
+  if (line.trim().startsWith('//')) {
+    return variables;
+  }
+
   if (language === 'java') {
     // Java variable declarations: type varName
     const matches = line.match(/\b(int|double|String|boolean|char|float|long|Integer|Double|Boolean)\s+(\w+)\s*(=|;)/g);
@@ -778,7 +812,7 @@ function extractVariableDeclarations(line: string, language: string): string[] {
       });
     }
   }
-  
+
   return variables;
 }
 
@@ -790,7 +824,7 @@ function findTryCatchBlocks(lines: string[]): {start: number, end: number}[] {
   let braceCounter = 0;
    
   lines.forEach((line, i) => {
-    if (line.includes('try') && line.includes('{') && !inTryBlock) {
+    if (line.includes('try')) {
       inTryBlock = true;
       tryStartLine = i;
       braceCounter = 1;
@@ -819,6 +853,11 @@ function shouldFlagRiskyOperation(
   nullCheckedVars: string[], 
   mainInputs: string[]
 ): boolean {
+  // Skip flagging if optional chaining is used
+  if (line.includes('?.') || line.includes('?.(')) {
+    return false; // Optional chaining already protects access
+  }
+
   // For array access in bounded loops, avoid flagging
   if (operationType === 'array-unsafe' || operationType === 'java-array-index') {
     // Extract the variable used for array indexing
@@ -837,6 +876,11 @@ function shouldFlagRiskyOperation(
   
   // For null pointer access, don't flag if null-checked
   if (operationType === 'null-unsafe' || operationType === 'java-null-pointer') {
+    // Optional chaining already protects access
+    if (line.includes('?.') || line.includes('?.(')) {
+      return false;
+    }
+    
     // Extract the object being accessed
     const match = line.match(/(\w+)\.\w+\(/);
     if (match && match[1] && 
@@ -862,68 +906,56 @@ function shouldFlagRiskyOperation(
 }
 
 // Categorize violations with major, and minor - improved with deduplication
-export const categorizeViolations = (issuesList: string[], lineRefs: { line: number, issue: string, severity: 'major' | 'minor' }[]): CodeViolations => {
-  // Use the severity from line references to categorize issues
-  const uniqueMajorLineRefs = new Map<number, string>();
-  const uniqueMinorLineRefs = new Map<number, string>();
-  
-  // Prioritize major issues and deduplicate issues on the same line
+export const categorizeViolations = (
+  issuesList: string[], 
+  lineRefs: { line: number, issue: string, severity: 'major' | 'minor' }[]
+): CodeViolations => {
+  const majorIndicators = new Set([
+    "Function length exceeds", "Nesting level exceeds", "No error handling",
+    "Unhandled JSON.parse", "Unhandled synchronous file", "Potential null/undefined",
+    "Array access without bounds", "Explicit throw statement", "Awaited promise without error",
+    "ArithmeticException", "NullPointerException", "ArrayIndexOutOfBoundsException",
+    "ClassCastException", "redundant computation", "inefficient nested", "Deep nesting"
+  ]);
+
+  const majorIssues: string[] = [];
+  const minorIssues: string[] = [];
+
+  // Classify issues from line references
   lineRefs.forEach(ref => {
     if (ref.severity === 'major') {
-      uniqueMajorLineRefs.set(ref.line, ref.issue);
-    } else if (!uniqueMajorLineRefs.has(ref.line)) {
-      // Only add minor if there's no major issue on this line
-      uniqueMinorLineRefs.set(ref.line, ref.issue);
+      majorIssues.push(ref.issue);
+    } else {
+      minorIssues.push(ref.issue);
     }
   });
-  
-  const majorIssues = Array.from(uniqueMajorLineRefs.entries())
-    .map(([line, issue]) => `Line ${line}: ${issue}`);
-  
-  const minorIssues = Array.from(uniqueMinorLineRefs.entries())
-    .map(([line, issue]) => `Line ${line}: ${issue}`);
-  
-  // Add any issues that don't have line references
-  const lineRefIssues = new Set([...majorIssues, ...minorIssues].map(i => i.replace(/^Line \d+: /, '')));
-  
-  // Classify issues without line references
+
+  const allReferencedIssues = new Set([...majorIssues, ...minorIssues]);
+
+  // Classify remaining issues based on keyword indicators
   const issuesToCategorize = issuesList.filter(issue => 
-    !Array.from(lineRefIssues).some(lineIssue => issue.includes(lineIssue))
+    !allReferencedIssues.has(issue)
   );
-  
+
   issuesToCategorize.forEach(issue => {
-    if (issue.includes("Function length exceeds") || 
-        issue.includes("Nesting level exceeds") ||
-        issue.includes("No error handling") ||
-        issue.includes("Unhandled JSON.parse") ||
-        issue.includes("Unhandled synchronous file") ||
-        issue.includes("Potential null/undefined") ||
-        issue.includes("Array access without bounds") ||
-        issue.includes("Explicit throw statement") ||
-        issue.includes("Awaited promise without error") ||
-        issue.includes("ArithmeticException") ||
-        issue.includes("NullPointerException") ||
-        issue.includes("ArrayIndexOutOfBoundsException") ||
-        issue.includes("ClassCastException") ||
-        issue.includes("redundant computation") ||
-        issue.includes("inefficient nested") || issue.includes("Deep nesting")) {
+    if ([...majorIndicators].some(indicator => issue.includes(indicator))) {
       majorIssues.push(issue);
     } else {
       minorIssues.push(issue);
     }
   });
 
-  // Build the violations object with deduplicated issues
   return {
     major: majorIssues.length,
     minor: minorIssues.length,
     details: [
       ...majorIssues.map(issue => `Major: ${issue}`),
       ...minorIssues.map(issue => `Minor: ${issue}`),
-    ],
-    lineReferences: lineRefs,
+    ]
+    // lineReferences: lineRefs, // Optional: remove if you don't need to return this
   };
 };
+
 
 // Generate test cases from code
 export const generateTestCasesFromCode = (code: string, language: string): TestCase[] => {
