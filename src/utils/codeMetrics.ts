@@ -11,6 +11,14 @@ export const calculateCyclomaticComplexity = (code: string, language: string = '
   // Simplified: Start with 1 and add 1 for each decision point
   let complexity = 1; // Base complexity is 1 for single path
   
+  // Check if this is likely competitive programming code
+  const isCompetitiveProgramming = language === 'java' && 
+                                 code.includes("public static void main") &&
+                                 (code.includes("Scanner") || code.includes("BufferedReader"));
+  
+  // For competitive programming, we're more lenient with complexity thresholds
+  const complexityMultiplier = isCompetitiveProgramming ? 0.8 : 1.0;
+  
   for (const line of lines) {
     // Skip comments
     if (line.trim().startsWith('//') || line.trim().startsWith('/*') || line.trim().startsWith('*')) {
@@ -47,7 +55,7 @@ export const calculateCyclomaticComplexity = (code: string, language: string = '
     }
   }
   
-  return complexity;
+  return Math.round(complexity * complexityMultiplier);
 };
 
 // Calculate maintainability index using the standard formula
@@ -61,6 +69,11 @@ export const calculateMaintainability = (code: string, language: string = 'javas
   
   const lines = code.split('\n').filter(line => line.trim() !== '');
   const linesOfCode = lines.length;
+  
+  // Check if this is likely competitive programming code
+  const isCompetitiveProgramming = language === 'java' && 
+                                 code.includes("public static void main") &&
+                                 (code.includes("Scanner") || code.includes("BufferedReader"));
   
   // Calculate Halstead Volume with language-specific adjustments
   const codeWithoutStrings = code
@@ -119,6 +132,11 @@ export const calculateMaintainability = (code: string, language: string = 'javas
                          16.2 * Math.log(linesOfCode || 1) + 
                          50 * Math.sin(Math.sqrt(2.4 * commentRatio));
   
+  // For competitive programming, we're more lenient with maintainability requirements
+  if (isCompetitiveProgramming) {
+    maintainability = Math.min(100, maintainability + 15); // Boost maintainability score
+  }
+  
   // Normalize to 0-100 scale
   maintainability = Math.max(0, Math.min(100, maintainability));
   
@@ -129,13 +147,31 @@ export const calculateMaintainability = (code: string, language: string = 'javas
 export const calculateReliability = (code: string, language: string = 'javascript'): number => {
   let reliabilityScore = 70; // Baseline score
   
+  // Check if this is likely competitive programming code
+  const isCompetitiveProgramming = language === 'java' && 
+                                 code.includes("public static void main") &&
+                                 (code.includes("Scanner") || code.includes("BufferedReader")) &&
+                                 code.length < 1000;
+  
+  // Adjusted reliability detection for competitive programming context
+  if (isCompetitiveProgramming) {
+    reliabilityScore += 10; // More lenient baseline for competitive programming
+  }
+  
+  // Check for bounded loop patterns that are safe in competitive programming
+  const hasBoundedLoops = (code.match(/for\s*\(\s*\w+\s+\w+\s*=\s*\d+\s*;\s*\w+\s*<\s*(\w+|\d+)\s*;/g) || []).length > 0;
+  
+  if (hasBoundedLoops && isCompetitiveProgramming) {
+    reliabilityScore += 5; // Reward proper bounded loops in competitive programming
+  }
+  
   // Formal reliability factors
   
   // 1. Error handling presence
   const errorHandlingPatterns = language === 'java' ? [
     { pattern: /try\s*\{[\s\S]*?catch\s*\(/g, weight: 10 },
     { pattern: /throws\s+\w+/g, weight: 5 },
-    { pattern: /throw\s+new\s+\w+/g, weight: -2 } // Penalize uncaught throws
+    { pattern: /throw\s+new\s+\w+/g, weight: isCompetitiveProgramming ? 0 : -2 } // Don't penalize in competitive programming
   ] : [
     { pattern: /try\s*\{[\s\S]*?catch\s*\(/g, weight: 10 },
     { pattern: /\.catch\s*\(/g, weight: 5 },
@@ -170,13 +206,14 @@ export const calculateReliability = (code: string, language: string = 'javascrip
   }
   
   // 3. Deduct for known potential reliability issues
+  // Skip some deductions for competitive programming context
   const reliabilityIssues = language === 'java' ? [
-    { pattern: /==(?!=)/g, weight: -2 }, // == comparison, potentially risky in Java
+    { pattern: /==(?!=)/g, weight: isCompetitiveProgramming ? -1 : -2 }, // == comparison, less penalty in CP
     { pattern: /\/\/\s*TODO|\/\/\s*FIXME/g, weight: -2 }, // TODO/FIXME comments
-    { pattern: /System\.out\.println/g, weight: -1 }, // Console output in production
+    { pattern: /System\.out\.println/g, weight: isCompetitiveProgramming ? 0 : -1 }, // Don't penalize console in CP
     { pattern: /Math\.random/g, weight: -1 }, // Non-deterministic operations
     { pattern: /\/\s*\w+/g, weight: -3 }, // Division without checking denominator
-    { pattern: /\w+\[(\w+|\d+)\]/g, weight: -2 } // Array access without bounds check
+    { pattern: /\w+\[(\w+|\d+)\]/g, weight: isCompetitiveProgramming && hasBoundedLoops ? 0 : -2 } // Array access - no penalty if in bounded loop in CP
   ] : [
     { pattern: /==(?!=)/g, weight: -2 }, // Loose equality
     { pattern: /!=(?!=)/g, weight: -2 }, // Loose inequality
@@ -191,7 +228,7 @@ export const calculateReliability = (code: string, language: string = 'javascrip
     reliabilityScore += deduction;
   }
   
-  // 4. New: Check for unhandled exceptions
+  // 4. Check for unhandled exceptions with context awareness
   const lines = code.split('\n');
   let hasTryCatch = false;
   
@@ -202,6 +239,7 @@ export const calculateReliability = (code: string, language: string = 'javascrip
     }
   }
   
+  // Define risky operation patterns based on language
   const riskOperationPatterns = language === 'java' ? [
     /\/\s*\w+/, // Division operation
     /\w+\.\w+\(/, // Method call that could be on null
@@ -216,11 +254,36 @@ export const calculateReliability = (code: string, language: string = 'javascrip
   
   // Count risky operations that are not in try-catch blocks
   let riskyOpCount = 0;
+  let boundedArrayAccess = 0;
+  let dividedByConst = 0;
+  
+  // In competitive programming context, also check for common safe patterns
+  if (language === 'java') {
+    // Check for bounded array access in for loops (index < array.length)
+    boundedArrayAccess = (code.match(/for\s*\(\s*\w+\s+\w+\s*=\s*\d+\s*;\s*\w+\s*<\s*\w+\.length\s*;/g) || []).length;
+    
+    // Check for division by constants (safe)
+    dividedByConst = (code.match(/\/\s*\d+/g) || []).length;
+  }
+  
   for (const pattern of riskOperationPatterns) {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const isComment = line.trim().startsWith('//') || line.trim().startsWith('/*') || line.trim().startsWith('*');
+      
+      // Skip comments and check if it's a risky operation
       if (!isComment && pattern.test(line)) {
+        // For array access in Java with bounded loops, don't count as risky
+        if (pattern.toString().includes('\\[\\w+\\]') && boundedArrayAccess > 0 && isCompetitiveProgramming) {
+          continue;
+        }
+        // For division by constants, don't count as risky
+        if (pattern.toString().includes('\\/') && 
+            line.match(/\/\s*\d+/) && 
+            !line.match(/\/\s*\w+\s*[\+\-\*\/]/) && // Not a complex expression
+            isCompetitiveProgramming) {
+          continue;
+        }
         riskyOpCount++;
       }
     }
@@ -228,7 +291,8 @@ export const calculateReliability = (code: string, language: string = 'javascrip
   
   // Higher penalty for many risky operations without try-catch
   if (!hasTryCatch && riskyOpCount > 0) {
-    reliabilityScore -= Math.min(20, riskyOpCount * 2);
+    let penalty = isCompetitiveProgramming ? Math.min(10, riskyOpCount) : Math.min(20, riskyOpCount * 2);
+    reliabilityScore -= penalty;
   }
   
   // For simple code with no decision points, ensure high reliability
@@ -247,6 +311,11 @@ export const calculateReliability = (code: string, language: string = 'javascrip
 export const getCodeMetrics = (code: string, language: string = 'javascript') => {
   const lines = code.split('\n').filter(line => line.trim() !== '');
   const linesOfCode = lines.length;
+  
+  // Check for competitive programming context
+  const isCompetitiveProgramming = language === 'java' && 
+                                 code.includes("public static void main") &&
+                                 (code.includes("Scanner") || code.includes("BufferedReader"));
   
   // Calculate comment percentage with language-specific adjustments
   let commentLines;
@@ -273,6 +342,11 @@ export const getCodeMetrics = (code: string, language: string = 'javascript') =>
     const methodRegex = /(?:public|private|protected)(?:\s+static)?\s+\w+\s+\w+\s*\([^)]*\)/g;
     const methodMatches = code.match(methodRegex) || [];
     functionCount = methodMatches.length;
+    
+    // For competitive programming in Java, ensure we count at least the main method
+    if (functionCount === 0 && isCompetitiveProgramming) {
+      functionCount = 1; // At least count main
+    }
   } else {
     const functionRegex = /function\s+\w+|const\s+\w+\s*=\s*\([^)]*\)\s*=>|\w+\s*\([^)]*\)\s*{|\w+\s*=\s*function/g;
     const functionMatches = code.match(functionRegex) || [];
@@ -314,6 +388,12 @@ export const getCodeMetrics = (code: string, language: string = 'javascript') =>
         currentFunctionLines++;
       }
     }
+  }
+  
+  // For competitive programming with just one main method, be lenient
+  if (isCompetitiveProgramming && functionLengths.length <= 1) {
+    // Don't penalize single main method in competitive programming
+    functionLengths = functionLengths.map(length => Math.min(length, 20));
   }
   
   // Calculate average function length
