@@ -65,7 +65,7 @@ const rules = {
       // Java-specific patterns
       {
         id: "java-arithmetic",
-        pattern: "\\/\\s*\\w+",
+        pattern: "/\\s*\\w+",
         message: "Division operation may cause ArithmeticException if divisor is zero",
         languages: ["java"]
       },
@@ -89,7 +89,7 @@ const rules = {
       },
       {
         id: "java-throw",
-        pattern: "throw\\s+\\w+",
+        pattern: "throw\\s+new\\s+\\w+",
         message: "Exception thrown without being caught or declared",
         languages: ["java"]
       }
@@ -111,12 +111,12 @@ const rules = {
     {
       id: "magic-numbers",
       pattern: "[^a-zA-Z0-9_]([3-9]|[1-9][0-9]+)[^a-zA-Z0-9_]",
-      message: "Replace magic numbers with named constants for better readability",
+      message: "Replace magic numbers with constants",
       severity: "minor"
     },
     {
       id: "single-letter-var",
-      pattern: "\\b(var|let|const)\\s+([a-zA-Z]{1})\\b",
+      pattern: "\\b(int|String|boolean|double|char|long)\\s+([a-zA-Z])\\b",
       message: "Use descriptive variable names instead of single letters",
       severity: "minor"
     },
@@ -526,9 +526,9 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
     });
   });
   
-  if (redundantComputationIssues.size > 0) {
-    issues.push("Potential performance issues detected with nested loops");
-  }
+  // if (redundantComputationIssues.size > 0) {
+  //   issues.push("Potential performance issues detected with nested loops");
+  // }
 
   // Analyze for custom code smells with improved deduplication
   const customSmellLines = new Map<string, Set<number>>();
@@ -788,7 +788,7 @@ function findTryCatchBlocks(lines: string[]): {start: number, end: number}[] {
   let inTryBlock = false;
   let tryStartLine = 0;
   let braceCounter = 0;
-  
+   
   lines.forEach((line, i) => {
     if (line.includes('try') && line.includes('{') && !inTryBlock) {
       inTryBlock = true;
@@ -906,7 +906,7 @@ export const categorizeViolations = (issuesList: string[], lineRefs: { line: num
         issue.includes("ArrayIndexOutOfBoundsException") ||
         issue.includes("ClassCastException") ||
         issue.includes("redundant computation") ||
-        issue.includes("inefficient nested")) {
+        issue.includes("inefficient nested") || issue.includes("Deep nesting")) {
       majorIssues.push(issue);
     } else {
       minorIssues.push(issue);
