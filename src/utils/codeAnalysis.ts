@@ -907,7 +907,7 @@ function shouldFlagRiskyOperation(
 
 // Categorize violations with major, and minor - improved with deduplication
 export const categorizeViolations = (
-  issuesList: string[], 
+  issuesList: string[],
   lineRefs: { line: number, issue: string, severity: 'major' | 'minor' }[]
 ): CodeViolations => {
   const majorIndicators = new Set([
@@ -933,7 +933,7 @@ export const categorizeViolations = (
   const allReferencedIssues = new Set([...majorIssues, ...minorIssues]);
 
   // Classify remaining issues based on keyword indicators
-  const issuesToCategorize = issuesList.filter(issue => 
+  const issuesToCategorize = issuesList.filter(issue =>
     !allReferencedIssues.has(issue)
   );
 
@@ -945,17 +945,18 @@ export const categorizeViolations = (
     }
   });
 
+  // Return the categorized violations in the required format
   return {
     major: majorIssues.length,
     minor: minorIssues.length,
     details: [
-      ...majorIssues.map(issue => `Major: ${issue}`),
-      ...minorIssues.map(issue => `Minor: ${issue}`),
+      `### Major Violations`,
+      ...majorIssues.map(issue => `- ${issue}`),
+      `### Minor Violations`,
+      ...minorIssues.map(issue => `- ${issue}`)
     ]
-    // lineReferences: lineRefs, // Optional: remove if you don't need to return this
   };
 };
-
 
 // Generate test cases from code
 export const generateTestCasesFromCode = (code: string, language: string): TestCase[] => {
