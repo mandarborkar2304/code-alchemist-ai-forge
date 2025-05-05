@@ -252,29 +252,23 @@ export const analyzeCodeForIssues = (code: string): { details: string[], lineRef
 
 // Categorize violations with major, and minor
 export const categorizeViolations = (issuesList: string[]): CodeViolations => {
-  // Define patterns that identify major violations
-  const majorViolationPatterns = [
-    "Function length exceeds",
-    "Nesting level exceeds",
-    "No error handling",
-    "Unhandled JSON.parse",
-    "Unhandled synchronous file",
-    "Potential null/undefined",
-    "Array access without bounds",
-    "Explicit throw statement",
-    "Awaited promise without error"
-  ];
-
-  // Filter issues into major and minor categories
   const majorIssues = issuesList.filter(issue =>
-    majorViolationPatterns.some(pattern => issue.includes(pattern))
+      issue.includes("Function length exceeds 25") ||
+      issue.includes("Nesting level exceeds") ||
+      issue.includes("No error handling") ||
+      // Add unhandled exception issues to major violations
+      issue.includes("Unhandled JSON.parse") ||
+      issue.includes("Unhandled synchronous file") ||
+      issue.includes("Potential null/undefined") ||
+      issue.includes("Array access without bounds") ||
+      issue.includes("Explicit throw statement") ||
+      issue.includes("Awaited promise without error")
   );
 
   const minorIssues = issuesList.filter(issue =>
     !majorIssues.includes(issue)
   );
 
-  // Format issues with clear Major/Minor prefix
   return {
     major: majorIssues.length,
     minor: minorIssues.length,

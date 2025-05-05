@@ -1,4 +1,3 @@
-
 import React from "react";
 import { CodeAnalysis } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -87,33 +86,6 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
       </div>
     );
   }
-
-  // Parse violations into major and minor categories
-  const majorViolations = analysis.violations.details.filter(detail => 
-    detail.startsWith("Major:")
-  );
-  
-  const minorViolations = analysis.violations.details.filter(detail => 
-    detail.startsWith("Minor:")
-  );
-
-  // Group line references by severity
-  const majorLineReferences = analysis.violations.lineReferences?.filter(ref => 
-    [
-      "Deep nesting", 
-      "Long function", 
-      "json-parse",
-      "file-system",
-      "null-unsafe",
-      "array-unsafe",
-      "explicit-throw",
-      "await-without-catch"
-    ].some(issue => ref.issue.includes(issue))
-  ) || [];
-  
-  const minorLineReferences = analysis.violations.lineReferences?.filter(ref => 
-    !majorLineReferences.includes(ref)
-  ) || [];
 
   const passedAllTests = analysis.testCases.every((tc) => tc.passed);
 
@@ -229,86 +201,42 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                 );
               })}
 
-              {/* Refactored Violations Panel with clear separation of Major and Minor */}
-              <Alert 
-                variant={analysis.violations.major > 0 ? "destructive" : "default"}
-                className="mb-2"
-              >
+              {/* Violations Panel */}
+              <Alert variant={analysis.violations.major > 0 ? "destructive" : "default"}>
                 <AlertOctagon className="h-4 w-4" />
                 <AlertTitle>Code Violations</AlertTitle>
                 <AlertDescription>
-                  <div className="mt-2 space-y-4">
-                    {/* Major Violations Section */}
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center border-b border-border pb-1">
-                        <h4 className="text-sm font-medium">Major Violations</h4>
-                        <Badge variant="destructive">{analysis.violations.major}</Badge>
-                      </div>
-                      
-                      {analysis.violations.major > 0 ? (
-                        <div className="space-y-2 mt-1">
-                          <ul className="space-y-1">
-                            {majorViolations.map((detail, index) => (
-                              <li key={index} className="flex items-start gap-2 text-sm">
-                                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0 text-red-500" />
-                                <span>{detail.replace("Major: ", "")}</span>
-                              </li>
-                            ))}
-                          </ul>
-                          
-                          {majorLineReferences.length > 0 && (
-                            <div className="mt-1 pl-6">
-                              <span className="text-xs font-semibold">Line-specific issues:</span>
-                              <ul className="mt-1 space-y-1 text-xs">
-                                {majorLineReferences.map((ref, index) => (
-                                  <li key={index} className="flex items-start gap-1">
-                                    <span className="font-mono text-red-400">Line {ref.line}:</span> {ref.issue}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No major violations detected</p>
-                      )}
+                  <div className="mt-2 space-y-2">
+                    <div className="flex justify-between">
+                      <span>Major Violations:</span>
+                      <Badge variant="destructive">{analysis.violations.major}</Badge>
                     </div>
-
-                    {/* Minor Violations Section */}
-                    <div className="space-y-2 pt-1">
-                      <div className="flex justify-between items-center border-b border-border pb-1">
-                        <h4 className="text-sm font-medium">Minor Violations</h4>
-                        <Badge variant="secondary">{analysis.violations.minor}</Badge>
-                      </div>
-                      
-                      {analysis.violations.minor > 0 ? (
-                        <div className="space-y-2 mt-1">
-                          <ul className="space-y-1">
-                            {minorViolations.map((detail, index) => (
-                              <li key={index} className="flex items-start gap-2 text-sm">
-                                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0 text-yellow-500" />
-                                <span>{detail.replace("Minor: ", "")}</span>
-                              </li>
-                            ))}
-                          </ul>
-                          
-                          {minorLineReferences.length > 0 && (
-                            <div className="mt-1 pl-6">
-                              <span className="text-xs font-semibold">Line-specific issues:</span>
-                              <ul className="mt-1 space-y-1 text-xs">
-                                {minorLineReferences.map((ref, index) => (
-                                  <li key={index} className="flex items-start gap-1">
-                                    <span className="font-mono text-yellow-400">Line {ref.line}:</span> {ref.issue}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No minor violations detected</p>
-                      )}
+                    <div className="flex justify-between">
+                      <span>Minor Violations:</span>
+                      <Badge variant="secondary">{analysis.violations.minor}</Badge>
                     </div>
+                    {analysis.violations.details.length > 0 && (
+                      <ul className="mt-2 space-y-1 text-sm">
+                        {analysis.violations.details.map((detail, index) => (
+                          <li key={index} className="flex items-start gap-2">
+                            <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            {detail}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {analysis.violations.lineReferences && analysis.violations.lineReferences.length > 0 && (
+                      <div className="mt-3">
+                        <span className="text-xs font-semibold">Line-specific issues:</span>
+                        <ul className="mt-1 space-y-1 text-xs">
+                          {analysis.violations.lineReferences.map((ref, index) => (
+                            <li key={index} className="flex items-start gap-1">
+                              <span className="font-mono">Line {ref.line}:</span> {ref.issue}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </AlertDescription>
               </Alert>
