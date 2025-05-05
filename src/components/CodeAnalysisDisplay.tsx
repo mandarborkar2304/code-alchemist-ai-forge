@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { CodeAnalysis } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,11 +44,11 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
   const getComplexityTooltip = () => (
     <p className="max-w-xs">
       A source code complexity that correlates to a number of coding errors.
-      <br /><br />
-      <strong>Complexity Ratings:</strong><br />
-      A- Good<br />
-      B- Medium complexity<br />
-      C- High complexity<br />
+      <br/><br/>
+      <strong>Complexity Ratings:</strong><br/>
+      A- Good<br/>
+      B- Medium complexity<br/>
+      C- High complexity<br/>
       D- Extreme complexity
     </p>
   );
@@ -55,11 +56,11 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
   const getMaintainabilityTooltip = () => (
     <p className="max-w-xs">
       The ability to update or modify the system under test.
-      <br /><br />
-      <strong>Maintainability Ratings:</strong><br />
-      A- Highly maintainable<br />
-      B- Moderately maintainable<br />
-      C- Low maintainability<br />
+      <br/><br/>
+      <strong>Maintainability Ratings:</strong><br/>
+      A- Highly maintainable<br/>
+      B- Moderately maintainable<br/>
+      C- Low maintainability<br/>
       D- Very difficult to maintain
     </p>
   );
@@ -67,11 +68,11 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
   const getReliabilityTooltip = () => (
     <p className="max-w-xs">
       The ability to perform consistently and handle errors.
-      <br /><br />
-      <strong>Reliability Ratings:</strong><br />
-      A- No issues detected<br />
-      B- Minor issues detected<br />
-      C- Major issues detected<br />
+      <br/><br/>
+      <strong>Reliability Ratings:</strong><br/>
+      A- No issues detected<br/>
+      B- Minor issues detected<br/>
+      C- Major issues detected<br/>
       D- Critical issues detected
     </p>
   );
@@ -92,8 +93,8 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
   const passedAllTests = analysis.testCases.every((tc) => tc.passed);
 
   // Separate major and minor violations for display
-  const majorViolations = analysis.violations.details.filter(d => d.startsWith('Major: ')).map(d => d.replace(/^Major:\s*/, ''));
-  const minorViolations = analysis.violations.details.filter(d => d.startsWith('Minor: ')).map(d => d.replace(/^Minor:\s*/, ''));
+  const majorViolations = analysis.violations.lineReferences?.filter(ref => ref.severity === 'major') || [];
+  const minorViolations = analysis.violations.lineReferences?.filter(ref => ref.severity === 'minor') || [];
 
   return (
     <div className="space-y-4 h-full overflow-y-auto scrollbar-thin pr-2">
@@ -159,8 +160,8 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                       <div className="flex justify-between items-center">
                         <CardTitle className="text-sm flex items-center">
                           {metricKey === 'cyclomaticComplexity' ? 'Cyclomatic Complexity' :
-                            metricKey === 'maintainability' ? 'Maintainability' :
-                            'Reliability'}
+                           metricKey === 'maintainability' ? 'Maintainability' :
+                           'Reliability'}
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -220,23 +221,25 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                   </Badge>
                 </AlertTitle>
                 <AlertDescription>
-                  {majorViolations.length > 0 ? (
+                  {analysis.violations.major > 0 ? (
                     <div className="mt-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
                         className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2"
                         onClick={() => setExpandedSection(expandedSection === 'major' ? null : 'major')}
                       >
                         {expandedSection === 'major' ? 'Collapse' : 'Expand'} details
                       </Button>
-
+                      
                       {expandedSection === 'major' && (
-                        <ul className="mt-2 list-disc list-inside space-y-1">
-                          {majorViolations.map((issue, i) => (
+                        <ul className="mt-2 space-y-1">
+                          {majorViolations.map((ref, i) => (
                             <li key={i} className="text-sm flex items-start gap-1.5">
                               <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                              <span>{issue}</span>
+                              <span>
+                                <span className="text-sm"> {ref.issue} </span>
+                              </span>
                             </li>
                           ))}
                         </ul>
@@ -247,34 +250,36 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                   )}
                 </AlertDescription>
               </Alert>
-
+              
               {/* Minor Violations Section */}
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertTitle className="flex justify-between">
                   <span>Minor Violations</span>
-                  <Badge variant={analysis.violations.minor > 0 ? "default" : "outline"} className="ml-2">
+                  <Badge variant="secondary" className="ml-2">
                     {analysis.violations.minor}
                   </Badge>
                 </AlertTitle>
                 <AlertDescription>
-                  {minorViolations.length > 0 ? (
+                  {analysis.violations.minor > 0 ? (
                     <div className="mt-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
                         className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2"
                         onClick={() => setExpandedSection(expandedSection === 'minor' ? null : 'minor')}
                       >
                         {expandedSection === 'minor' ? 'Collapse' : 'Expand'} details
                       </Button>
-
+                      
                       {expandedSection === 'minor' && (
-                        <ul className="mt-2 list-disc list-inside space-y-1">
-                          {minorViolations.map((issue, i) => (
+                        <ul className="mt-2 space-y-1">
+                          {minorViolations.map((ref, i) => (
                             <li key={i} className="text-sm flex items-start gap-1.5">
-                              <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                              <span>{issue}</span>
+                              <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                              <span>
+                                <span className="text-sm"> {ref.issue}</span>
+                              </span>
                             </li>
                           ))}
                         </ul>
@@ -285,6 +290,46 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                   )}
                 </AlertDescription>
               </Alert>
+              
+              {/* Improvement Suggestions Section */}
+              <Card>
+                <CardHeader className="p-4">
+                  <CardTitle className="text-sm">Suggested Improvements</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <ul className="space-y-2 text-sm">
+                    {majorViolations.length > 0 && (
+                      <>
+                        <li className="flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 mt-0.5 text-destructive" />
+                          <span>Add error handling with try-catch blocks around risky operations.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 mt-0.5 text-destructive" />
+                          <span>Add null checks before accessing object properties or methods.</span>
+                        </li>
+                      </>
+                    )}
+                    {minorViolations.length > 0 && (
+                      <>
+                        <li className="flex items-start gap-2">
+                          <Info className="h-4 w-4 mt-0.5" />
+                          <span>Replace magic numbers with named constants for better readability.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Info className="h-4 w-4 mt-0.5" />
+                          <span>Add comments to explain complex sections of code.</span>
+                        </li>
+                      </>
+                    )}
+                    {majorViolations.length === 0 && minorViolations.length === 0 && (
+                      <li className="text-center text-muted-foreground">
+                        No specific improvements needed.
+                      </li>
+                    )}
+                  </ul>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             {/* AI Feedback and corrected code */}
