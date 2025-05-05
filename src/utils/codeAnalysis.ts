@@ -908,37 +908,44 @@ function shouldFlagRiskyOperation(
 export const categorizeViolations = (
   issuesList: string[]
 ): CodeViolations & { reportMarkdown: string } => {
-  // Group unique issues and categorize
+  // Group unique issues and categorize them into major and minor
   const issueMap = new Map<string, 'major' | 'minor'>();
 
-  issuesList.forEach(issue => {
+  // Categorize issues based on severity
+  issuesList.forEach((issue) => {
     const isMajor = /Function length exceeds|Nesting level exceeds|No error handling|Unhandled|Potential|Explicit|ArithmeticException|NullPointerException|ArrayIndexOutOfBoundsException/.test(issue);
     issueMap.set(issue, isMajor ? 'major' : 'minor');
   });
 
+  // Separate major and minor issues into arrays
   const majorIssues: string[] = [];
   const minorIssues: string[] = [];
 
   issueMap.forEach((severity, issue) => {
-    const entry = `- ${issue}`;
-    severity === 'major' ? majorIssues.push(entry) : minorIssues.push(entry);
+    const formattedIssue = `- ${issue}`; // Formatting the issue for markdown
+    if (severity === 'major') {
+      majorIssues.push(formattedIssue);
+    } else {
+      minorIssues.push(formattedIssue);
+    }
   });
 
+  // Generate markdown report
   const reportMarkdown = [
-    `### Major Violations (${majorIssues.length})`,
-    ...majorIssues,
+    `### Major Violations (${majorIssues.length})`,  // Title for Major Violations
+    ...majorIssues,                                  // List of Major Violations
     ``,
-    `### Minor Violations (${minorIssues.length})`,
-    ...minorIssues
-  ].join('\n');
+    `### Minor Violations (${minorIssues.length})`,  // Title for Minor Violations
+    ...minorIssues                                   // List of Minor Violations
+  ].join('\n'); // Join them with line breaks for markdown formatting
 
-  // Return the object with the reportMarkdown value
+  // Return the categorized violations along with the markdown report
   return {
     major: majorIssues.length,
     minor: minorIssues.length,
-    details: [],
-    lineReferences: [],  // Ensure this is properly set or removed as needed
-    reportMarkdown: reportMarkdown  // Return the actual reportMarkdown string here
+    details: [], // Additional details can be added here if necessary
+    lineReferences: [], // Line references can be included based on code analysis
+    reportMarkdown: reportMarkdown  // Markdown formatted violations report
   };
 };
 
