@@ -1,4 +1,3 @@
-
 import { CodeViolations } from '@/types';
 import { TestCase } from '@/types';
 
@@ -151,7 +150,11 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
   let currentFunction = 0;
   let inFunction = false;
   let functionStartLine = 0;
+  let currentFunctionName = "";
   let currentFunctionVars: string[] = [];
+
+  // Track main computation methods for correctly positioning error handling warnings
+  let mainComputeMethodLines: number[] = [];
 
   // Check for long functions and track context
   for (let i = 0; i < lines.length; i++) {
@@ -165,6 +168,19 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
       inFunction = true;
       currentFunction = 0;
       functionStartLine = i + 1;
+      
+      // Extract function/method name for better context
+      if (language === 'java') {
+        const methodMatch = line.match(/(?:public|private|protected)(?:\s+static)?\s+\w+\s+(\w+)\s*\(/);
+        if (methodMatch && methodMatch[1]) {
+          currentFunctionName = methodMatch[1];
+          // Identify main compute methods in Java
+          if (currentFunctionName.match(/compute|calculate|solve|process|main/i)) {
+            mainComputeMethodLines.push(functionStartLine);
+          }
+        }
+      }
+      
       currentFunctionVars = extractFunctionParameters(line, language);
     }
 
@@ -189,57 +205,105 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
     }
   }
 
-  // Check for deep nesting
+  // Check for deep nesting with improved context tracking
   let maxNesting = 0;
   let currentNesting = 0;
-  let nestingStartLines: number[] = [];
+  let nestingLines: Map<number, number> = new Map(); // line -> nesting level
+  let nestingBlocks: Map<number, {start: number, end: number}[]> = new Map(); // nesting level -> blocks
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const openBraces = (line.match(/{/g) || []).length;
     const closedBraces = (line.match(/}/g) || []).length;
 
+    // Track opening braces
     for (let j = 0; j < openBraces; j++) {
       currentNesting++;
       if (currentNesting > rules.nestingDepth.warnThreshold) {
-        nestingStartLines.push(i + 1);
+        nestingLines.set(i + 1, currentNesting);
+        
+        // Track blocks at each nesting level for deduplication
+        if (!nestingBlocks.has(currentNesting)) {
+          nestingBlocks.set(currentNesting, []);
+        }
+        nestingBlocks.get(currentNesting)!.push({
+          start: i + 1,
+          end: -1 // Will be set when the brace is closed
+        });
       }
     }
 
     maxNesting = Math.max(maxNesting, currentNesting);
 
+    // Track closing braces
     for (let j = 0; j < closedBraces; j++) {
+      // Update end line for nesting blocks
+      if (currentNesting > rules.nestingDepth.warnThreshold) {
+        const blocks = nestingBlocks.get(currentNesting);
+        if (blocks && blocks.length > 0) {
+          const lastBlock = blocks[blocks.length - 1];
+          if (lastBlock.end === -1) {
+            lastBlock.end = i + 1;
+          }
+        }
+      }
       currentNesting--;
     }
   }
 
-  if (maxNesting > rules.nestingDepth.failThreshold) {
-    const issue = `Nesting level exceeds ${rules.nestingDepth.failThreshold} (max: ${maxNesting}) - consider restructuring to reduce complexity`;
-    issues.push(issue);
-    nestingStartLines.forEach(line => {
-      lineReferences.push({ 
-        line, 
-        issue: "Deep nesting - consider extracting nested blocks into helper methods", 
-        severity: 'major' 
+  // Add deep nesting warnings with improved deduplication
+  if (maxNesting > rules.nestingDepth.warnThreshold) {
+    // Find the start of each unique nesting block to avoid duplicate warnings
+    const uniqueNestingStarts = new Set<number>();
+    
+    nestingBlocks.forEach((blocks) => {
+      blocks.forEach(block => {
+        uniqueNestingStarts.add(block.start);
       });
     });
+    
+    // Report deep nesting at each unique starting point
+    uniqueNestingStarts.forEach(line => {
+      const nestingLevel = nestingLines.get(line) || 0;
+      if (nestingLevel > rules.nestingDepth.warnThreshold) {
+        lineReferences.push({ 
+          line, 
+          issue: `Deep nesting (level ${nestingLevel}) - consider extracting nested blocks into helper methods`, 
+          severity: nestingLevel > rules.nestingDepth.failThreshold ? 'major' : 'minor' 
+        });
+      }
+    });
+    
+    issues.push(`Nesting level exceeds ${rules.nestingDepth.warnThreshold} (max: ${maxNesting}) - consider restructuring to reduce complexity`);
   }
 
-  // Check for error handling
+  // Check for error handling based on main computation methods
   const needsErrorHandling = hasControlFlow && code.length > 100;
   const hasTryCatch = code.includes('try') && code.includes('catch');
   
   if (needsErrorHandling && !hasTryCatch) {
     const issue = "No error handling mechanisms (try-catch) detected in complex code";
     issues.push(issue);
-    lineReferences.push({ 
-      line: 1, 
-      issue: "Missing error handling - consider adding try-catch blocks for robust code", 
-      severity: 'major' 
-    });
+    
+    // Position warning at main compute method starts rather than line 1
+    if (mainComputeMethodLines.length > 0) {
+      lineReferences.push({ 
+        line: mainComputeMethodLines[0], 
+        issue: "Missing error handling - consider adding try-catch blocks for robust code", 
+        severity: 'major' 
+      });
+    } else {
+      // Fall back to the first function if no main compute method identified
+      const firstMethodLine = functionStartLine > 0 ? functionStartLine : 1;
+      lineReferences.push({ 
+        line: firstMethodLine, 
+        issue: "Missing error handling - consider adding try-catch blocks for robust code", 
+        severity: 'major' 
+      });
+    }
   }
 
-  // Check comment density
+  // Check comment density with same logic as before
   if (lines.length > 20) {
     const commentLines = lines.filter(line =>
       line.trim().startsWith('//') ||
@@ -259,60 +323,99 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
     }
   }
 
-  // Check for single-letter variable names with language-specific context
-  // Don't flag common loop variables such as 'i', 'j', 'k' in bounded loops
+  // Check for single-letter variable names with improved exemption logic
+  // Keep exempt vars for loop indices
   const exemptVars = new Set(['i', 'j', 'k', 'n', 'm']);
   const varPatternByLanguage = language === 'java' ? 
     /\b(int|double|String|boolean|char|float|long)\s+([a-zA-Z]{1})\b/ : 
     /\b(var|let|const)\s+([a-zA-Z]{1})\b/;
 
+  // Track already reported single-letter variables to avoid duplicates
+  const reportedShortVars = new Set<string>();
+  
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const shortVarMatch = line.match(varPatternByLanguage);
     if (shortVarMatch) {
       const varName = shortVarMatch[2];
-      // Check if this is a loop counter in a bounded context
-      const isLoopVar = exemptVars.has(varName) && 
-                        (line.includes('for') || 
-                         boundedLoopVars.includes(varName));
+      
+      // Skip if already reported or is an exempt loop variable
+      if (!reportedShortVars.has(varName) && !exemptVars.has(varName)) {
+        // Check if this is a loop counter in a bounded context
+        const isLoopVar = (line.includes('for') || boundedLoopVars.includes(varName));
                          
-      if (!isLoopVar) {
-        const issue = `Single-letter variable name "${varName}" detected - use descriptive naming for better readability`;
-        issues.push(issue);
-        lineReferences.push({ 
-          line: i + 1, 
-          issue: `Short variable name "${varName}" - use descriptive names`, 
-          severity: 'minor' 
-        });
+        if (!isLoopVar) {
+          const issue = `Single-letter variable name "${varName}" detected - use descriptive naming for better readability`;
+          issues.push(issue);
+          lineReferences.push({ 
+            line: i + 1, 
+            issue: `Short variable name "${varName}" - use descriptive names`, 
+            severity: 'minor' 
+          });
+          
+          // Mark as reported
+          reportedShortVars.add(varName);
+        }
       }
     }
   }
 
-  // Check for magic numbers - but deduplicate the issues
+  // Check for magic numbers with improved deduplication
   if (lines.length > 10) {
-    const magicNumberLines = new Set<number>();
+    // Map to track magic numbers by their actual value to avoid duplicates
+    const magicNumbersByValue = new Map<string, Set<number>>(); // value -> line numbers
     
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const magicNumberMatch = line.match(/[^a-zA-Z0-9_]([3-9]|[1-9][0-9]+)[^a-zA-Z0-9_]/g);
-      const isComment = line.trim().startsWith('//') || line.trim().startsWith('/*') || line.trim().startsWith('*');
       
-      // Skip magic numbers in typical competitive programming structures
+      // Skip comments, string literals, and typical test case input
+      const isComment = line.trim().startsWith('//') || line.trim().startsWith('/*') || line.trim().startsWith('*');
+      const isStringLiteral = line.includes('"') || line.includes("'");
       const isTypicalIntInput = line.includes("Scanner") || line.includes("BufferedReader") ||
-                              line.includes("readLine") || line.includes("parseInt") ||
-                              line.includes("nextInt");
+                             line.includes("readLine") || line.includes("parseInt") ||
+                             line.includes("nextInt");
                               
-      if (magicNumberMatch && !isComment && !isTypicalIntInput && !magicNumberLines.has(i + 1)) {
-        magicNumberLines.add(i + 1);
+      if (!isComment && !isTypicalIntInput) {
+        // Match numbers not part of identifiers or decimal points
+        const magicNumberMatches = line.match(/[^a-zA-Z0-9_\.]([3-9]|[1-9][0-9]+)(?![a-zA-Z0-9_\.])/g);
+        
+        if (magicNumberMatches) {
+          magicNumberMatches.forEach(match => {
+            // Extract just the number part
+            const numMatch = match.match(/([3-9]|[1-9][0-9]+)/);
+            if (numMatch) {
+              const numValue = numMatch[1];
+              
+              // Skip if in a string context
+              if (isStringLiteral && (line.indexOf('"' + numValue) >= 0 || line.indexOf("'" + numValue) >= 0)) {
+                return;
+              }
+              
+              // Track this number by value
+              if (!magicNumbersByValue.has(numValue)) {
+                magicNumbersByValue.set(numValue, new Set());
+              }
+              magicNumbersByValue.get(numValue)!.add(i + 1);
+            }
+          });
+        }
+      }
+    }
+    
+    // Report only the first occurrence of each unique magic number
+    magicNumbersByValue.forEach((lineSet, value) => {
+      // Only report if there are lines containing this magic number
+      if (lineSet.size > 0) {
+        const firstLine = Math.min(...Array.from(lineSet));
         lineReferences.push({ 
-          line: i + 1, 
-          issue: "Magic number - replace with named constant", 
+          line: firstLine, 
+          issue: `Magic number ${value} - replace with named constant`, 
           severity: 'minor' 
         });
       }
-    }
-
-    if (magicNumberLines.size > 0) {
+    });
+    
+    if (magicNumbersByValue.size > 0) {
       issues.push("Magic numbers detected - consider using named constants");
     }
   }
@@ -323,7 +426,7 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
   // Analyze for unhandled exceptions with improved context awareness
   if (rules.unhandledExceptions.enabled) {
     // Create a map to deduplicate similar issues
-    const exceptionIssueMap = new Map<string, {count: number, lines: number[]}>();
+    const exceptionIssueMap = new Map<string, {count: number, lines: Set<number>}>();
     
     // Check for risky operations outside try-catch blocks
     rules.unhandledExceptions.riskOperations
@@ -343,43 +446,59 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
             // Check if this line is within a try-catch block
             const isInTryCatch = tryCatchBlocks.some(block => i >= block.start && i <= block.end);
             
-            // Skip if explicitly bounded or null-checked
+            // Enhanced context check for different operation types
             if (!isInTryCatch && shouldFlagRiskyOperation(line, operation.id, boundedLoopVars, nullProtectedVars, mainFunctionInputs)) {
               const key = operation.id;
               
               if (!exceptionIssueMap.has(key)) {
-                exceptionIssueMap.set(key, {count: 0, lines: []});
+                exceptionIssueMap.set(key, {count: 0, lines: new Set()});
               }
               
               const entry = exceptionIssueMap.get(key)!;
               entry.count++;
-              entry.lines.push(i + 1);
-              
-              // Only add the first few occurrences of each issue type to avoid flooding
-              if (entry.lines.length <= 3) {
-                lineReferences.push({ 
-                  line: i + 1, 
-                  issue: operation.message, 
-                  severity: 'major' 
-                });
-              }
+              entry.lines.add(i + 1);
             }
           }
         }
       });
     
-    // Add summarized issues for each violation type
+    // Add exactly one issue per line with proper prioritization
+    const lineToIssue = new Map<number, {message: string, severity: 'major' | 'minor'}>(); 
+    
+    // Process each issue type
     exceptionIssueMap.forEach((value, key) => {
       const operation = rules.unhandledExceptions.riskOperations.find(op => op.id === key);
       if (operation) {
+        // Add summarized issue to the issues list
         let issue = `${operation.message} (found in ${value.count} locations)`;
         issues.push(issue);
+        
+        // Add line references, but ensure only one issue per line with proper prioritization
+        Array.from(value.lines).forEach(line => {
+          // Only add if this line doesn't have a higher priority issue yet
+          if (!lineToIssue.has(line) || 
+              (lineToIssue.get(line)!.severity === 'minor' && key.includes('null') || key.includes('array'))) {
+            lineToIssue.set(line, {
+              message: operation.message,
+              severity: 'major' // Most unhandled exceptions are major
+            });
+          }
+        });
       }
+    });
+    
+    // Convert the map to line references after deduplication
+    lineToIssue.forEach((value, line) => {
+      lineReferences.push({
+        line,
+        issue: value.message,
+        severity: value.severity
+      });
     });
   }
 
   // Check for redundant loops or inefficient computations
-  const redundantComputationIssues = new Set<number>();
+  const redundantComputationIssues = new Map<number, string>();
   
   for (let i = 0; i < lines.length; i++) {
     const nextFewLines = lines.slice(i, i + 5).join('\n');
@@ -392,22 +511,26 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
       // Check if loops have dependency that could be optimized
       const hasRedundancy = innerVars.some(v => outerVars.includes(v));
       
-      if (hasRedundancy && !redundantComputationIssues.has(i + 1)) {
-        redundantComputationIssues.add(i + 1);
-        lineReferences.push({
-          line: i + 1,
-          issue: "Potential inefficient nested loops - check for redundant computation",
-          severity: 'major'
-        });
+      if (hasRedundancy) {
+        // Only flag the outer loop start to avoid duplication
+        redundantComputationIssues.set(i + 1, "Potential inefficient nested loops - check for redundant computation");
       }
     }
   }
+  
+  redundantComputationIssues.forEach((issue, line) => {
+    lineReferences.push({
+      line,
+      issue,
+      severity: 'major'
+    });
+  });
   
   if (redundantComputationIssues.size > 0) {
     issues.push("Potential performance issues detected with nested loops");
   }
 
-  // Analyze for custom code smells with severity levels, but avoid duplicate entries
+  // Analyze for custom code smells with improved deduplication
   const customSmellLines = new Map<string, Set<number>>();
   
   rules.customSmells.forEach((smell) => {
@@ -422,23 +545,28 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
         }
         
         const lineSet = customSmellLines.get(key)!;
-        
-        // Only add if we haven't seen this line for this issue yet
-        if (!lineSet.has(idx + 1)) {
-          lineSet.add(idx + 1);
-          
-          // Limit to first few occurrences to prevent overwhelming reports
-          if (lineSet.size <= 3) {
-            issues.push(smell.message);
-            lineReferences.push({ 
-              line: idx + 1, 
-              issue: smell.id, 
-              severity: smell.severity || 'minor' 
-            });
-          }
-        }
+        lineSet.add(idx + 1);
       }
     });
+  });
+  
+  // Add only first occurrence of each smell type
+  customSmellLines.forEach((lineSet, smellId) => {
+    if (lineSet.size > 0) {
+      const smell = rules.customSmells.find(s => s.id === smellId);
+      if (smell) {
+        // Add the issue description once
+        issues.push(smell.message);
+        
+        // Report only the first occurrence
+        const firstLine = Math.min(...Array.from(lineSet));
+        lineReferences.push({ 
+          line: firstLine, 
+          issue: smell.message, 
+          severity: smell.severity || 'minor' 
+        });
+      }
+    }
   });
 
   // Java-specific checks with context awareness
@@ -461,27 +589,32 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
     }
   }
 
-  // Deduplicate issues by combining similar line references
+  // Deduplicate issues by combining similar line references and ensure only one issue per line
   return { 
     details: [...new Set(issues)], 
     lineReferences: deduplicateLineReferences(lineReferences)
   };
 };
 
-// Helper function to deduplicate line references by combining similar issues at the same line
+// Helper function to deduplicate line references with improved logic to avoid duplicates
 function deduplicateLineReferences(refs: { line: number, issue: string, severity: 'major' | 'minor' }[]): typeof refs {
-  const deduped = new Map<number, { issue: string, severity: 'major' | 'minor' }>();
+  const lineToIssue = new Map<number, { issue: string, severity: 'major' | 'minor' }>();
   
-  // Group by line number, prioritizing major over minor
+  // First pass: prioritize major over minor issues on the same line
   refs.forEach(ref => {
-    if (!deduped.has(ref.line) || 
-        (ref.severity === 'major' && deduped.get(ref.line)!.severity === 'minor')) {
-      deduped.set(ref.line, { issue: ref.issue, severity: ref.severity });
+    const existingIssue = lineToIssue.get(ref.line);
+    
+    // Check if we should replace the existing issue
+    if (!existingIssue || 
+        (ref.severity === 'major' && existingIssue.severity === 'minor') || 
+        (ref.severity === existingIssue.severity && ref.issue.length > existingIssue.issue.length)) {
+      // Prefer major issues, or more detailed issues of the same severity
+      lineToIssue.set(ref.line, { issue: ref.issue, severity: ref.severity });
     }
   });
   
   // Convert back to array
-  return Array.from(deduped.entries()).map(([line, {issue, severity}]) => ({
+  return Array.from(lineToIssue.entries()).map(([line, {issue, severity}]) => ({
     line, issue, severity
   }));
 }
@@ -678,7 +811,7 @@ function findTryCatchBlocks(lines: string[]): {start: number, end: number}[] {
   return tryCatchBlocks;
 }
 
-// Context-aware decision on whether to flag a risky operation
+// Context-aware decision on whether to flag a risky operation - updated with better context
 function shouldFlagRiskyOperation(
   line: string, 
   operationType: string, 
@@ -692,6 +825,13 @@ function shouldFlagRiskyOperation(
     const match = line.match(/\[(\w+)\]/);
     if (match && match[1] && boundedVars.includes(match[1])) {
       return false; // Don't flag if index is a bounded loop variable
+    }
+    
+    // Check if this is a literal index that is likely safe
+    const literalMatch = line.match(/\[(\d+)\]/);
+    if (literalMatch && parseInt(literalMatch[1]) < 100) {
+      // Small literal indices are usually safe
+      return false;
     }
   }
   
@@ -707,19 +847,18 @@ function shouldFlagRiskyOperation(
   
   // For division, look for explicit non-zero checks
   if (operationType === 'java-arithmetic' && line.includes('/')) {
-    const previousNonEmptyLine = getPreviousNonEmptyLine(line);
-    if (previousNonEmptyLine && previousNonEmptyLine.includes('!= 0')) {
-      return false; // Division has explicit non-zero check
+    // Skip division by constants which are safe
+    if (line.match(/\/\s*\d+([^.]|$)/)) {
+      return false; // Division by integer constant
+    }
+    
+    // Skip division in typical counter/average calculations
+    if (line.match(/\/\s*(length|size)\(\)/i)) {
+      return false; // Division by array/collection size
     }
   }
   
   return true; // Flag by default
-}
-
-// Helper to get previous non-empty line (simulated, as we don't have context yet)
-function getPreviousNonEmptyLine(line: string): string | null {
-  // This is a placeholder - in real implementation, we would check previous lines
-  return null;
 }
 
 // Categorize violations with major, and minor - improved with deduplication

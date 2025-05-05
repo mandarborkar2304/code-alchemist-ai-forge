@@ -1,4 +1,3 @@
-
 import { CodeAnalysis } from "@/types";
 import { 
   calculateCyclomaticComplexity,
@@ -38,7 +37,7 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
     lineReferences = analysisResult.lineReferences;
   }
   
-  // Categorize violations with improved algorithm
+  // Categorize violations with improved context-aware algorithm
   const violations = categorizeViolations(issuesList, lineReferences);
   violations.lineReferences = lineReferences;
   
@@ -92,12 +91,12 @@ function generateJavaAISuggestions(code: string, violations: any, metrics: any):
   
   if (violations.major > 0) {
     suggestions += "## Critical Issues to Address\n\n";
-    suggestions += "This code contains potential runtime errors that should be addressed:\n";
     
-    // Extract major violations
+    // Extract major violations with improved deduplication
     const majorViolations = violations.lineReferences
       ?.filter((ref: any) => ref.severity === 'major')
       .map((ref: any) => `- Line ${ref.line}: ${ref.issue}`)
+      .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i) // Deduplicate
       .join('\n');
       
     suggestions += majorViolations || "No critical issues found.\n";
