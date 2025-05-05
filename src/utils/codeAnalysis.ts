@@ -906,8 +906,6 @@ function shouldFlagRiskyOperation(
 }
 
 // Categorize violations with major, and minor - improved with deduplication
-import { CodeViolations } from '@/types';
-
 export const categorizeViolations = (
   issuesList: string[],
   lineRefs: { line: number; issue: string; severity: 'major' | 'minor' }[]
