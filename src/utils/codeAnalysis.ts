@@ -905,53 +905,25 @@ function shouldFlagRiskyOperation(
   return true; // Flag by default
 }
 
-// Categorize violations with major, and minor
 export const categorizeViolations = (
-  issuesList: string[],
-  lineRefs: { line: number; issue: string; severity: 'major' | 'minor' }[]
+  issuesList: string[]
 ): CodeViolations & { reportMarkdown: string } => {
-  // 1) Group all issues by their message
-  const issueOccurrences = new Map<
-    string,
-    { severity: 'major' | 'minor' }
-  >();
+  // Group unique issues and categorize
+  const issueMap = new Map<string, 'major' | 'minor'>();
 
-  // First, categorize from lineRefs
-  lineRefs.forEach(ref => {
-    const key = ref.issue;
-    if (!issueOccurrences.has(key)) {
-      issueOccurrences.set(key, { severity: ref.severity });
-    } else {
-      // if already marked as major, keep it major
-      const entry = issueOccurrences.get(key)!;
-      if (ref.severity === 'major') entry.severity = 'major';
-    }
-  });
-
-  // Then categorize remaining free-form issues from issuesList
   issuesList.forEach(issue => {
-    if (!issueOccurrences.has(issue)) {
-      issueOccurrences.set(issue, { severity: 
-        // Keywords to determine severity
-        /Function length exceeds|Nesting level exceeds|No error handling|Unhandled|Potential|Explicit|ArithmeticException|NullPointerException|ArrayIndexOutOfBoundsException/.test(issue)
-        ? 'major' : 'minor'
-      });
-    }
+    const isMajor = /Function length exceeds|Nesting level exceeds|No error handling|Unhandled|Potential|Explicit|ArithmeticException|NullPointerException|ArrayIndexOutOfBoundsException/.test(issue);
+    issueMap.set(issue, isMajor ? 'major' : 'minor');
   });
 
-  // 2) Build separate lists for major and minor
   const majorIssues: string[] = [];
   const minorIssues: string[] = [];
 
-  issueOccurrences.forEach((occ, issue) => {
-    if (occ.severity === 'major') {
-      majorIssues.push(`- ${issue}`);
-    } else {
-      minorIssues.push(`- ${issue}`);
-    }
+  issueMap.forEach((severity, issue) => {
+    const entry = `- ${issue}`;
+    severity === 'major' ? majorIssues.push(entry) : minorIssues.push(entry);
   });
 
-  // 3) Create markdown formatted output
   const reportMarkdown = [
     `### Major Violations (${majorIssues.length})`,
     ...majorIssues,
@@ -963,8 +935,8 @@ export const categorizeViolations = (
   return {
     major: majorIssues.length,
     minor: minorIssues.length,
-    details: [],  // No longer used for line-based issues
-    lineReferences: [],  // Removed as requested
+    details: [],
+    lineReferences: [],
     reportMarkdown
   };
 };

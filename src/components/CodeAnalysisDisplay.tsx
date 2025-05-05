@@ -1,17 +1,12 @@
-
 import React, { useState } from "react";
 import { CodeAnalysis } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import TestCaseDisplay from "./TestCaseDisplay";
-import { AlertTriangle, CheckCircle, Code, AlertOctagon, AlertCircle, Info, LineChart } from "lucide-react";
+import { AlertTriangle, CheckCircle, Code, LineChart, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { CodeQualityMeter } from "./CodeQualityMeter";
 
-// Add the missing interface
 interface CodeAnalysisDisplayProps {
   analysis: CodeAnalysis | null;
   onApplyCorrection: (code: string) => void;
@@ -26,29 +21,18 @@ const getRatingColor = (rating: 'A' | 'B' | 'C' | 'D') => {
   }
 };
 
-const scoreToPercentage = (rating: 'A' | 'B' | 'C' | 'D'): number => {
-  switch (rating) {
-    case 'A': return 90;
-    case 'B': return 70;
-    case 'C': return 50;
-    case 'D': return 30;
-  }
-};
-
 const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
   analysis,
   onApplyCorrection,
 }) => {
-  const [expandedSection, setExpandedSection] = useState<'major' | 'minor' | null>(null);
-  
   const getComplexityTooltip = () => (
     <p className="max-w-xs">
       A source code complexity that correlates to a number of coding errors.
-      <br/><br/>
-      <strong>Complexity Ratings:</strong><br/>
-      A- Good<br/>
-      B- Medium complexity<br/>
-      C- High complexity<br/>
+      <br /><br />
+      <strong>Complexity Ratings:</strong><br />
+      A- Good<br />
+      B- Medium complexity<br />
+      C- High complexity<br />
       D- Extreme complexity
     </p>
   );
@@ -56,11 +40,11 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
   const getMaintainabilityTooltip = () => (
     <p className="max-w-xs">
       The ability to update or modify the system under test.
-      <br/><br/>
-      <strong>Maintainability Ratings:</strong><br/>
-      A- Highly maintainable<br/>
-      B- Moderately maintainable<br/>
-      C- Low maintainability<br/>
+      <br /><br />
+      <strong>Maintainability Ratings:</strong><br />
+      A- Highly maintainable<br />
+      B- Moderately maintainable<br />
+      C- Low maintainability<br />
       D- Very difficult to maintain
     </p>
   );
@@ -68,11 +52,11 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
   const getReliabilityTooltip = () => (
     <p className="max-w-xs">
       The ability to perform consistently and handle errors.
-      <br/><br/>
-      <strong>Reliability Ratings:</strong><br/>
-      A- No issues detected<br/>
-      B- Minor issues detected<br/>
-      C- Major issues detected<br/>
+      <br /><br />
+      <strong>Reliability Ratings:</strong><br />
+      A- No issues detected<br />
+      B- Minor issues detected<br />
+      C- Major issues detected<br />
       D- Critical issues detected
     </p>
   );
@@ -91,10 +75,6 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
   }
 
   const passedAllTests = analysis.testCases.every((tc) => tc.passed);
-
-  // Separate major and minor violations for display
-  const majorViolations = analysis.violations.lineReferences?.filter(ref => ref.severity === 'major') || [];
-  const minorViolations = analysis.violations.lineReferences?.filter(ref => ref.severity === 'minor') || [];
 
   return (
     <div className="space-y-4 h-full overflow-y-auto scrollbar-thin pr-2">
@@ -123,8 +103,8 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
               <TabsTrigger value="feedback">AI Feedback</TabsTrigger>
             </TabsList>
 
+            {/* METRICS TAB */}
             <TabsContent value="metrics" className="space-y-4 min-h-[400px] animate-fade-in">
-              {/* Metrics Panel: lines of code, function count, avg function length */}
               <Card className="p-4">
                 <CardTitle className="text-sm mb-3 flex items-center">
                   <LineChart className="h-4 w-4 mr-1.5" />
@@ -146,42 +126,38 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                 </div>
               </Card>
 
-              {/* Cyclomatic, Maintainability, Reliability Cards */}
               {['cyclomaticComplexity', 'maintainability', 'reliability'].map((metricKey) => {
                 const metric = analysis[metricKey as keyof CodeAnalysis] as any;
                 const tooltipFn = {
                   cyclomaticComplexity: getComplexityTooltip,
                   maintainability: getMaintainabilityTooltip,
-                  reliability: getReliabilityTooltip
+                  reliability: getReliabilityTooltip,
                 }[metricKey];
                 return (
                   <Card key={metricKey}>
                     <CardHeader className="p-4">
                       <div className="flex justify-between items-center">
                         <CardTitle className="text-sm flex items-center">
-                          {metricKey === 'cyclomaticComplexity' ? 'Cyclomatic Complexity' :
-                           metricKey === 'maintainability' ? 'Maintainability' :
-                           'Reliability'}
+                          {metricKey === 'cyclomaticComplexity'
+                            ? 'Cyclomatic Complexity'
+                            : metricKey === 'maintainability'
+                              ? 'Maintainability'
+                              : 'Reliability'}
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Info className="h-4 w-4 ml-1 text-muted-foreground cursor-help" />
                               </TooltipTrigger>
-                              <TooltipContent>
-                                {tooltipFn()}
-                              </TooltipContent>
+                              <TooltipContent>{tooltipFn()}</TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         </CardTitle>
-                        <Badge className={getRatingColor(metric.score)}>
-                          {metric.score}
-                        </Badge>
+                        <Badge className={getRatingColor(metric.score)}>{metric.score}</Badge>
                       </div>
                       <CardDescription className="text-xs flex flex-col">
                         <span className="font-semibold mt-1">Rating: {metric.description}</span>
                         <span className="mt-1">{metric.reason}</span>
-
-                        {metric.issues && metric.issues.length > 0 && (
+                        {metric.issues?.length > 0 && (
                           <div className="mt-2">
                             <span className="font-semibold">Issues:</span>
                             <ul className="list-disc list-inside mt-1">
@@ -191,13 +167,12 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                             </ul>
                           </div>
                         )}
-
-                        {metric.improvements && metric.improvements.length > 0 && (
+                        {metric.improvements?.length > 0 && (
                           <div className="mt-2">
                             <span className="font-semibold">Recommendations:</span>
                             <ul className="list-disc list-inside mt-1">
-                              {metric.improvements.map((improvement: string, i: number) => (
-                                <li key={i} className="text-xs">{improvement}</li>
+                              {metric.improvements.map((item: string, i: number) => (
+                                <li key={i} className="text-xs">{item}</li>
                               ))}
                             </ul>
                           </div>
@@ -208,131 +183,20 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                 );
               })}
             </TabsContent>
-            
-            {/* Updated Violations Tab with separated Major and Minor sections */}
+
+            {/* ✅ UPDATED VIOLATIONS TAB */}
             <TabsContent value="violations" className="space-y-4 min-h-[400px]">
-              {/* Major Violations Section */}
-              <Alert variant={analysis.violations.major > 0 ? "destructive" : "default"}>
-                <AlertOctagon className="h-4 w-4" />
-                <AlertTitle className="flex justify-between">
-                  <span>Major Violations</span>
-                  <Badge variant={analysis.violations.major > 0 ? "destructive" : "outline"} className="ml-2">
-                    {analysis.violations.major}
-                  </Badge>
-                </AlertTitle>
-                <AlertDescription>
-                  {analysis.violations.major > 0 ? (
-                    <div className="mt-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2"
-                        onClick={() => setExpandedSection(expandedSection === 'major' ? null : 'major')}
-                      >
-                        {expandedSection === 'major' ? 'Collapse' : 'Expand'} details
-                      </Button>
-                      
-                      {expandedSection === 'major' && (
-                        <ul className="mt-2 space-y-1">
-                          {majorViolations.map((ref, i) => (
-                            <li key={i} className="text-sm flex items-start gap-1.5">
-                              <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                              <span>
-                                <span className="text-sm"> {ref.issue} </span>
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm mt-1">No major violations detected.</p>
-                  )}
-                </AlertDescription>
-              </Alert>
-              
-              {/* Minor Violations Section */}
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertTitle className="flex justify-between">
-                  <span>Minor Violations</span>
-                  <Badge variant="secondary" className="ml-2">
-                    {analysis.violations.minor}
-                  </Badge>
-                </AlertTitle>
-                <AlertDescription>
-                  {analysis.violations.minor > 0 ? (
-                    <div className="mt-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2"
-                        onClick={() => setExpandedSection(expandedSection === 'minor' ? null : 'minor')}
-                      >
-                        {expandedSection === 'minor' ? 'Collapse' : 'Expand'} details
-                      </Button>
-                      
-                      {expandedSection === 'minor' && (
-                        <ul className="mt-2 space-y-1">
-                          {minorViolations.map((ref, i) => (
-                            <li key={i} className="text-sm flex items-start gap-1.5">
-                              <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                              <span>
-                                <span className="text-sm"> {ref.issue}</span>
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm mt-1">No minor violations detected.</p>
-                  )}
-                </AlertDescription>
-              </Alert>
-              
-              {/* Improvement Suggestions Section */}
               <Card>
                 <CardHeader className="p-4">
-                  <CardTitle className="text-sm">Suggested Improvements</CardTitle>
+                  <CardTitle className="text-sm">Violation Summary</CardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <ul className="space-y-2 text-sm">
-                    {majorViolations.length > 0 && (
-                      <>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 mt-0.5 text-destructive" />
-                          <span>Add error handling with try-catch blocks around risky operations.</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 mt-0.5 text-destructive" />
-                          <span>Add null checks before accessing object properties or methods.</span>
-                        </li>
-                      </>
-                    )}
-                    {minorViolations.length > 0 && (
-                      <>
-                        <li className="flex items-start gap-2">
-                          <Info className="h-4 w-4 mt-0.5" />
-                          <span>Replace magic numbers with named constants for better readability.</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <Info className="h-4 w-4 mt-0.5" />
-                          <span>Add comments to explain complex sections of code.</span>
-                        </li>
-                      </>
-                    )}
-                    {majorViolations.length === 0 && minorViolations.length === 0 && (
-                      <li className="text-center text-muted-foreground">
-                        No specific improvements needed.
-                      </li>
-                    )}
-                  </ul>
+                <CardContent className="prose prose-sm dark:prose-invert max-w-none">
+                  <pre className="whitespace-pre-wrap">{analysis.violations.reportMarkdown}</pre>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* AI Feedback and corrected code */}
+            {/* AI FEEDBACK */}
             <TabsContent value="feedback" className="space-y-4 min-h-[400px]">
               <div className="space-y-3 h-full">
                 <h3 className="text-sm font-medium">AI Code Review</h3>
