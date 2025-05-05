@@ -1,4 +1,5 @@
-import React from "react";
+
+import React, { useState } from "react";
 import { CodeAnalysis } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -38,6 +39,8 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
   analysis,
   onApplyCorrection,
 }) => {
+  const [expandedSection, setExpandedSection] = useState<'major' | 'minor' | null>(null);
+  
   const getComplexityTooltip = () => (
     <p className="max-w-xs">
       A source code complexity that correlates to a number of coding errors.
@@ -89,6 +92,10 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
 
   const passedAllTests = analysis.testCases.every((tc) => tc.passed);
 
+  // Separate major and minor violations for display
+  const majorViolations = analysis.violations.lineReferences?.filter(ref => ref.severity === 'major') || [];
+  const minorViolations = analysis.violations.lineReferences?.filter(ref => ref.severity === 'minor') || [];
+
   return (
     <div className="space-y-4 h-full overflow-y-auto scrollbar-thin pr-2">
       <Card className="border-border bg-black/20">
@@ -112,7 +119,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
           <Tabs defaultValue="metrics" className="w-full">
             <TabsList className="grid grid-cols-3 mb-4 bg-muted">
               <TabsTrigger value="metrics">Metrics</TabsTrigger>
-              <TabsTrigger value="tests">Test Cases</TabsTrigger>
+              <TabsTrigger value="violations">Violations</TabsTrigger>
               <TabsTrigger value="feedback">AI Feedback</TabsTrigger>
             </TabsList>
 
@@ -200,46 +207,129 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                   </Card>
                 );
               })}
-
-              {/* Violations Panel */}
+            </TabsContent>
+            
+            {/* Updated Violations Tab with separated Major and Minor sections */}
+            <TabsContent value="violations" className="space-y-4 min-h-[400px]">
+              {/* Major Violations Section */}
               <Alert variant={analysis.violations.major > 0 ? "destructive" : "default"}>
                 <AlertOctagon className="h-4 w-4" />
-                <AlertTitle>Code Violations</AlertTitle>
+                <AlertTitle className="flex justify-between">
+                  <span>Major Violations</span>
+                  <Badge variant={analysis.violations.major > 0 ? "destructive" : "outline"} className="ml-2">
+                    {analysis.violations.major}
+                  </Badge>
+                </AlertTitle>
                 <AlertDescription>
-                  <div className="mt-2 space-y-2">
-                    <div className="flex justify-between">
-                      <span>Major Violations:</span>
-                      <Badge variant="destructive">{analysis.violations.major}</Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Minor Violations:</span>
-                      <Badge variant="secondary">{analysis.violations.minor}</Badge>
-                    </div>
-                    {analysis.violations.details.length > 0 && (
-                      <ul className="mt-2 space-y-1 text-sm">
-                        {analysis.violations.details.map((detail, index) => (
-                          <li key={index} className="flex items-start gap-2">
-                            <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                            {detail}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {analysis.violations.lineReferences && analysis.violations.lineReferences.length > 0 && (
-                      <div className="mt-3">
-                        <span className="text-xs font-semibold">Line-specific issues:</span>
-                        <ul className="mt-1 space-y-1 text-xs">
-                          {analysis.violations.lineReferences.map((ref, index) => (
-                            <li key={index} className="flex items-start gap-1">
-                              <span className="font-mono">Line {ref.line}:</span> {ref.issue}
+                  {analysis.violations.major > 0 ? (
+                    <div className="mt-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2"
+                        onClick={() => setExpandedSection(expandedSection === 'major' ? null : 'major')}
+                      >
+                        {expandedSection === 'major' ? 'Collapse' : 'Expand'} details
+                      </Button>
+                      
+                      {expandedSection === 'major' && (
+                        <ul className="mt-2 space-y-1">
+                          {majorViolations.map((ref, i) => (
+                            <li key={i} className="text-sm flex items-start gap-1.5">
+                              <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                              <span>
+                                <span className="font-mono">Line {ref.line}:</span> {ref.issue}
+                              </span>
                             </li>
                           ))}
                         </ul>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm mt-1">No major violations detected.</p>
+                  )}
                 </AlertDescription>
               </Alert>
+              
+              {/* Minor Violations Section */}
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle className="flex justify-between">
+                  <span>Minor Violations</span>
+                  <Badge variant="secondary" className="ml-2">
+                    {analysis.violations.minor}
+                  </Badge>
+                </AlertTitle>
+                <AlertDescription>
+                  {analysis.violations.minor > 0 ? (
+                    <div className="mt-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2"
+                        onClick={() => setExpandedSection(expandedSection === 'minor' ? null : 'minor')}
+                      >
+                        {expandedSection === 'minor' ? 'Collapse' : 'Expand'} details
+                      </Button>
+                      
+                      {expandedSection === 'minor' && (
+                        <ul className="mt-2 space-y-1">
+                          {minorViolations.map((ref, i) => (
+                            <li key={i} className="text-sm flex items-start gap-1.5">
+                              <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                              <span>
+                                <span className="font-mono">Line {ref.line}:</span> {ref.issue}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm mt-1">No minor violations detected.</p>
+                  )}
+                </AlertDescription>
+              </Alert>
+              
+              {/* Improvement Suggestions Section */}
+              <Card>
+                <CardHeader className="p-4">
+                  <CardTitle className="text-sm">Suggested Improvements</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <ul className="space-y-2 text-sm">
+                    {majorViolations.length > 0 && (
+                      <>
+                        <li className="flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 mt-0.5 text-destructive" />
+                          <span>Add error handling with try-catch blocks around risky operations.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 mt-0.5 text-destructive" />
+                          <span>Add null checks before accessing object properties or methods.</span>
+                        </li>
+                      </>
+                    )}
+                    {minorViolations.length > 0 && (
+                      <>
+                        <li className="flex items-start gap-2">
+                          <Info className="h-4 w-4 mt-0.5" />
+                          <span>Replace magic numbers with named constants for better readability.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Info className="h-4 w-4 mt-0.5" />
+                          <span>Add comments to explain complex sections of code.</span>
+                        </li>
+                      </>
+                    )}
+                    {majorViolations.length === 0 && minorViolations.length === 0 && (
+                      <li className="text-center text-muted-foreground">
+                        No specific improvements needed.
+                      </li>
+                    )}
+                  </ul>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             {/* AI Feedback and corrected code */}

@@ -11,7 +11,7 @@ export interface CodeViolations {
   major: number;
   minor: number;
   details: string[];
-  lineReferences?: { line: number; issue: string }[]; // References to specific lines
+  lineReferences?: { line: number; issue: string; severity: 'major' | 'minor' }[]; // References to specific lines with severity
 }
 
 export interface CodeAnalysis {
