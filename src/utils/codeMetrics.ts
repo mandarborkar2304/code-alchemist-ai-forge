@@ -1,536 +1,523 @@
-/**
- * Utility functions for calculating code metrics using standardized algorithms
- */
 
-// Calculate cyclomatic complexity of code using proper McCabe complexity algorithm
-export const calculateCyclomaticComplexity = (code: string, language: string = 'javascript'): number => {
-  const lines = code.split('\n');
-  // McCabe's cyclomatic complexity: E - N + 2P
-  // Where E = edges, N = nodes, P = connected components (typically 1)
-  // Simplified: Start with 1 and add 1 for each decision point
-  let complexity = 1; // Base complexity is 1 for single path
-  
-  // Check if this is likely competitive programming code
-  const isCompetitiveProgramming = language === 'java' && 
-                                 code.includes("public static void main") &&
-                                 (code.includes("Scanner") || code.includes("BufferedReader"));
-  
-  // For competitive programming, we're more lenient with complexity thresholds
-  const complexityMultiplier = isCompetitiveProgramming ? 0.8 : 1.0;
+import { MetricsResult, ScoreGrade } from '@/types';
+
+// Constants for metric calculation
+const CYCLOMATIC_COMPLEXITY_WEIGHT = 1;
+const NESTING_DEPTH_WEIGHT = 0.8;
+const ERROR_HANDLING_WEIGHT = 0.7;
+const BOUNDS_CHECK_WEIGHT = 0.5;
+const NULL_CHECK_WEIGHT = 0.6;
+
+// Calculate cyclomatic complexity
+export const calculateCyclomaticComplexity = (code: string, language: string): number => {
+  // Calculate base complexity (1)
+  let complexity = 1;
+
+  // Count decision points
+  const lines = code.split("\n");
   
   for (const line of lines) {
-    // Skip comments
-    if (line.trim().startsWith('//') || line.trim().startsWith('/*') || line.trim().startsWith('*')) {
-      continue;
+    // Count conditional statements
+    if (line.includes("if ") || line.includes("else if") || 
+        line.includes("? ") || line.includes("case ")) {
+      complexity++;
     }
     
-    // Properly count decision points based on language
-    if (language === 'java') {
-      // Java-specific patterns
-      if (/\bif\s*\(|\belse\s+if\s*\(/.test(line)) complexity++;
-      if (/\bswitch\s*\(/.test(line)) complexity++;
-      if (/\bcase\s+[^:]+:/.test(line)) complexity++;
-      if (/\bfor\s*\(|\bwhile\s*\(|\bdo\s*\{/.test(line)) complexity++;
-      if (/\bcatch\s*\(/.test(line)) complexity++;
-      if (/\breturn\s+.*\?.*:/.test(line)) complexity++; // Ternary in return
-      if (/\&\&|\|\|/.test(line)) {
-        // Count each logical operator
-        const logicalOps = line.match(/\&\&|\|\|/g) || [];
-        complexity += logicalOps.length;
-      }
-      // Java stream operations with predicates
-      if (/\.filter\(|\.anyMatch\(|\.allMatch\(|\.noneMatch\(/.test(line)) complexity++;
-    } else {
-      // JavaScript/TypeScript patterns
-      if (/\bif\s*\(|\belse\s+if\s*\(/.test(line)) complexity++;
-      if (/\bswitch\s*\(/.test(line)) complexity++; // Base for switch
-      if (/\bcase\s+[^:]+:/.test(line)) complexity++;
-      if (/\bfor\s*\(|\bwhile\s*\(|\bdo\s*\{/.test(line)) complexity++;
-      if (/\bcatch\s*\(/.test(line)) complexity++;
-      // Count logical operators
-      const logicalOps = line.match(/\s\&\&\s|\s\|\|\s/g) || [];
-      complexity += logicalOps.length;
-      if (/\?[^:]*\:/.test(line)) complexity++;
+    // Count loops
+    if (line.includes("for ") || line.includes("while ") || 
+        line.includes("do {") || line.includes("forEach")) {
+      complexity++;
     }
+    
+    // Count catch blocks
+    if (line.includes("catch ")) {
+      complexity++;
+    }
+    
+    // Count logical operators (&&, ||) that create additional paths
+    const logicalOps = (line.match(/&&|\|\|/g) || []).length;
+    complexity += logicalOps;
   }
   
-  return Math.round(complexity * complexityMultiplier);
+  return complexity;
 };
 
-// Calculate maintainability index using the weighted model - aligned with SonarQube
-export const calculateMaintainability = (code: string, language: string = 'javascript'): number => {
-  // Base maintainability score starts at 100
-  let maintainabilityScore = 100;
+// Calculate maintainability with improved balancing and normalization
+export const calculateMaintainability = (code: string, language: string): number => {
+  let baseScore = 100;
+  const lines = code.split("\n");
   
-  // Check if this is likely competitive programming code
-  const isCompetitiveProgramming = language === 'java' && 
-                                 code.includes("public static void main") &&
-                                 (code.includes("Scanner") || code.includes("BufferedReader"));
+  // Count meaningful code lines (non-empty, non-comment)
+  const codeLines = lines.filter(line => {
+    const trimmed = line.trim();
+    return trimmed.length > 0 && 
+           !trimmed.startsWith("//") && 
+           !trimmed.startsWith("*") &&
+           !trimmed.startsWith("/*");
+  }).length;
   
-  const lines = code.split('\n').filter(line => line.trim() !== '');
-  const linesOfCode = lines.length;
+  // Logic size penalty (reduced from previous version)
+  if (codeLines > 200) baseScore -= 5;
+  else if (codeLines > 100) baseScore -= 3;
+  else if (codeLines > 50) baseScore -= 1;
   
-  // Skip detailed analysis for very simple code
-  if (linesOfCode < 10) {
-    return 95; // Very simple code gets high maintainability
-  }
+  // Gather metrics for normalization
+  const functionsCount = countFunctions(code, language);
+  const logicalBlocks = Math.max(1, countLogicalBlocks(code)); // Avoid division by zero
   
-  // Track violations for weighted scoring with adjusted penalties to better align with SonarQube
-  const violations = {
-    deepNesting: { count: 0, penaltyPerItem: -3, maxPenalty: -12 }, // Reduced from -5 to -3
-    longFunctions: { count: 0, penaltyPerItem: -3, maxPenalty: -12 }, // Kept as significant but reduced max impact
-    missingErrorHandling: { count: 0, penaltyPerItem: -3, maxPenalty: -9 }, // Reduced from -15 to -9
-    lowCommentDensity: { count: 0, penaltyPerItem: -7, maxPenalty: -7 }, // Concentrated as single impact
-    magicNumbers: { count: 0, penaltyPerItem: -0.5, maxPenalty: -6, threshold: 3 }, // Added threshold of 3 before penalties
-    shortVariableNames: { count: 0, penaltyPerItem: -0.5, maxPenalty: -4, threshold: 3 }, // Added threshold of 3
-    redundantComputation: { count: 0, penaltyPerItem: -2, maxPenalty: -6 } // Reduced slightly to better balance
-  };
+  // Function length penalties
+  const avgFunctionLength = functionsCount > 0 ? codeLines / functionsCount : codeLines;
+  if (avgFunctionLength > 50) baseScore -= 5;
+  else if (avgFunctionLength > 30) baseScore -= 3;
+  else if (avgFunctionLength > 20) baseScore -= 1;
   
-  // Count logical code blocks for normalization
-  let logicalBlockCount = 0;
-  let functionCount = 0;
+  // Nesting depth penalties (reduced)
+  const maxNestingDepth = calculateMaxNestingDepth(code);
+  if (maxNestingDepth > 5) baseScore -= 3;
+  else if (maxNestingDepth > 3) baseScore -= 2;
+  else if (maxNestingDepth > 2) baseScore -= 1;
   
-  // Detect function declarations to count logical blocks
-  const functionMatches = language === 'java' ? 
-    (code.match(/(?:public|private|protected)(?:\s+static)?\s+\w+\s+\w+\s*\([^)]*\)\s*\{/g) || []) :
-    (code.match(/function\s+\w+\s*\([^)]*\)\s*\{|const\s+\w+\s*=\s*(?:\([^)]*\)|[^=]+)\s*=>/g) || []);
+  // Comment density penalties (more lenient)
+  const commentLines = lines.filter(line => {
+    const trimmed = line.trim();
+    return trimmed.startsWith("//") || 
+           trimmed.startsWith("*") ||
+           trimmed.startsWith("/*");
+  }).length;
   
-  functionCount = functionMatches.length;
-  logicalBlockCount = Math.max(1, functionCount);
+  const commentRatio = codeLines > 0 ? commentLines / codeLines : 0;
+  if (commentRatio < 0.05) baseScore -= 2;
+  else if (commentRatio < 0.1) baseScore -= 1;
   
-  // Count control structures for more accurate logical block count
-  const controlStructureMatches = code.match(/if\s*\([^)]+\)\s*\{|while\s*\([^)]+\)\s*\{|for\s*\([^)]+\)\s*\{|switch\s*\([^)]+\)\s*\{/g) || [];
-  logicalBlockCount += controlStructureMatches.length * 0.5; // Weight control structures at half of functions
+  // Magic number penalties (only if exceeding threshold)
+  const magicNumberCount = countMagicNumbers(code);
+  if (magicNumberCount > 5) baseScore -= Math.min(3, Math.floor(magicNumberCount / 5));
   
-  // Ensure minimum block count to prevent division by zero or extreme penalties in small files
-  logicalBlockCount = Math.max(1, logicalBlockCount);
+  // Single-letter variable penalties (only if exceeding threshold)
+  const singleLetterVarCount = countSingleLetterVariables(code, language);
+  if (singleLetterVarCount > 3) baseScore -= Math.min(2, Math.floor(singleLetterVarCount / 3));
   
-  // 1. Check for deep nesting (major issue) with adjusted thresholds
-  let maxNesting = 0;
-  let currentNesting = 0;
+  // Normalize penalties by code size
+  const normalizedScore = baseScore + (10 - Math.min(10, Math.max(0, (100 - baseScore) / logicalBlocks)));
   
-  for (const line of lines) {
-    const openBraces = (line.match(/{/g) || []).length;
-    const closedBraces = (line.match(/}/g) || []).length;
-    
-    currentNesting += openBraces - closedBraces;
-    maxNesting = Math.max(maxNesting, currentNesting);
-  }
-  
-  // Apply penalties for deep nesting with more gradual scaling
-  if (maxNesting > 3) { // Reduced threshold from 4 to 3 to align better with SonarQube
-    violations.deepNesting.count = maxNesting - 3;
-  }
-  
-  // 2. Check comment density with revised thresholds
-  const commentLines = lines.filter(line =>
-    line.trim().startsWith('//') ||
-    line.trim().startsWith('/*') ||
-    line.trim().startsWith('*')
-  ).length;
-  
-  const commentRatio = commentLines / linesOfCode;
-  // SonarQube applies comment density penalties more selectively
-  if (commentRatio < 0.05 && !isCompetitiveProgramming && linesOfCode > 30) {
-    violations.lowCommentDensity.count = 1; // Single count, higher per-item penalty
-  }
-  
-  // 3. Check function length with graduated penalty scales
-  let inFunction = false;
-  let currentFunctionLines = 0;
-  let longestFunction = 0;
-  
-  for (const line of lines) {
-    const isFunctionStart = language === 'java' ? 
-      (line.includes('void') || line.includes('public') || line.includes('private') || line.includes('protected')) && line.includes('(') && line.includes(')') && !line.includes(';') : 
-      (line.includes('function') || line.includes('=>')) && !line.includes('//');
-      
-    if (isFunctionStart) {
-      inFunction = true;
-      currentFunctionLines = 0;
-    }
-    
-    if (inFunction) {
-      currentFunctionLines++;
-      if (line.includes('}') && line.trim() === '}') {
-        inFunction = false;
-        longestFunction = Math.max(longestFunction, currentFunctionLines);
-      }
-    }
-  }
-  
-  // More graduated penalty scale for long functions
-  if (longestFunction > 25) { // Reduced threshold to align with SonarQube
-    violations.longFunctions.count = Math.ceil((longestFunction - 25) / 15); // Increased divisor to reduce sensitivity
-  }
-  
-  // 4. Check for magic numbers with threshold before applying penalties
-  const magicNumberMatches = code.match(/[^a-zA-Z0-9_\.]([3-9]|[1-9][0-9]+)(?![a-zA-Z0-9_\.])/g) || [];
-  const uniqueMagicNumbers = new Set(magicNumberMatches.map(m => m.trim()));
-  
-  // Only count as violation if exceeds threshold
-  if (uniqueMagicNumbers.size >= violations.magicNumbers.threshold) {
-    violations.magicNumbers.count = uniqueMagicNumbers.size - violations.magicNumbers.threshold + 1;
-  }
-  
-  // 5. Check for single-letter variables with threshold before penalties
-  const exemptVars = new Set(['i', 'j', 'k', 'n', 'm', 'x', 'y']); // Extended common short vars
-  const varPatternByLanguage = language === 'java' ?
-    /\b(int|double|String|boolean|char|float|long)\s+([a-zA-Z]{1})\b/g :
-    /\b(var|let|const)\s+([a-zA-Z]{1})\b/g;
-  
-  const singleLetterMatches = code.match(varPatternByLanguage) || [];
-  const problematicVars = singleLetterMatches.filter(match => {
-    const varName = match.match(/\b[a-zA-Z]{1}\b/)?.[0];
-    return varName && !exemptVars.has(varName);
-  });
-  
-  // Only count as violation if exceeds threshold
-  if (problematicVars.length >= violations.shortVariableNames.threshold) {
-    violations.shortVariableNames.count = problematicVars.length - violations.shortVariableNames.threshold + 1;
-  }
-  
-  // 6. Check for error handling (major issue) with context sensitivity
-  const hasTryCatch = code.includes('try') && code.includes('catch');
-  const needsErrorHandling = 
-    (code.includes('throw') || 
-     (code.includes('/') && !isCompetitiveProgramming) || 
-     code.includes('parse') ||
-     code.includes('JSON') ||
-     code.includes('readFile')) && 
-    !isCompetitiveProgramming &&
-    linesOfCode > 50; // Only consider larger files that are more likely to need error handling
-  
-  if (needsErrorHandling && !hasTryCatch) {
-    violations.missingErrorHandling.count = 1;
-  }
-  
-  // 7. Check for redundant computation with context-sensitive detection
-  const hasNestedLoops = (code.match(/for\s*\([^)]*\)[^{]*{[^}]*for\s*\(/g) || []).length > 0;
-  
-  // More selective detection of actual redundant computation
-  if (hasNestedLoops) {
-    // Look for array accesses in nested context that could be optimized
-    const hasArrayAccess = code.match(/\w+\[\w+\].*for\s*\(/s) !== null;
-    if (hasArrayAccess) {
-      violations.redundantComputation.count = 1;
-    }
-  }
-  
-  // Apply all penalties with caps and normalization
-  let totalPenalty = 0;
-  
-  Object.entries(violations).forEach(([key, violation]) => {
-    const { count, penaltyPerItem, maxPenalty, threshold } = violation as { 
-      count: number; 
-      penaltyPerItem: number; 
-      maxPenalty: number; 
-      threshold?: number 
-    };
-    
-    if (count > 0) {
-      let penalty = 0;
-      
-      // Apply threshold-based penalties for minor issues
-      if (threshold && count > 0) {
-        // Graduated penalty that increases as count grows higher above threshold
-        penalty = Math.min(count * penaltyPerItem, maxPenalty);
-      } else {
-        penalty = Math.min(count * penaltyPerItem, maxPenalty);
-      }
-      
-      // Aggregate all penalties to be normalized later
-      totalPenalty += penalty;
-    }
-  });
-  
-  // Apply normalization based on logical block count to prevent overpenalizing large files
-  const normalizedPenalty = logicalBlockCount > 3 ? 
-                           totalPenalty / Math.sqrt(logicalBlockCount / 3) : 
-                           totalPenalty;
-  
-  // Apply the normalized penalty
-  maintainabilityScore += normalizedPenalty;
-  
-  // Apply different thresholds for competitive programming
-  if (isCompetitiveProgramming) {
-    maintainabilityScore = Math.min(100, maintainabilityScore + 12); // Reduced boost from 15 to 12
-  }
-  
-  // Ensure score stays within 0-100 range
-  maintainabilityScore = Math.max(0, Math.min(100, maintainabilityScore));
-  
-  // Apply final calibration to better align with SonarQube grades
-  // SonarQube tends to be slightly more lenient in edge cases
-  if (maintainabilityScore >= 87 && maintainabilityScore < 90) {
-    maintainabilityScore = 90; // Round up edge cases near the A threshold
-  }
-  
-  return Math.round(maintainabilityScore);
+  // Ensure score is within bounds
+  return Math.max(0, Math.min(100, normalizedScore));
 };
 
-// Calculate reliability score based on formal static analysis principles
-export const calculateReliability = (code: string, language: string = 'javascript'): number => {
-  let reliabilityScore = 70; // Baseline score
+// Calculate reliability with contextual awareness and safer defaults
+export const calculateReliability = (code: string, language: string): number => {
+  let baseScore = 100;
+  const lines = code.split("\n");
   
-  // Check if this is likely competitive programming code
-  const isCompetitiveProgramming = language === 'java' && 
-                                 code.includes("public static void main") &&
-                                 (code.includes("Scanner") || code.includes("BufferedReader")) &&
-                                 code.length < 1000;
+  // Context detection for reliability assessment
+  const isCompetitiveProgrammingContext = detectCompetitiveProgrammingContext(code, language);
+  const safeLoopVariables = extractSafeLoopVariables(code, language);
+  const nullCheckedVariables = extractNullCheckedVariables(code, language);
+  const isSimpleNonErrorProneCode = code.length < 200 && !containsRiskyOperations(code, language);
   
-  // Adjusted reliability detection for competitive programming context
-  if (isCompetitiveProgramming) {
-    reliabilityScore += 10; // More lenient baseline for competitive programming
+  // Significantly reduce penalties for certain contexts
+  const contextMultiplier = isCompetitiveProgrammingContext ? 0.5 : 
+                            isSimpleNonErrorProneCode ? 0.7 : 1.0;
+  
+  // Error handling penalties with context awareness
+  if (requiresErrorHandling(code, language) && !hasErrorHandling(code, language)) {
+    // Less severe penalty when code has low complexity or is competitive programming
+    baseScore -= Math.round(5 * contextMultiplier);
   }
   
-  // Check for bounded loop patterns that are safe in competitive programming
-  const hasBoundedLoops = (code.match(/for\s*\(\s*\w+\s+\w+\s*=\s*\d+\s*;\s*\w+\s*<\s*(\w+|\d+)\s*;/g) || []).length > 0;
-  
-  if (hasBoundedLoops && isCompetitiveProgramming) {
-    reliabilityScore += 5; // Reward proper bounded loops in competitive programming
+  // Check for unsafe array access with context awareness
+  const unsafeArrayAccesses = countUnsafeArrayAccesses(code, language, safeLoopVariables);
+  if (unsafeArrayAccesses > 0) {
+    // Reduce penalty for competitive programming or if it's a simple example
+    baseScore -= Math.min(10, unsafeArrayAccesses * 2) * contextMultiplier;
   }
   
-  // Formal reliability factors
-  
-  // 1. Error handling presence
-  const errorHandlingPatterns = language === 'java' ? [
-    { pattern: /try\s*\{[\s\S]*?catch\s*\(/g, weight: 10 },
-    { pattern: /throws\s+\w+/g, weight: 5 },
-    { pattern: /throw\s+new\s+\w+/g, weight: isCompetitiveProgramming ? 0 : -2 } // Don't penalize in competitive programming
-  ] : [
-    { pattern: /try\s*\{[\s\S]*?catch\s*\(/g, weight: 10 },
-    { pattern: /\.catch\s*\(/g, weight: 5 },
-    { pattern: /throw\s+new\s+Error/g, weight: 3 }
-  ];
-  
-  for (const { pattern, weight } of errorHandlingPatterns) {
-    const matches = code.match(pattern) || [];
-    reliabilityScore += Math.min(15, matches.length * weight); // Cap at 15 points
+  // Check for null safety issues with context awareness
+  const nullSafetyIssues = countNullSafetyIssues(code, language, nullCheckedVariables);
+  if (nullSafetyIssues > 0) {
+    baseScore -= Math.min(8, nullSafetyIssues * 2) * contextMultiplier;
   }
   
-  // 2. Input validation patterns based on language
-  const validationPatterns = language === 'java' ? [
-    { pattern: /\w+\s*!=\s*null/g, weight: 5 },
-    { pattern: /Objects\.requireNonNull\(/g, weight: 8 },
-    { pattern: /if\s*\(\s*\w+\s*==\s*null\)/g, weight: 5 },
-    { pattern: /\w+\.length\s*[><=]=?\s*\d+/g, weight: 3 },
-    { pattern: /try\s*\{[\s\S]*?catch\s*\(\s*NumberFormatException/g, weight: 5 }
-  ] : [
-    { pattern: /typeof\s+\w+\s*===?\s*['"]undefined['"]/g, weight: 5 },
-    { pattern: /\w+\s*===?\s*null/g, weight: 5 },
-    { pattern: /\w+\s*!==?\s*undefined/g, weight: 5 },
-    { pattern: /\w+\s*!==?\s*null/g, weight: 5 },
-    { pattern: /\bisNaN\(/g, weight: 3 },
-    { pattern: /\bisFinite\(/g, weight: 3 },
-    { pattern: /\blength\s*[><=]=?\s*\d+/g, weight: 2 }
-  ];
-  
-  for (const { pattern, weight } of validationPatterns) {
-    const matches = code.match(pattern) || [];
-    reliabilityScore += Math.min(15, matches.length * weight); // Cap at 15 points
+  // Input validation issues
+  if (hasUserInput(code, language) && !hasInputValidation(code, language) && !isCompetitiveProgrammingContext) {
+    baseScore -= 3;
   }
   
-  // 3. Deduct for known potential reliability issues
-  // Skip some deductions for competitive programming context
-  const reliabilityIssues = language === 'java' ? [
-    { pattern: /==(?!=)/g, weight: isCompetitiveProgramming ? -1 : -2 }, // == comparison, less penalty in CP
-    { pattern: /\/\/\s*TODO|\/\/\s*FIXME/g, weight: -2 }, // TODO/FIXME comments
-    { pattern: /System\.out\.println/g, weight: isCompetitiveProgramming ? 0 : -1 }, // Don't penalize console in CP
-    { pattern: /Math\.random/g, weight: -1 }, // Non-deterministic operations
-    { pattern: /\/\s*\w+/g, weight: -3 }, // Division without checking denominator
-    { pattern: /\w+\[(\w+|\d+)\]/g, weight: isCompetitiveProgramming && hasBoundedLoops ? 0 : -2 } // Array access - no penalty if in bounded loop in CP
-  ] : [
-    { pattern: /==(?!=)/g, weight: -2 }, // Loose equality
-    { pattern: /!=(?!=)/g, weight: -2 }, // Loose inequality
-    { pattern: /\/\/\s*TODO|\/\/\s*FIXME/g, weight: -2 }, // TODO/FIXME comments
-    { pattern: /console\.log/g, weight: -1 }, // Console logs in production code
-    { pattern: /Math\.random/g, weight: -1 } // Non-deterministic operations
-  ];
-  
-  for (const { pattern, weight } of reliabilityIssues) {
-    const matches = code.match(pattern) || [];
-    const deduction = Math.max(-15, matches.length * weight); // Cap deduction at -15
-    reliabilityScore += deduction;
+  // Exception handling consistency for Java
+  if (language === 'java' && hasExplicitThrows(code) && !hasTryCatchOrThrowsDeclaration(code)) {
+    baseScore -= 3 * contextMultiplier;
   }
   
-  // 4. Check for unhandled exceptions with context awareness
-  const lines = code.split('\n');
-  let hasTryCatch = false;
+  // Normalize by risk level
+  const riskLevel = assessCodeRiskLevel(code, language);
+  const normalizedScore = baseScore + ((100 - baseScore) * (1 - riskLevel / 10));
   
-  for (const line of lines) {
-    if (line.includes('try') && line.includes('{')) {
-      hasTryCatch = true;
-      break;
-    }
-  }
-  
-  // Define risky operation patterns based on language
-  const riskOperationPatterns = language === 'java' ? [
-    /\/\s*\w+/, // Division operation
-    /\w+\.\w+\(/, // Method call that could be on null
-    /\w+\[\w+\]/, // Array access
-    /\([\w\.]+\)\s*\w+/ // Type casting
-  ] : [
-    /JSON\.parse\s*\(/,
-    /fs\.\w+Sync\s*\(/,
-    /\.\w+\s*\(/,
-    /\[(\w+|\d+)\]/
-  ];
-  
-  // Count risky operations that are not in try-catch blocks
-  let riskyOpCount = 0;
-  let boundedArrayAccess = 0;
-  let dividedByConst = 0;
-  
-  // In competitive programming context, also check for common safe patterns
-  if (language === 'java') {
-    // Check for bounded array access in for loops (index < array.length)
-    boundedArrayAccess = (code.match(/for\s*\(\s*\w+\s+\w+\s*=\s*\d+\s*;\s*\w+\s*<\s*\w+\.length\s*;/g) || []).length;
-    
-    // Check for division by constants (safe)
-    dividedByConst = (code.match(/\/\s*\d+/g) || []).length;
-  }
-  
-  for (const pattern of riskOperationPatterns) {
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const isComment = line.trim().startsWith('//') || line.trim().startsWith('/*') || line.trim().startsWith('*');
-      
-      // Skip comments and check if it's a risky operation
-      if (!isComment && pattern.test(line)) {
-        // For array access in Java with bounded loops, don't count as risky
-        if (pattern.toString().includes('\\[\\w+\\]') && boundedArrayAccess > 0 && isCompetitiveProgramming) {
-          continue;
-        }
-        // For division by constants, don't count as risky
-        if (pattern.toString().includes('\\/') && 
-            line.match(/\/\s*\d+/) && 
-            !line.match(/\/\s*\w+\s*[\+\-\*\/]/) && // Not a complex expression
-            isCompetitiveProgramming) {
-          continue;
-        }
-        riskyOpCount++;
-      }
-    }
-  }
-  
-  // Higher penalty for many risky operations without try-catch
-  if (!hasTryCatch && riskyOpCount > 0) {
-    let penalty = isCompetitiveProgramming ? Math.min(10, riskyOpCount) : Math.min(20, riskyOpCount * 2);
-    reliabilityScore -= penalty;
-  }
-  
-  // For simple code with no decision points, ensure high reliability
-  const cyclomaticComplexity = calculateCyclomaticComplexity(code, language);
-  if (cyclomaticComplexity <= 2 && code.length > 0) {
-    reliabilityScore = Math.max(reliabilityScore, 85); // Simple code is generally reliable
-  }
-  
-  // Cap to 0-100 range
-  reliabilityScore = Math.max(0, Math.min(100, reliabilityScore));
-  
-  return Math.round(reliabilityScore);
+  // Ensure the score is within bounds
+  return Math.max(0, Math.min(100, normalizedScore));
 };
 
 // Get code metrics
-export const getCodeMetrics = (code: string, language: string = 'javascript') => {
-  const lines = code.split('\n').filter(line => line.trim() !== '');
-  const linesOfCode = lines.length;
+export const getCodeMetrics = (code: string, language: string): MetricsResult => {
+  const lines = code.split('\n');
+  const codeLines = lines.filter(line => line.trim().length > 0).length;
   
-  // Check for competitive programming context
-  const isCompetitiveProgramming = language === 'java' && 
-                                 code.includes("public static void main") &&
-                                 (code.includes("Scanner") || code.includes("BufferedReader"));
+  const functionsCount = countFunctions(code, language);
+  const avgFunctionLength = functionsCount > 0 ? 
+    lines.length / functionsCount : lines.length;
   
-  // Calculate comment percentage with language-specific adjustments
-  let commentLines;
-  if (language === 'java') {
-    commentLines = lines.filter(line => 
-      line.trim().startsWith('//') || 
-      line.trim().startsWith('/*') || 
-      line.trim().startsWith('*') ||
-      line.trim().startsWith('/**') ||
-      line.trim().startsWith('@')  // Javadoc annotations
-    ).length;
-  } else {
-    commentLines = lines.filter(line => 
-      line.trim().startsWith('//') || 
-      line.trim().startsWith('/*') || 
-      line.trim().startsWith('*')
-    ).length;
-  }
-  const commentPercentage = commentLines / (linesOfCode || 1) * 100;
+  const commentLines = lines.filter(line => {
+    const trimmed = line.trim();
+    return trimmed.startsWith('//') || 
+           trimmed.startsWith('/*') ||
+           trimmed.startsWith('*');
+  }).length;
   
-  // Calculate function-based metrics more accurately
-  let functionCount;
-  if (language === 'java') {
-    const methodRegex = /(?:public|private|protected)(?:\s+static)?\s+\w+\s+\w+\s*\([^)]*\)/g;
-    const methodMatches = code.match(methodRegex) || [];
-    functionCount = methodMatches.length;
-    
-    // For competitive programming in Java, ensure we count at least the main method
-    if (functionCount === 0 && isCompetitiveProgramming) {
-      functionCount = 1; // At least count main
-    }
-  } else {
-    const functionRegex = /function\s+\w+|const\s+\w+\s*=\s*\([^)]*\)\s*=>|\w+\s*\([^)]*\)\s*{|\w+\s*=\s*function/g;
-    const functionMatches = code.match(functionRegex) || [];
-    functionCount = functionMatches.length;
-  }
+  const commentPercentage = (commentLines / Math.max(1, lines.length)) * 100;
   
-  // Calculate average function length
-  let inFunction = false;
-  let braceCount = 0;
-  let currentFunctionLines = 0;
-  let functionLengths: number[] = [];
+  const maxNesting = calculateMaxNestingDepth(code);
+  
+  const complexityScore = calculateCyclomaticComplexity(code, language);
+  
+  return {
+    totalLines: lines.length,
+    codeLines,
+    commentLines,
+    commentPercentage,
+    functionsCount,
+    averageFunctionLength: avgFunctionLength,
+    maxNestingDepth: maxNesting,
+    cyclomaticComplexity: complexityScore,
+  };
+};
+
+// Helper function to convert score to letter grade
+export const scoreToGrade = (score: number): ScoreGrade => {
+  if (score >= 90) return 'A';
+  if (score >= 80) return 'B';
+  if (score >= 70) return 'C';
+  return 'D';
+};
+
+// Count functions in code
+const countFunctions = (code: string, language: string): number => {
+  const lines = code.split('\n');
+  let count = 0;
   
   for (const line of lines) {
-    // Detect function start based on language
-    let functionStartPattern;
+    // Match function declarations based on language
     if (language === 'java') {
-      functionStartPattern = (line.includes('public') || line.includes('private') || line.includes('protected')) && line.includes('(') && !line.includes(';');
+      if (/(?:public|private|protected)(?:\s+static)?\s+\w+\s+\w+\s*\([^)]*\)\s*\{/.test(line)) {
+        count++;
+      }
     } else {
-      functionStartPattern = (line.includes('function') || line.includes('=>') || (line.includes('{') && line.includes('(') && !line.includes('if') && !line.includes('for') && !line.includes('while')));
-    }
-    
-    if (functionStartPattern && !inFunction) {
-      inFunction = true;
-      currentFunctionLines = 1;
-      braceCount = 0;
-    }
-    
-    if (inFunction) {
-      // Count opening braces
-      braceCount += (line.match(/{/g) || []).length;
-      // Count closing braces
-      braceCount -= (line.match(/}/g) || []).length;
-      
-      // If all braces are balanced and we've seen at least one closing brace, the function has ended
-      if (braceCount <= 0 && line.includes('}')) {
-        inFunction = false;
-        functionLengths.push(currentFunctionLines);
-      } else {
-        currentFunctionLines++;
+      // JavaScript/TypeScript function detection
+      if (/function\s+\w+\s*\(/.test(line) || 
+          /const\s+\w+\s*=\s*(?:async\s*)?\([^)]*\)\s*=>/.test(line) ||
+          /^\s*\w+\s*\([^)]*\)\s*\{/.test(line)) {
+        count++;
       }
     }
   }
   
-  // For competitive programming with just one main method, be lenient
-  if (isCompetitiveProgramming && functionLengths.length <= 1) {
-    // Don't penalize single main method in competitive programming
-    functionLengths = functionLengths.map(length => Math.min(length, 20));
+  return Math.max(1, count); // At least 1 function
+};
+
+// Count logical blocks (if, for, while, etc.)
+const countLogicalBlocks = (code: string): number => {
+  const blockMatches = code.match(/if\s*\(|for\s*\(|while\s*\(|switch\s*\(|case\s+|else\s*\{|try\s*\{|catch\s*\(/g);
+  return blockMatches ? blockMatches.length : 1; // At least 1 block
+};
+
+// Calculate maximum nesting depth
+const calculateMaxNestingDepth = (code: string): number => {
+  const lines = code.split('\n');
+  let maxDepth = 0;
+  let currentDepth = 0;
+  
+  for (const line of lines) {
+    const openBraces = (line.match(/{/g) || []).length;
+    const closingBraces = (line.match(/}/g) || []).length;
+    
+    currentDepth += openBraces - closingBraces;
+    maxDepth = Math.max(maxDepth, currentDepth);
   }
   
-  // Calculate average function length
-  const averageFunctionLength = functionCount > 0 
-    ? Math.round(functionLengths.reduce((sum, length) => sum + length, 0) / functionCount) 
-    : 0;
+  return maxDepth;
+};
+
+// Count magic numbers
+const countMagicNumbers = (code: string): number => {
+  // Exclude common safe numbers like 0, 1, 2
+  const magicNumberMatches = code.match(/[^a-zA-Z0-9_\.]([3-9]|[1-9][0-9]+)(?![a-zA-Z0-9_\.])/g);
+  return magicNumberMatches ? magicNumberMatches.length : 0;
+};
+
+// Count single-letter variables
+const countSingleLetterVariables = (code: string, language: string): number => {
+  const lines = code.split('\n');
+  let count = 0;
+  const safeVars = new Set(['i', 'j', 'k', 'x', 'y', 'n', 'm']); // Common loop variables
   
-  return {
-    linesOfCode,
-    commentPercentage,
-    functionCount,
-    averageFunctionLength
-  };
+  for (const line of lines) {
+    // Skip loop declarations where single-letter variables are common
+    if (line.includes('for ')) continue;
+    
+    let matches;
+    if (language === 'java') {
+      matches = line.match(/\b(?:int|String|boolean|double|char|long)\s+([a-zA-Z])\b/g);
+    } else {
+      matches = line.match(/\b(?:let|const|var)\s+([a-zA-Z])\b/g);
+    }
+    
+    if (matches) {
+      for (const match of matches) {
+        const varName = match.split(/\s+/).pop();
+        if (varName && varName.length === 1 && !safeVars.has(varName)) {
+          count++;
+        }
+      }
+    }
+  }
+  
+  return count;
+};
+
+// Context detection for competitive programming
+const detectCompetitiveProgrammingContext = (code: string, language: string): boolean => {
+  // Common competitive programming patterns
+  const hasMainMethod = code.includes('public static void main') || code.includes('function main');
+  const hasStdinInput = code.includes('Scanner') || code.includes('BufferedReader') || 
+                      code.includes('readline') || code.includes('process.stdin');
+  const hasArrayManipulation = code.includes('[') && code.includes(']') && 
+                               (code.includes('sort') || code.includes('length') || code.includes('push'));
+  const hasAlgorithmicPatterns = code.includes('for') && 
+                                (code.includes('min') || code.includes('max') || code.includes('sum'));
+  
+  // Typical competitive programming file size is small to medium
+  const isSmallToMedium = code.length < 1000;
+  
+  return (hasMainMethod && hasStdinInput && isSmallToMedium) || 
+         (hasMainMethod && hasArrayManipulation && hasAlgorithmicPatterns && isSmallToMedium);
+};
+
+// Extract variables that are safely bounded in loops
+const extractSafeLoopVariables = (code: string, language: string): string[] => {
+  const safeVars: string[] = [];
+  const lines = code.split('\n');
+  
+  // Extract bounded loop indices
+  for (const line of lines) {
+    if (line.includes('for')) {
+      // Regular for loops with explicit bounds
+      const forMatch = line.match(/for\s*\(\s*(?:let|var|const|int)\s+(\w+)\s*=.*?;\s*\1\s*<(?:=)?\s*(?:\w+).*?;\s*\1\s*(?:\+\+|--|\+=)/);
+      if (forMatch && forMatch[1]) {
+        safeVars.push(forMatch[1]);
+      }
+      
+      // For-of loops are safe for array access
+      const forOfMatch = line.match(/for\s*\(\s*(?:let|var|const|int)\s+(\w+)\s+of\s+(\w+)/);
+      if (forOfMatch && forOfMatch[1]) {
+        safeVars.push(forOfMatch[1]);
+      }
+    }
+  }
+  
+  return safeVars;
+};
+
+// Extract variables that have null checks
+const extractNullCheckedVariables = (code: string, language: string): string[] => {
+  const nullCheckedVars: string[] = [];
+  const lines = code.split('\n');
+  
+  for (const line of lines) {
+    // Check for null checks (obj != null, obj !== null, etc)
+    const nullCheckMatch = line.match(/if\s*\(\s*(\w+)\s*!==?\s*null\b/);
+    if (nullCheckMatch && nullCheckMatch[1]) {
+      nullCheckedVars.push(nullCheckMatch[1]);
+    }
+    
+    // Check for existence checks (if (obj), etc)
+    const existenceCheckMatch = line.match(/if\s*\(\s*(\w+)\s*\)/);
+    if (existenceCheckMatch && existenceCheckMatch[1]) {
+      nullCheckedVars.push(existenceCheckMatch[1]);
+    }
+    
+    // Optional chaining in JavaScript/TypeScript
+    if (language !== 'java') {
+      const optionalChainingMatch = line.match(/(\w+)\?\./g);
+      if (optionalChainingMatch) {
+        for (const match of optionalChainingMatch) {
+          nullCheckedVars.push(match.replace('?.', ''));
+        }
+      }
+    }
+    
+    // Java Optional or Objects.nonNull
+    if (language === 'java') {
+      if (line.includes('Optional<') || line.includes('Objects.nonNull')) {
+        const optionalMatch = line.match(/(\w+)\.(?:isPresent|get|orElse|orElseGet)\(/);
+        if (optionalMatch && optionalMatch[1]) {
+          nullCheckedVars.push(optionalMatch[1]);
+        }
+      }
+    }
+  }
+  
+  return nullCheckedVars;
+};
+
+// Check if code contains risky operations that would require error handling
+const containsRiskyOperations = (code: string, language: string): boolean => {
+  // These patterns indicate higher risk operations
+  const riskyPatterns = [
+    /\.parse\(/, // JSON.parse or similar
+    /new FileReader|new Scanner/, // File operations
+    /fetch\(|axios\.|http\./, // Network requests
+    /throw new Error|throw new Exception/, // Explicit throws
+    /\/\s*0|%\s*0/, // Division by zero risk
+    /\.substring\(\s*\d+\s*\)|\.charAt\(\s*\d+\s*\)/ // String operations without bounds check
+  ];
+  
+  return riskyPatterns.some(pattern => pattern.test(code));
+};
+
+// Check if code requires error handling based on operations performed
+const requiresErrorHandling = (code: string, language: string): boolean => {
+  // Simple code without risky operations doesn't need explicit error handling
+  if (!containsRiskyOperations(code, language)) {
+    return false;
+  }
+  
+  // Check for code complexity that would warrant error handling
+  const hasComplexFlow = code.includes('if') && code.includes('for');
+  const isLongEnough = code.split('\n').length > 15;
+  
+  return hasComplexFlow && isLongEnough;
+};
+
+// Check if code has error handling mechanisms
+const hasErrorHandling = (code: string, language: string): boolean => {
+  return code.includes('try') && code.includes('catch');
+};
+
+// Count unsafe array accesses that aren't protected
+const countUnsafeArrayAccesses = (code: string, language: string, safeVariables: string[]): number => {
+  const lines = code.split('\n');
+  let count = 0;
+  
+  for (const line of lines) {
+    // Skip array access within loop or with constant index, which is generally safe
+    if (line.includes('for') || line.includes('while')) continue;
+    
+    // Match array accesses with variable index
+    const arrayAccessMatches = line.match(/\w+\s*\[\s*(\w+)\s*\]/g);
+    if (arrayAccessMatches) {
+      for (const match of arrayAccessMatches) {
+        const indexVarMatch = match.match(/\[\s*(\w+)\s*\]/);
+        if (indexVarMatch && indexVarMatch[1]) {
+          const indexVar = indexVarMatch[1];
+          // Only count as unsafe if not a safe loop variable and not a number literal
+          if (!safeVariables.includes(indexVar) && !/^\d+$/.test(indexVar)) {
+            count++;
+          }
+        }
+      }
+    }
+  }
+  
+  return count;
+};
+
+// Count null safety issues
+const countNullSafetyIssues = (code: string, language: string, nullCheckedVars: string[]): number => {
+  const lines = code.split('\n');
+  let count = 0;
+  
+  for (const line of lines) {
+    // Skip lines with null checks
+    if (line.includes('!= null') || line.includes('!== null') || 
+        line.includes('?.') || line.includes('||') || line.includes('&&')) {
+      continue;
+    }
+    
+    // Match property access with dot notation
+    const propertyAccessMatches = line.match(/(\w+)\.\w+/g);
+    if (propertyAccessMatches) {
+      for (const match of propertyAccessMatches) {
+        const objectName = match.split('.')[0];
+        // Only count as unsafe if not previously null-checked
+        if (!nullCheckedVars.includes(objectName)) {
+          count++;
+          break; // Count only once per line to avoid over-penalization
+        }
+      }
+    }
+  }
+  
+  return count;
+};
+
+// Check for user input handling
+const hasUserInput = (code: string, language: string): boolean => {
+  const inputPatterns = [
+    /Scanner|BufferedReader|readline|readLine|prompt\(|process\.stdin|input\(/,
+    /getElementById|querySelector|event\.|onChange|onClick/
+  ];
+  
+  return inputPatterns.some(pattern => pattern.test(code));
+};
+
+// Check for input validation
+const hasInputValidation = (code: string, language: string): boolean => {
+  const validationPatterns = [
+    /if\s*\(\s*\w+\s*(==|!=|>=|<=|>|<)/,
+    /parseInt|parseFloat|trim\(\)|\.length\s*(?:>|<|===|!==)/,
+    /try\s*{[\s\S]*?}\s*catch/,
+    /\w+\s*instanceof\s+\w+/,
+    /isNaN\(|typeof\s+\w+\s*===|\.test\(/
+  ];
+  
+  return validationPatterns.some(pattern => pattern.test(code));
+};
+
+// Java-specific: Check for explicit throws
+const hasExplicitThrows = (code: string): boolean => {
+  return /throw\s+new\s+\w+/.test(code);
+};
+
+// Java-specific: Check for proper exception handling
+const hasTryCatchOrThrowsDeclaration = (code: string): boolean => {
+  return /try\s*{[\s\S]*?}\s*catch/.test(code) || /\)\s*throws\s+\w+/.test(code);
+};
+
+// Assess overall code risk level (0-10 scale)
+const assessCodeRiskLevel = (code: string, language: string): number => {
+  let riskScore = 0;
+  
+  // High-risk operations
+  if (code.includes('parse(') || code.includes('eval(')) riskScore += 2;
+  if (code.includes('File') || code.includes('fs.')) riskScore += 2;
+  if (code.includes('fetch(') || code.includes('axios')) riskScore += 1;
+  
+  // Data handling risks
+  const hasArrays = (code.match(/\[.*\]/g) || []).length > 2;
+  const hasLoops = (code.match(/for\s*\(|while\s*\(/g) || []).length > 1;
+  if (hasArrays && hasLoops) riskScore += 1;
+  
+  // User input risk
+  if (hasUserInput(code, language)) riskScore += 1;
+  
+  // External dependencies risk
+  const hasExternalDeps = (code.match(/import\s+|require\(/g) || []).length > 3;
+  if (hasExternalDeps) riskScore += 1;
+  
+  // Risk mitigations
+  if (hasErrorHandling(code, language)) riskScore -= 1;
+  if (hasInputValidation(code, language)) riskScore -= 1;
+  
+  // Context-based risk adjustments
+  if (detectCompetitiveProgrammingContext(code, language)) riskScore = Math.max(1, riskScore - 2);
+  
+  return Math.max(0, Math.min(10, riskScore));
 };
