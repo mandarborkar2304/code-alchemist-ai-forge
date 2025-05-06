@@ -161,7 +161,7 @@ const extractBoundedVariables = (lines: string[], language: string): string[] =>
     }
     
     // Match array.forEach: array.forEach((item, index) => {...})
-    const forEachMatches = line.match(/forEach\s*\(\s*(?:\\([^)]*\\)|(\\w+))\\s*=>/);
+    const forEachMatches = line.match(/forEach\s*\(\s*(?:\([^)]*\)|(\w+))\s*=>/);
     if (forEachMatches && forEachMatches[1]) {
       boundedVars.push(forEachMatches[1]);
     }
@@ -627,65 +627,65 @@ for (let i = 0; i < lines.length; i++) {
 }
 
 
-  // Check for magic numbers with improved deduplication
-  if (lines.length > 10) {
-    // Map to track magic numbers by their actual value to avoid duplicates
-    const magicNumbersByValue = new Map<string, Set<number>>(); // value -> line numbers
+// Check for magic numbers with improved deduplication
+if (lines.length > 10) {
+  // Map to track magic numbers by their actual value to avoid duplicates
+  const magicNumbersByValue = new Map<string, Set<number>>(); // value -> line numbers
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+    // Skip comments, string literals, and typical test case input
+    const isComment = line.trim().startsWith('//') || line.trim().startsWith('/*') || line.trim().startsWith('*');
+    const isStringLiteral = line.includes('"') || line.includes("'");
+    const isTypicalIntInput = line.includes("Scanner") || line.includes("BufferedReader") ||
+                           line.includes("readLine") || line.includes("parseInt") ||
+                           line.includes("nextInt");
+                            
+    if (!isComment && !isTypicalIntInput) {
+      // Match numbers not part of identifiers or decimal points
+      const magicNumberMatches = line.match(/[^a-zA-Z0-9_\.]([3-9]|[1-9][0-9]+)(?![a-zA-Z0-9_\.])/g);
       
-      // Skip comments, string literals, and typical test case input
-      const isComment = line.trim().startsWith('//') || line.trim().startsWith('/*') || line.trim().startsWith('*');
-      const isStringLiteral = line.includes('"') || line.includes("'");
-      const isTypicalIntInput = line.includes("Scanner") || line.includes("BufferedReader") ||
-                             line.includes("readLine") || line.includes("parseInt") ||
-                             line.includes("nextInt");
-                              
-      if (!isComment && !isTypicalIntInput) {
-        // Match numbers not part of identifiers or decimal points
-        const magicNumberMatches = line.match(/[^a-zA-Z0-9_\.]([3-9]|[1-9][0-9]+)(?![a-zA-Z0-9_\.])/g);
-        
-        if (magicNumberMatches) {
-          magicNumberMatches.forEach(match => {
-            // Extract just the number part
-            const numMatch = match.match(/([3-9]|[1-9][0-9]+)/);
-            if (numMatch) {
-              const numValue = numMatch[1];
-              
-              // Skip if in a string context
-              if (isStringLiteral && (line.indexOf('"' + numValue) >= 0 || line.indexOf("'" + numValue) >= 0)) {
-                return;
-              }
-              
-              // Track this number by value
-              if (!magicNumbersByValue.has(numValue)) {
-                magicNumbersByValue.set(numValue, new Set());
-              }
-              magicNumbersByValue.get(numValue)!.add(i + 1);
+      if (magicNumberMatches) {
+        magicNumberMatches.forEach(match => {
+          // Extract just the number part
+          const numMatch = match.match(/([3-9]|[1-9][0-9]+)/);
+          if (numMatch) {
+            const numValue = numMatch[1];
+            
+            // Skip if in a string context
+            if (isStringLiteral && (line.indexOf('"' + numValue) >= 0 || line.indexOf("'" + numValue) >= 0)) {
+              return;
             }
-          });
-        }
-      }
-    }
-    
-    // Report only the first occurrence of each unique magic number
-    magicNumbersByValue.forEach((lineSet, value) => {
-      // Only report if there are lines containing this magic number
-      if (lineSet.size > 0) {
-        const firstLine = Math.min(...Array.from(lineSet));
-        lineReferences.push({ 
-          line: firstLine, 
-          issue: `Magic number ${value} - replace with named constant`, 
-          severity: 'minor' 
+            
+            // Track this number by value
+            if (!magicNumbersByValue.has(numValue)) {
+              magicNumbersByValue.set(numValue, new Set());
+            }
+            magicNumbersByValue.get(numValue)!.add(i + 1);
+          }
         });
       }
-    });
-    
-    if (magicNumbersByValue.size > 0) {
-      issues.push(`Magic numbers detected (${magicNumbersByValue.size} unique constants) - consider using named constants`);
     }
   }
+  
+  // Report only the first occurrence of each unique magic number
+  magicNumbersByValue.forEach((lineSet, value) => {
+    // Only report if there are lines containing this magic number
+    if (lineSet.size > 0) {
+      const firstLine = Math.min(...Array.from(lineSet));
+      lineReferences.push({ 
+        line: firstLine, 
+        issue: `Magic number ${value} - replace with named constant`, 
+        severity: 'minor' 
+      });
+    }
+  });
+  
+  if (magicNumbersByValue.size > 0) {
+    issues.push(`Magic numbers detected (${magicNumbersByValue.size} unique constants) - consider using named constants`);
+  }
+}
 
 // Find try-catch blocks to avoid flagging protected code
 const tryCatchBlocks = findTryCatchBlocks(lines);
@@ -762,7 +762,7 @@ if (rules.unhandledExceptions.enabled) {
   });
 }
 
-    
+  
 // Add exactly one issue per line with proper prioritization
 const lineToIssue = new Map<number, { message: string, severity: 'major' | 'minor' }>();
 
@@ -797,11 +797,12 @@ lineToIssue.forEach((value, line) => {
   });
 });
 
-  // Check for redundant loops or inefficient computations
-  const redundantComputationIssues = new Map<number, string>();
+// Check for redundant loops or inefficient computations
+const redundantComputationIssues = new Map<number, string>();
+
+for (let i = 0; i < lines.length; i++) {
+  const nextFewLines = lines.slice(i, i + 5).join('\n');
   
-  for (let i = 0; i < lines.length; i++) {
-    const nextFewLines = lines.slice(i, i + 5).join('\n');
-    
-    // Check for nested loops with potential redundant computation
-    if (/for\s*\([^)]+\)\s*{[^}]*for\s*\([^)]+\)/.test(nextFewLines) && !nextFewLines
+  // Check for nested loops with potential redundant computation
+  if (/for\s*\([^)]+\)\s*{[^}]*for\s*\([^)]+\)/.test(nextFewLines) && !nextFewLines.includes('//')) {
+    const inner
