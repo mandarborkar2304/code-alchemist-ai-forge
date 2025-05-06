@@ -161,7 +161,7 @@ const extractBoundedVariables = (lines: string[], language: string): string[] =>
     }
     
     // Match array.forEach: array.forEach((item, index) => {...})
-    const forEachMatches = line.match(/forEach\s*\(\s*(?:\([^)]*\)|(\w+))\s*=>/);
+    const forEachMatches = line.match(/forEach\s*\(\s*(?:\\([^)]*\\)|(\\w+))\\s*=>/);
     if (forEachMatches && forEachMatches[1]) {
       boundedVars.push(forEachMatches[1]);
     }
@@ -371,6 +371,35 @@ const findNearbyMethodSignature = (lines: string[], currentLineIndex: number, lo
   
   return null;
 };
+
+// Find try-catch blocks in code
+function findTryCatchBlocks(lines: string[]): {start: number, end: number}[] {
+  const tryCatchBlocks: {start: number, end: number}[] = [];
+  let inTryBlock = false;
+  let tryStartLine = 0;
+  let braceCounter = 0;
+   
+  lines.forEach((line, i) => {
+    if (line.includes('try')) {
+      inTryBlock = true;
+      tryStartLine = i;
+      braceCounter = 1;
+    } else if (inTryBlock) {
+      // Count braces to find the end of the try-catch block
+      const openBraces = (line.match(/{/g) || []).length;
+      const closeBraces = (line.match(/}/g) || []).length;
+      braceCounter += openBraces - closeBraces;
+      
+      // When we've reached the end of the try-catch block
+      if (braceCounter === 0 && line.includes('}')) {
+        tryCatchBlocks.push({ start: tryStartLine, end: i });
+        inTryBlock = false;
+      }
+    }
+  });
+  
+  return tryCatchBlocks;
+}
 
 // Analyze code for issues with line references
 export const analyzeCodeForIssues = (code: string, language: string = 'javascript'): { details: string[], lineReferences: { line: number, issue: string, severity: 'major' | 'minor' }[] } => {
@@ -734,7 +763,7 @@ if (rules.unhandledExceptions.enabled) {
 }
 
     
-    // Add exactly one issue per line with proper prioritization
+// Add exactly one issue per line with proper prioritization
 const lineToIssue = new Map<number, { message: string, severity: 'major' | 'minor' }>();
 
 // Process each issue type
@@ -775,35 +804,4 @@ lineToIssue.forEach((value, line) => {
     const nextFewLines = lines.slice(i, i + 5).join('\n');
     
     // Check for nested loops with potential redundant computation
-    if (/for\s*\([^)]+\)\s*{[^}]*for\s*\([^)]+\)/.test(nextFewLines) && !nextFewLines.includes('//')) {
-      const innerVars = extractLoopVariables(nextFewLines, language);
-      const outerVars = extractLoopVariables(lines[i], language);
-      
-      // Check if loops have dependency that could be optimized
-      const hasRedundancy = innerVars.some(v => outerVars.includes(v));
-      
-      if (hasRedundancy) {
-        // Only flag the outer loop start to avoid duplication
-        redundantComputationIssues.set(i + 1, "Potential inefficient nested loops - check for redundant computation");
-      }
-    }
-  }
-  
-  redundantComputationIssues.forEach((issue, line) => {
-    lineReferences.push({
-      line,
-      issue,
-      severity: 'major'
-    });
-  });
-  
-  // if (redundantComputationIssues.size > 0) {
-  //   issues.push("Potential performance issues detected with nested loops");
-  // }
-
-  // Analyze for custom code smells with improved deduplication
-  const customSmellLines = new Map<string, Set<number>>();
-  
-  rules.customSmells.forEach((smell) => {
-    const regex = new RegExp(smell.pattern, "g");
-    lines.forEach((line, idx) => {
+    if (/for\s*\([^)]+\)\s*{[^}]*for\s*\([^)]+\)/.test(nextFewLines) && !nextFewLines
