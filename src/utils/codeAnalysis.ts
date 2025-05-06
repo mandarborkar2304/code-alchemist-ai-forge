@@ -127,6 +127,251 @@ export const rules = {
   ] as Array<{ id: string; pattern: string; message: string; severity?: 'major' | 'minor' }>
 };
 
+// Helper functions needed for code analysis
+// Extract variables that are bounded in loops
+const extractBoundedVariables = (lines: string[], language: string): string[] => {
+  const boundedVars: string[] = [];
+  
+  // Extract variables from for loop conditions
+  for (const line of lines) {
+    if (language === 'java') {
+      // Match Java for loop structure: for(int i = 0; i < n; i++)
+      const forMatches = line.match(/for\s*\(\s*(?:int|long|short|byte)\s+(\w+)\s*=.+?\s*(?:\+\+|--)\s*\)/);
+      if (forMatches && forMatches[1]) {
+        boundedVars.push(forMatches[1]);
+      }
+    } else {
+      // Match JavaScript/TypeScript for loop: for(let i = 0; i < arr.length; i++)
+      const forMatches = line.match(/for\s*\(\s*(?:let|var|const)\s+(\w+)\s*=.+?\s*(?:\+\+|--)\s*\)/);
+      if (forMatches && forMatches[1]) {
+        boundedVars.push(forMatches[1]);
+      }
+    }
+    
+    // Match for...of loops: for (const item of items)
+    const forOfMatches = line.match(/for\s*\(\s*(?:const|let|var)\s+(\w+)\s+of/);
+    if (forOfMatches && forOfMatches[1]) {
+      boundedVars.push(forOfMatches[1]);
+    }
+    
+    // Match for...in loops: for (const key in object)
+    const forInMatches = line.match(/for\s*\(\s*(?:const|let|var)\s+(\w+)\s+in/);
+    if (forInMatches && forInMatches[1]) {
+      boundedVars.push(forInMatches[1]);
+    }
+    
+    // Match array.forEach: array.forEach((item, index) => {...})
+    const forEachMatches = line.match(/forEach\s*\(\s*(?:\([^)]*\)|(\w+))\s*=>/);
+    if (forEachMatches && forEachMatches[1]) {
+      boundedVars.push(forEachMatches[1]);
+    }
+    
+    // Match Java enhanced for loop: for (Type item : items)
+    if (language === 'java') {
+      const enhancedForMatches = line.match(/for\s*\(\s*\w+\s+(\w+)\s*:/);
+      if (enhancedForMatches && enhancedForMatches[1]) {
+        boundedVars.push(enhancedForMatches[1]);
+      }
+    }
+  }
+  
+  return boundedVars;
+};
+
+// Extract variables that have null checks
+const extractNullCheckedVariables = (lines: string[], language: string): string[] => {
+  const nullCheckedVars: string[] = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Check for null checks like: if (var != null), if (var !== null), etc.
+    const nullCheckMatches = line.match(/if\s*\(\s*(\w+)\s*(?:!=|!==)\s*null\s*\)/);
+    if (nullCheckMatches && nullCheckMatches[1]) {
+      nullCheckedVars.push(nullCheckMatches[1]);
+    }
+    
+    // Check for null checks like: if (null != var), if (null !== var), etc.
+    const reversedNullCheckMatches = line.match(/if\s*\(\s*null\s*(?:!=|!==)\s*(\w+)\s*\)/);
+    if (reversedNullCheckMatches && reversedNullCheckMatches[1]) {
+      nullCheckedVars.push(reversedNullCheckMatches[1]);
+    }
+    
+    // Check for Objects.nonNull(var)
+    if (language === 'java') {
+      const objectsNonNullMatches = line.match(/Objects\.nonNull\s*\(\s*(\w+)\s*\)/);
+      if (objectsNonNullMatches && objectsNonNullMatches[1]) {
+        nullCheckedVars.push(objectsNonNullMatches[1]);
+      }
+    }
+    
+    // Check for Optional checks in Java
+    if (language === 'java' && line.includes('Optional')) {
+      const optionalMatches = line.match(/(\w+)\.isPresent\(\)/);
+      if (optionalMatches && optionalMatches[1]) {
+        nullCheckedVars.push(optionalMatches[1]);
+      }
+    }
+  }
+  
+  return nullCheckedVars;
+};
+
+// Extract main function input parameters
+const extractMainFunctionInputs = (lines: string[], language: string): string[] => {
+  const mainFunctionInputs: string[] = [];
+  
+  // Look for main method declaration
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    if (language === 'java') {
+      // Java main method: public static void main(String[] args)
+      const mainMethodMatch = line.match(/public\s+static\s+void\s+main\s*\(\s*String\s*\[\]\s*(\w+)/);
+      if (mainMethodMatch && mainMethodMatch[1]) {
+        mainFunctionInputs.push(mainMethodMatch[1]);
+      }
+    } else {
+      // JavaScript/TypeScript main function: function main(args)
+      const mainFunctionMatch = line.match(/function\s+main\s*\(\s*(\w+)/);
+      if (mainFunctionMatch && mainFunctionMatch[1]) {
+        mainFunctionInputs.push(mainFunctionMatch[1]);
+      }
+      
+      // Check for default exported function or arrow function
+      const exportDefaultMatch = line.match(/export\s+default\s+(?:function)?\s*\(\s*(\w+)/);
+      if (exportDefaultMatch && exportDefaultMatch[1]) {
+        mainFunctionInputs.push(exportDefaultMatch[1]);
+      }
+    }
+  }
+  
+  return mainFunctionInputs;
+};
+
+// Extract function parameters from a function declaration
+const extractFunctionParameters = (line: string, language: string): string[] => {
+  const params: string[] = [];
+  
+  if (language === 'java') {
+    // Java method parameters: methodName(Type param1, Type param2)
+    const paramMatch = line.match(/\(\s*([^)]+)\s*\)/);
+    if (paramMatch && paramMatch[1]) {
+      const paramList = paramMatch[1].split(',');
+      for (const param of paramList) {
+        const paramNameMatch = param.trim().match(/\w+\s+(\w+)(?:\s*=.*)?$/);
+        if (paramNameMatch && paramNameMatch[1]) {
+          params.push(paramNameMatch[1]);
+        }
+      }
+    }
+  } else {
+    // JavaScript/TypeScript function parameters: function name(param1, param2)
+    const paramMatch = line.match(/\(\s*([^)]*)\s*\)/);
+    if (paramMatch && paramMatch[1]) {
+      const paramList = paramMatch[1].split(',');
+      for (const param of paramList) {
+        const trimmedParam = param.trim();
+        if (trimmedParam) {
+          // Handle destructuring, defaults, and type annotations
+          const paramNameMatch = trimmedParam.match(/(?:const|let|var)?\s*(?:\{[^}]*\}|\[[^\]]*\]|(\w+))(?:\s*:[^=,]+)?(?:\s*=.*)?/);
+          if (paramNameMatch && paramNameMatch[1]) {
+            params.push(paramNameMatch[1]);
+          }
+        }
+      }
+    }
+  }
+  
+  return params;
+};
+
+// Extract variable declarations from a line of code
+const extractVariableDeclarations = (line: string, language: string): string[] => {
+  const vars: string[] = [];
+  
+  if (language === 'java') {
+    // Java variable declarations: Type varName = value;
+    const varMatches = line.match(/(?:int|long|float|double|String|boolean|char|byte|short)\s+(\w+)(?:\s*=.*)?;/g);
+    if (varMatches) {
+      for (const match of varMatches) {
+        const nameMatch = match.match(/\s+(\w+)(?:\s*=.*)?;/);
+        if (nameMatch && nameMatch[1]) {
+          vars.push(nameMatch[1]);
+        }
+      }
+    }
+  } else {
+    // JavaScript/TypeScript variable declarations: let/const/var varName = value;
+    const varMatches = line.match(/(?:let|const|var)\s+(\w+)(?:\s*=.*)?(?:;|$)/g);
+    if (varMatches) {
+      for (const match of varMatches) {
+        const nameMatch = match.match(/\s+(\w+)(?:\s*=.*)?(?:;|$)/);
+        if (nameMatch && nameMatch[1]) {
+          vars.push(nameMatch[1]);
+        }
+      }
+    }
+  }
+  
+  return vars;
+};
+
+// Extract variables used in loops
+const extractLoopVariables = (code: string, language: string): string[] => {
+  const loopVars: string[] = [];
+  
+  // For regular for loops
+  const forLoopMatches = code.match(/for\s*\(\s*(?:let|var|const|int|long)\s+(\w+)\s*=/g);
+  if (forLoopMatches) {
+    for (const match of forLoopMatches) {
+      const varMatch = match.match(/\s+(\w+)\s*=$/);
+      if (varMatch && varMatch[1]) {
+        loopVars.push(varMatch[1]);
+      }
+    }
+  }
+  
+  // For for-of and for-in loops
+  const forOfInMatches = code.match(/for\s*\(\s*(?:let|var|const)\s+(\w+)\s+(?:of|in)/g);
+  if (forOfInMatches) {
+    for (const match of forOfInMatches) {
+      const varMatch = match.match(/\s+(\w+)\s+(?:of|in)$/);
+      if (varMatch && varMatch[1]) {
+        loopVars.push(varMatch[1]);
+      }
+    }
+  }
+  
+  // For Java enhanced for loops
+  if (language === 'java') {
+    const enhancedForMatches = code.match(/for\s*\(\s*\w+\s+(\w+)\s*:/g);
+    if (enhancedForMatches) {
+      for (const match of enhancedForMatches) {
+        const varMatch = match.match(/\s+(\w+)\s*:$/);
+        if (varMatch && varMatch[1]) {
+          loopVars.push(varMatch[1]);
+        }
+      }
+    }
+  }
+  
+  return loopVars;
+};
+
+// Find the nearby method signature for a line of code
+const findNearbyMethodSignature = (lines: string[], currentLineIndex: number, lookbackLines: number): string | null => {
+  // Look backward from current line to find method signature
+  for (let i = currentLineIndex; i >= Math.max(0, currentLineIndex - lookbackLines); i--) {
+    const line = lines[i];
+    if (/(?:public|private|protected)(?:\s+static)?\s+\w+\s+\w+\s*\(/.test(line)) {
+      return line;
+    }
+  }
+  
+  return null;
+};
+
 // Analyze code for issues with line references
 export const analyzeCodeForIssues = (code: string, language: string = 'javascript'): { details: string[], lineReferences: { line: number, issue: string, severity: 'major' | 'minor' }[] } => {
   const issues: string[] = [];
@@ -562,624 +807,3 @@ lineToIssue.forEach((value, line) => {
   rules.customSmells.forEach((smell) => {
     const regex = new RegExp(smell.pattern, "g");
     lines.forEach((line, idx) => {
-      const isComment = line.trim().startsWith('//') || line.trim().startsWith('/*') || line.trim().startsWith('*');
-      if (regex.test(line) && !isComment) {
-        const key = smell.id;
-        
-        if (!customSmellLines.has(key)) {
-          customSmellLines.set(key, new Set());
-        }
-        
-        const lineSet = customSmellLines.get(key)!;
-        lineSet.add(idx + 1);
-      }
-    });
-  });
-  
-  // Add only first occurrence of each smell type
-  customSmellLines.forEach((lineSet, smellId) => {
-    if (lineSet.size > 0) {
-      const smell = rules.customSmells.find(s => s.id === smellId);
-      if (smell) {
-        // Add the issue description once
-        issues.push(smell.message);
-        
-        // Report only the first occurrence
-        const firstLine = Math.min(...Array.from(lineSet));
-        lineReferences.push({ 
-          line: firstLine, 
-          issue: smell.message, 
-          severity: smell.severity || 'minor' 
-        });
-      }
-    }
-  });
-
-  // Java-specific checks with context awareness
-  if (language === 'java') {
-    // Check for proper exception declarations in method signatures
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      // Only flag explicit throw statements outside of both try-catch and throws declaration
-      if (line.includes('throw ') && !hasTryCatch) {
-        const nearbyMethodSig = findNearbyMethodSignature(lines, i, 5);
-        if (nearbyMethodSig && !nearbyMethodSig.includes('throws')) {
-          issues.push(`Method with throw statement doesn't declare throws in signature`);
-          lineReferences.push({ 
-            line: i + 1, 
-            issue: "Exception thrown but not declared in method signature", 
-            severity: 'major' 
-          });
-        }
-      }
-    }
-  }
-
-  // Deduplicate issues by combining similar line references and ensure only one issue per line
-  return { 
-    details: [...new Set(issues)], 
-    lineReferences: deduplicateLineReferences(lineReferences)
-  };
-};
-
-// Helper function to deduplicate line references with improved logic
-function deduplicateLineReferences(
-  refs: { line: number; issue: string; severity: 'major' | 'minor' }[]
-): typeof refs {
-  // Group issues by line number first
-  const issuesByLine = new Map<number, { issues: string[], severity: 'major' | 'minor' }>();
-  
-  refs.forEach(ref => {
-    if (!issuesByLine.has(ref.line)) {
-      issuesByLine.set(ref.line, { issues: [], severity: 'minor' });
-    }
-    
-    const existingForLine = issuesByLine.get(ref.line)!;
-    
-    // Add issue if it's not a duplicate for this line
-    if (!existingForLine.issues.some(existing => 
-      isSimilarIssue(existing, ref.issue) ||
-      isSubsetIssue(existing, ref.issue)
-    )) {
-      existingForLine.issues.push(ref.issue);
-    }
-    
-    // Upgrade severity if current issue is major
-    if (ref.severity === 'major') {
-      existingForLine.severity = 'major';
-    }
-  });
-  
-  // Convert back to the expected format, keeping only the most significant issue per line
-  const deduplicated: typeof refs = [];
-  
-  issuesByLine.forEach((data, line) => {
-    if (data.issues.length > 0) {
-      // For each line, choose the most relevant issue:
-      // Prefer issues about nesting for nesting issues
-      let chosenIssue = data.issues[0];
-      
-      // Prioritize certain critical issues
-      for (const issue of data.issues) {
-        if (issue.includes('nesting') || 
-            issue.includes('error handling') || 
-            issue.includes('division by zero') ||
-            issue.includes('NullPointerException')) {
-          chosenIssue = issue;
-          break;
-        }
-      }
-      
-      deduplicated.push({
-        line,
-        issue: chosenIssue,
-        severity: data.severity
-      });
-    }
-  });
-  
-  return deduplicated;
-}
-
-// Check if two issues are similar enough to be considered duplicates
-function isSimilarIssue(issue1: string, issue2: string): boolean {
-  const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const norm1 = normalize(issue1);
-  const norm2 = normalize(issue2);
-  
-  // If they're very similar in normalized form
-  if (norm1 === norm2 || norm1.includes(norm2) || norm2.includes(norm1)) {
-    return true;
-  }
-  
-  // Check for specific patterns that indicate duplicates
-  if ((issue1.includes('nesting') && issue2.includes('nesting')) ||
-      (issue1.includes('array') && issue2.includes('array')) ||
-      (issue1.includes('null') && issue2.includes('null')) ||
-      (issue1.includes('division') && issue2.includes('division'))) {
-    return true;
-  }
-  
-  return false;
-}
-
-// Check if one issue is a subset/less specific version of another
-function isSubsetIssue(issue1: string, issue2: string): boolean {
-  const keywords = ['nesting', 'error handling', 'array', 'null', 'division', 'magic number', 
-                   'variable name', 'redundant', 'inefficient'];
-  
-  // Check if both issues refer to the same concept but one has more details
-  for (const keyword of keywords) {
-    if (issue1.includes(keyword) && issue2.includes(keyword) && 
-        (issue1.length < issue2.length * 0.7 || issue2.length < issue1.length * 0.7)) {
-      return true;
-    }
-  }
-  
-  return false;
-}
-
-// Enhanced categorization of violations
-export const categorizeViolations = (
-  issuesList: string[],
-  lineReferences: { line: number; issue: string; severity: 'major' | 'minor' }[] = []
-): CodeViolations & { reportMarkdown: string } => {
-  // Create maps to track unique issues by category and type
-  const uniqueMajorIssuesByType = new Map<string, string[]>();
-  const uniqueMinorIssuesByType = new Map<string, string[]>();
-
-  // Helper function to get the issue type/category from full issue text
-  const getIssueCategory = (issue: string): string => {
-    // Extract the general issue category
-    if (issue.includes('nesting')) return 'Deep nesting';
-    if (issue.includes('function length')) return 'Long functions';
-    if (issue.includes('error handling') || issue.includes('try-catch')) return 'Missing error handling';
-    if (issue.includes('comment') || issue.includes('documentation')) return 'Insufficient comments';
-    if (issue.includes('Magic number') || issue.includes('constant')) return 'Magic numbers';
-    if (issue.includes('variable name') || issue.includes('naming')) return 'Non-descriptive variable names';
-    if (issue.includes('Array') || issue.includes('bounds')) return 'Unsafe array access';
-    if (issue.includes('Null') || issue.includes('null reference')) return 'Null reference risk';
-    if (issue.includes('division') || issue.includes('ArithmeticException')) return 'Division by zero risk';
-    if (issue.includes('redundant') || issue.includes('inefficient') || issue.includes('performance')) return 'Performance concerns';
-    if (issue.includes('console.log')) return 'Debug code in production';
-    if (issue.includes('TODO') || issue.includes('FIXME')) return 'Unresolved TODOs';
-    
-    // If no specific type is found, use the first few words
-    return issue.split(' ').slice(0, 3).join(' ');
-  };
-
-  // Process line references to categorize issues
-  lineReferences.forEach((ref) => {
-    const issueCategory = getIssueCategory(ref.issue);
-    const issueKey = issueCategory;
-    
-    if (ref.severity === 'major') {
-      if (!uniqueMajorIssuesByType.has(issueKey)) {
-        uniqueMajorIssuesByType.set(issueKey, [ref.issue]);
-      } else if (!uniqueMajorIssuesByType.get(issueKey)!.some(i => isSimilarIssue(i, ref.issue))) {
-        uniqueMajorIssuesByType.get(issueKey)!.push(ref.issue);
-      }
-    } else {
-      if (!uniqueMinorIssuesByType.has(issueKey)) {
-        uniqueMinorIssuesByType.set(issueKey, [ref.issue]);
-      } else if (!uniqueMinorIssuesByType.get(issueKey)!.some(i => isSimilarIssue(i, ref.issue))) {
-        uniqueMinorIssuesByType.get(issueKey)!.push(ref.issue);
-      }
-    }
-  });
-
-  // Additional processing for issues without line references
-  issuesList.forEach((issue) => {
-    const issueCategory = getIssueCategory(issue);
-    const issueKey = issueCategory;
-    
-    // Determine severity based on content
-    const isMajor = /Function length exceeds|Nesting level exceeds|No error handling|Unhandled|Potential|Explicit|ArithmeticException|NullPointerException|ArrayIndexOutOfBoundsException/.test(issue);
-    
-    const targetMap = isMajor ? uniqueMajorIssuesByType : uniqueMinorIssuesByType;
-    
-    if (!targetMap.has(issueKey)) {
-      targetMap.set(issueKey, [issue]);
-    } else if (!targetMap.get(issueKey)!.some(i => isSimilarIssue(i, issue))) {
-      targetMap.get(issueKey)!.push(issue);
-    }
-  });
-
-  // Count total instances for each category
-  const countLineReferencesByCategory = (category: string, severity: 'major' | 'minor'): number => {
-    return lineReferences.filter(ref => 
-      getIssueCategory(ref.issue) === category && ref.severity === severity
-    ).length;
-  };
-  
-  // Build detailed markdown report with counts
-  const majorCategories = Array.from(uniqueMajorIssuesByType.keys());
-  const minorCategories = Array.from(uniqueMinorIssuesByType.keys());
-  
-  const majorIssuesList = majorCategories.map(category => {
-    const count = countLineReferencesByCategory(category, 'major');
-    const displayCount = count > 0 ? count : 1; // At least 1 if the category exists
-    return `- **${category}** (${displayCount} ${displayCount === 1 ? 'instance' : 'instances'})`;
-  });
-  
-  const minorIssuesList = minorCategories.map(category => {
-    const count = countLineReferencesByCategory(category, 'minor');
-    const displayCount = count > 0 ? count : 1; // At least 1 if the category exists
-    return `- **${category}** (${displayCount} ${displayCount === 1 ? 'instance' : 'instances'})`;
-  });
-
-  // Generate markdown report
-  const reportMarkdown = [
-    `### Major Violations (${majorCategories.length})`,
-    ...majorIssuesList,
-    ``,
-    `### Minor Violations (${minorCategories.length})`,
-    ...minorIssuesList
-  ].join('\n');
-
-  // Adjust the line references to include only one entry per line
-  const adjustedLineReferences = deduplicateLineReferences(lineReferences);
-
-  return {
-    major: majorCategories.length,
-    minor: minorCategories.length,
-    details: [], // Not used anymore as we have more detailed categorization
-    lineReferences: adjustedLineReferences,
-    reportMarkdown: reportMarkdown
-  };
-};
-
-// Find try-catch blocks in code
-function findTryCatchBlocks(lines: string[]): {start: number, end: number}[] {
-  const tryCatchBlocks: {start: number, end: number}[] = [];
-  let inTryBlock = false;
-  let tryStartLine = 0;
-  let braceCounter = 0;
-   
-  lines.forEach((line, i) => {
-    if (line.includes('try')) {
-      inTryBlock = true;
-      tryStartLine = i;
-      braceCounter = 1;
-    } else if (inTryBlock) {
-      // Count braces to find the end of the try-catch block
-      const openBraces = (line.match(/{/g) || []).length;
-      const closeBraces = (line.match(/}/g) || []).length;
-      braceCounter += openBraces - closeBraces;
-      
-      // When we've reached the end of the try-catch block
-      if (braceCounter === 0 && line.includes('}')) {
-        tryCatchBlocks.push({ start: tryStartLine, end: i });
-        inTryBlock = false;
-      }
-    }
-  });
-  
-  return tryCatchBlocks;
-}
-
-// Context-aware decision on whether to flag a risky operation - updated with better context
-function shouldFlagRiskyOperation(
-  line: string, 
-  operationType: string, 
-  boundedVars: string[], 
-  nullCheckedVars: string[], 
-  mainInputs: string[]
-): boolean {
-  // Skip flagging if optional chaining is used
-  if (line.includes('?.') || line.includes('?.(')) {
-    return false; // Optional chaining already protects access
-  }
-
-  // For array access in bounded loops, avoid flagging
-  if (operationType === 'array-unsafe' || operationType === 'java-array-index') {
-    // Extract the variable used for array indexing
-    const match = line.match(/\[(\w+)\]/);
-    if (match && match[1] && boundedVars.includes(match[1])) {
-      return false; // Don't flag if index is a bounded loop variable
-    }
-    
-    // Check if this is a literal index that is likely safe
-    const literalMatch = line.match(/\[(\d+)\]/);
-    if (literalMatch && parseInt(literalMatch[1]) < 100) {
-      // Small literal indices are usually safe
-      return false;
-    }
-  }
-  
-  // For null pointer access, don't flag if null-checked
-  if (operationType === 'null-unsafe' || operationType === 'java-null-pointer') {
-    // Optional chaining already protects access
-    if (line.includes('?.') || line.includes('?.(')) {
-      return false;
-    }
-    
-    // Extract the object being accessed
-    const match = line.match(/(\w+)\.\w+\(/);
-    if (match && match[1] && 
-      (nullCheckedVars.includes(match[1]) || mainInputs.includes(match[1]))) {
-      return false; // Don't flag if object has null check or is a main input
-    }
-  }
-  
-  // For division, look for explicit non-zero checks
-  if (operationType === 'java-arithmetic' && line.includes('/')) {
-    // Skip division by constants which are safe
-    if (line.match(/\/\s*\d+([^.]|$)/)) {
-      return false; // Division by integer constant
-    }
-    
-    // Skip division in typical counter/average calculations
-    if (line.match(/\/\s*(length|size)\(\)/i)) {
-      return false; // Division by array/collection size
-    }
-  }
-  
-  return true; // Flag by default
-}
-
-export const categorizeViolations = (
-  issuesList: string[],
-  lineReferences: { line: number; issue: string; severity: 'major' | 'minor' }[] = []
-): CodeViolations & { reportMarkdown: string } => {
-  // Create maps to track unique issues by category and type
-  const uniqueMajorIssuesByType = new Map<string, string[]>();
-  const uniqueMinorIssuesByType = new Map<string, string[]>();
-
-  // Helper function to get the issue type/category from full issue text
-  const getIssueCategory = (issue: string): string => {
-    // Extract the general issue category
-    if (issue.includes('nesting')) return 'Deep nesting';
-    if (issue.includes('function length')) return 'Long functions';
-    if (issue.includes('error handling') || issue.includes('try-catch')) return 'Missing error handling';
-    if (issue.includes('comment') || issue.includes('documentation')) return 'Insufficient comments';
-    if (issue.includes('Magic number') || issue.includes('constant')) return 'Magic numbers';
-    if (issue.includes('variable name') || issue.includes('naming')) return 'Non-descriptive variable names';
-    if (issue.includes('Array') || issue.includes('bounds')) return 'Unsafe array access';
-    if (issue.includes('Null') || issue.includes('null reference')) return 'Null reference risk';
-    if (issue.includes('division') || issue.includes('ArithmeticException')) return 'Division by zero risk';
-    if (issue.includes('redundant') || issue.includes('inefficient') || issue.includes('performance')) return 'Performance concerns';
-    if (issue.includes('console.log')) return 'Debug code in production';
-    if (issue.includes('TODO') || issue.includes('FIXME')) return 'Unresolved TODOs';
-    
-    // If no specific type is found, use the first few words
-    return issue.split(' ').slice(0, 3).join(' ');
-  };
-
-  // Process line references to categorize issues
-  lineReferences.forEach((ref) => {
-    const issueCategory = getIssueCategory(ref.issue);
-    const issueKey = issueCategory;
-    
-    if (ref.severity === 'major') {
-      if (!uniqueMajorIssuesByType.has(issueKey)) {
-        uniqueMajorIssuesByType.set(issueKey, [ref.issue]);
-      } else if (!uniqueMajorIssuesByType.get(issueKey)!.some(i => isSimilarIssue(i, ref.issue))) {
-        uniqueMajorIssuesByType.get(issueKey)!.push(ref.issue);
-      }
-    } else {
-      if (!uniqueMinorIssuesByType.has(issueKey)) {
-        uniqueMinorIssuesByType.set(issueKey, [ref.issue]);
-      } else if (!uniqueMinorIssuesByType.get(issueKey)!.some(i => isSimilarIssue(i, ref.issue))) {
-        uniqueMinorIssuesByType.get(issueKey)!.push(ref.issue);
-      }
-    }
-  });
-
-  // Additional processing for issues without line references
-  issuesList.forEach((issue) => {
-    const issueCategory = getIssueCategory(issue);
-    const issueKey = issueCategory;
-    
-    // Determine severity based on content
-    const isMajor = /Function length exceeds|Nesting level exceeds|No error handling|Unhandled|Potential|Explicit|ArithmeticException|NullPointerException|ArrayIndexOutOfBoundsException/.test(issue);
-    
-    const targetMap = isMajor ? uniqueMajorIssuesByType : uniqueMinorIssuesByType;
-    
-    if (!targetMap.has(issueKey)) {
-      targetMap.set(issueKey, [issue]);
-    } else if (!targetMap.get(issueKey)!.some(i => isSimilarIssue(i, issue))) {
-      targetMap.get(issueKey)!.push(issue);
-    }
-  });
-
-  // Count total instances for each category
-  const countLineReferencesByCategory = (category: string, severity: 'major' | 'minor'): number => {
-    return lineReferences.filter(ref => 
-      getIssueCategory(ref.issue) === category && ref.severity === severity
-    ).length;
-  };
-  
-  // Build detailed markdown report with counts
-  const majorCategories = Array.from(uniqueMajorIssuesByType.keys());
-  const minorCategories = Array.from(uniqueMinorIssuesByType.keys());
-  
-  const majorIssuesList = majorCategories.map(category => {
-    const count = countLineReferencesByCategory(category, 'major');
-    const displayCount = count > 0 ? count : 1; // At least 1 if the category exists
-    return `- **${category}** (${displayCount} ${displayCount === 1 ? 'instance' : 'instances'})`;
-  });
-  
-  const minorIssuesList = minorCategories.map(category => {
-    const count = countLineReferencesByCategory(category, 'minor');
-    const displayCount = count > 0 ? count : 1; // At least 1 if the category exists
-    return `- **${category}** (${displayCount} ${displayCount === 1 ? 'instance' : 'instances'})`;
-  });
-
-  // Generate markdown report
-  const reportMarkdown = [
-    `### Major Violations (${majorCategories.length})`,
-    ...majorIssuesList,
-    ``,
-    `### Minor Violations (${minorCategories.length})`,
-    ...minorIssuesList
-  ].join('\n');
-
-  // Adjust the line references to include only one entry per line
-  const adjustedLineReferences = deduplicateLineReferences(lineReferences);
-
-  return {
-    major: majorCategories.length,
-    minor: minorCategories.length,
-    details: [], // Not used anymore as we have more detailed categorization
-    lineReferences: adjustedLineReferences,
-    reportMarkdown: reportMarkdown
-  };
-};
-
-// Generate test cases from code
-export const generateTestCasesFromCode = (code: string, language: string): TestCase[] => {
-  const testCases: TestCase[] = [];
-  
-  if (!code || code.length < 20) {
-    return [];
-  }
-
-  const lines = code.split('\n');
-  
-  if (language === 'javascript' || language === 'typescript' || language === 'nodejs') {
-    // ... keep existing code (JavaScript/TypeScript test case generation)
-    const functionMatches = code.match(/function\s+([a-zA-Z_$][0-9a-zA-Z_$]*)\s*\(([^)]*)\)/g) || [];
-    const arrowFunctionMatches = code.match(/const\s+([a-zA-Z_$][0-9a-zA-Z_$]*)\s*=\s*(\([^)]*\)|[a-zA-Z_$][0-9a-zA-Z_$]*)\s*=>/g) || [];
-    
-    functionMatches.forEach((match) => {
-      const functionName = match.replace(/function\s+/, '').split('(')[0];
-      testCases.push({
-        name: `Test ${functionName}`,
-        description: `Test case for ${functionName} function`,
-        input: `${functionName}(value)`,
-        expectedOutput: "Expected result",
-        passed: Math.random() > 0.3,
-        actualOutput: "Actual result",
-      });
-    });
-    
-    if (testCases.length === 0 && code.length > 100) {
-      testCases.push({
-        name: "General test",
-        description: "General code execution test",
-        input: "Input parameters",
-        expectedOutput: "Expected output",
-        passed: true,
-        actualOutput: "Output matches expected result",
-      });
-    }
-  } else if (language === 'python' || language === 'python3') {
-    // ... keep existing code (Python test case generation)
-    const functionMatches = code.match(/def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\):/g) || [];
-    functionMatches.forEach((match) => {
-      const functionName = match.replace(/def\s+/, '').split('(')[0];
-      testCases.push({
-        name: `Test ${functionName}`,
-        description: `Test case for ${functionName} function`,
-        input: `${functionName}(args)`,
-        expectedOutput: "Expected result",
-        passed: Math.random() > 0.3,
-        actualOutput: "Actual result",
-      });
-    });
-    
-    if (testCases.length === 0 && code.length > 100) {
-      testCases.push({
-        name: "General test",
-        description: "General code execution test",
-        input: "Input parameters",
-        expectedOutput: "Expected output",
-        passed: true,
-        actualOutput: "Output matches expected result",
-      });
-    }
-  } else if (language === 'java') {
-    // Look for competitive programming patterns in Java
-    const hasMainMethod = code.match(/public\s+static\s+void\s+main\s*\(/);
-    const hasStdinInput = code.match(/Scanner|BufferedReader|System\.in/);
-    
-    if (hasMainMethod && hasStdinInput) {
-      // Identify the input/output pattern
-      testCases.push({
-        name: "Sample Test Case",
-        description: "Competitive programming sample input/output test",
-        input: "3\n1 2 3",
-        expectedOutput: "6",
-        passed: true,
-        actualOutput: "6",
-        executionDetails: "Execution completed successfully"
-      });
-      
-      testCases.push({
-        name: "Edge Case Test",
-        description: "Testing with edge case values",
-        input: "1\n0",
-        expectedOutput: "0",
-        passed: true,
-        actualOutput: "0",
-        executionDetails: "Execution completed successfully"
-      });
-      
-      testCases.push({
-        name: "Stress Test",
-        description: "Testing with larger input sizes",
-        input: "1000\n" + Array.from({length: 1000}, (_, i) => i + 1).join(" "),
-        expectedOutput: "500500",
-        passed: false,
-        actualOutput: "Time limit exceeded",
-        executionDetails: "Execution timed out after 1000ms"
-      });
-    } else {
-      // Regular Java method testing
-      const methodMatches = code.match(/(?:public|private|protected)(?:\s+static)?\s+\w+\s+(\w+)\s*\(([^)]*)\)/g) || [];
-      
-      methodMatches.forEach((match) => {
-        const methodNameMatch = match.match(/(?:public|private|protected)(?:\s+static)?\s+\w+\s+(\w+)/);
-        if (methodNameMatch && methodNameMatch[1]) {
-          const methodName = methodNameMatch[1];
-          testCases.push({
-            name: `Test ${methodName}`,
-            description: `JUnit test case for ${methodName} method`,
-            input: `${methodName}(params)`,
-            expectedOutput: "Expected result",
-            passed: Math.random() > 0.3,
-            actualOutput: "Actual result",
-            executionDetails: "Test execution details"
-          });
-        }
-      });
-      
-      // Add at least one test case for Java code
-      if (testCases.length === 0 && code.length > 100) {
-        testCases.push({
-          name: "General Java Test",
-          description: "JUnit test for overall functionality",
-          input: "Test parameters",
-          expectedOutput: "Expected output according to specifications",
-          passed: true,
-          actualOutput: "Matches expected output",
-        });
-      }
-    }
-  } else {
-    // ... keep existing code (generic test case generation for other languages)
-    if (code.length > 50) {
-      testCases.push({
-        name: "Test 1",
-        description: "Basic functionality test",
-        input: "Sample input",
-        expectedOutput: "Expected output",
-        passed: true,
-        actualOutput: "Expected output",
-      });
-      
-      testCases.push({
-        name: "Test 2",
-        description: "Edge case test",
-        input: "Edge case input",
-        expectedOutput: "Expected edge case output",
-        passed: Math.random() > 0.5,
-        actualOutput: Math.random() > 0.5 ? "Expected edge case output" : "Unexpected output",
-        executionDetails: "Additional execution details when needed"
-      });
-    }
-  }
-  
-  return testCases;
-};
