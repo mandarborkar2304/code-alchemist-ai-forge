@@ -89,12 +89,12 @@ export const calculateMaintainability = (code: string, language: string): number
   else if (commentRatio < 0.1) baseScore -= 1;
   
   // Magic number penalties (only if exceeding threshold)
-  const magicNumberCount = countMagicNumbers(code);
+  const magicNumberCount = findMagicNumbers(code).length;
   if (magicNumberCount > 5) baseScore -= Math.min(3, Math.floor(magicNumberCount / 5));
   
   // Single-letter variable penalties (only if exceeding threshold)
   const singleLetterVarCount = countSingleLetterVariables(code, language);
-  if (singleLetterVarCount > 3) baseScore -= Math.min(2, Math.floor(singleLetterVarCount / 3));
+  if (singleLetterVarCount.count > 3) baseScore -= Math.min(2, Math.floor(singleLetterVarCount.count / 3));
   
   // Normalize penalties by code size
   const normalizedScore = baseScore + (10 - Math.min(10, Math.max(0, (100 - baseScore) / logicalBlocks)));
@@ -202,6 +202,22 @@ export const calculateReliability = (code: string, language: string): { score: n
     });
     baseScore -= EXCEPTION_HANDLING_PENALTY;
   }
+
+  // 8. Check for single-letter variable names
+  const singleLetterVariables = countSingleLetterVariables(code, language);
+    if (singleLetterVariables.variables.length > 0) {
+      singleLetterVariables.variables.forEach(variable => {
+      reliabilityIssues.push({
+        type: 'minor',
+        description: `Single-letter variable '${variable.name}' found at line ${variable.line}`,
+        impact: READABILITY_PENALTY,  
+        category: 'readability',
+        line: variable.line
+      });
+      baseScore -= READABILITY_PENALTY;
+    });
+  }
+
   
   // Cumulative effect for multiple issues
   if (reliabilityIssues.length > 3) {
@@ -336,6 +352,55 @@ const findMagicNumbers = (code: string): { value: string, line: number }[] => {
   return results;
 };
 
+// Count single-letter variable declarations, tuned per language
+const countSingleLetterVariables = (code: string, language: string): { count: number, variables: { name: string, line: number }[] } => {
+  const results: { name: string, line: number }[] = [];
+  const lines = code.split('\n');
+
+  lines.forEach((line, index) => {
+    let match: RegExpMatchArray[] = [];
+
+    switch (language.toLowerCase()) {
+      case 'javascript':
+      case 'typescript':
+        match = [...line.matchAll(/\b(?:let|const|var)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=|;|\s)/g)];
+        break;
+
+      case 'java':
+        match = [...line.matchAll(/\b(?:int|float|double|char|String|long|short|boolean)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=|;|\s)/g)];
+        break;
+
+      case 'c':
+      case 'c++':
+        match = [...line.matchAll(/\b(?:int|float|double|char|long|short|unsigned|signed|void)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=|;|\s)/g)];
+        break;
+
+      case 'python':
+        // Avoid matches in function definitions, loops, imports, and class definitions
+        if (!/^\s*(def|class|for|while|if|elif|else|try|except|import|from)\b/.test(line)) {
+          match = [...line.matchAll(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*[^=]/g)];
+        }
+        break;
+
+      default:
+        // Generic fallback (assumes common `let`, `var`, or `type name =`)
+        match = [...line.matchAll(/\b(?:let|const|var|int|float|char|string)\s+([a-zA-Z_][a-zA-Z0-9_]*)/g)];
+        break;
+    }
+
+    match.forEach(m => {
+      const variableName = m[1];
+      if (variableName.length === 1 && /^[a-zA-Z_]$/.test(variableName)) {
+        results.push({ name: variableName, line: index + 1 });
+      }
+    });
+  });
+
+  return { count: results.length, variables: results };
+};
+
+
+
 // Extract variables that are safely bounded in loops
 const extractSafeLoopVariables = (code: string, language: string): string[] => {
   const safeVars: string[] = [];
@@ -368,7 +433,7 @@ const findUnsafeArrayAccesses = (code: string, language: string, safeVariables: 
   
   lines.forEach((line, index) => {
     // Skip array access within loop headers, which is generally safe
-    if (line.includes('for') && line.includes(';')) continue;
+    if (line.includes('for') && line.includes(';')) return;
     
     // Match array accesses with variable index
     const arrayAccessMatches = line.match(/\w+\s*\[\s*(\w+)\s*\]/g);
