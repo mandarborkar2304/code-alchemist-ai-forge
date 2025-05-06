@@ -1,4 +1,3 @@
-
 import { MetricsResult, ScoreGrade } from '@/types';
 
 // Constants for metric calculation
@@ -161,9 +160,9 @@ export const getCodeMetrics = (code: string, language: string): MetricsResult =>
   const lines = code.split('\n');
   const codeLines = lines.filter(line => line.trim().length > 0).length;
   
-  const functionsCount = countFunctions(code, language);
-  const avgFunctionLength = functionsCount > 0 ? 
-    lines.length / functionsCount : lines.length;
+  const functionCount = countFunctions(code, language);  // Changed from functionsCount
+  const avgFunctionLength = functionCount > 0 ? 
+    lines.length / functionCount : lines.length;
   
   const commentLines = lines.filter(line => {
     const trimmed = line.trim();
@@ -179,11 +178,11 @@ export const getCodeMetrics = (code: string, language: string): MetricsResult =>
   const complexityScore = calculateCyclomaticComplexity(code, language);
   
   return {
-    totalLines: lines.length,
+    linesOfCode: lines.length,  // Changed from totalLines
     codeLines,
     commentLines,
     commentPercentage,
-    functionsCount,
+    functionCount,  // Changed from functionsCount
     averageFunctionLength: avgFunctionLength,
     maxNestingDepth: maxNesting,
     cyclomaticComplexity: complexityScore,

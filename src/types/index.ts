@@ -1,4 +1,3 @@
-
 export interface CodeQualityRating {
   score: 'A' | 'B' | 'C' | 'D';
   description: string;
@@ -22,12 +21,7 @@ export interface CodeAnalysis {
   aiSuggestions: string;
   correctedCode?: string;
   overallGrade?: 'A' | 'B' | 'C' | 'D'; // Overall code quality grade
-  metrics?: {
-    linesOfCode: number;
-    commentPercentage: number;
-    functionCount: number;
-    averageFunctionLength: number;
-  };
+  metrics?: MetricsResult;
   testCases: TestCase[]; // Added TestCase array to the CodeAnalysis interface
 }
 
@@ -52,11 +46,11 @@ export interface TestCase {
 export type ScoreGrade = 'A' | 'B' | 'C' | 'D';
 
 export interface MetricsResult {
-  totalLines: number;
+  linesOfCode: number;  // Changed from totalLines
   codeLines: number;
   commentLines: number;
   commentPercentage: number;
-  functionsCount: number;
+  functionCount: number;  // Changed from functionsCount
   averageFunctionLength: number;
   maxNestingDepth: number;
   cyclomaticComplexity: number;
