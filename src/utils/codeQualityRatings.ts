@@ -1,113 +1,184 @@
 
-import { CodeQualityRating } from "@/types";
+// Function to convert numerical scores to letter grades with descriptions
+type MetricType = 'cyclomaticComplexity' | 'maintainability' | 'reliability';
 
-// Standardized rating system for code quality metrics
-export const getRatingFromScore = (score: number, metricType: 'cyclomaticComplexity' | 'maintainability' | 'reliability'): CodeQualityRating => {
-  // Adjust scoring criteria based on metric type
+type ScoreData = {
+  score: 'A' | 'B' | 'C' | 'D';
+  description: string;
+  reason: string;
+  issues?: string[];
+  improvements?: string[];
+};
+
+// Updated scoring thresholds
+const scoreThresholds = {
+  maintainability: {
+    A: 90, // A: 90+
+    B: 80, // B: 80-89
+    C: 70, // C: 70-79
+    D: 0   // D: <70
+  },
+  cyclomaticComplexity: {
+    // Lower is better for complexity
+    A: 10,  // A: ≤10
+    B: 20,  // B: 11-20
+    C: 30,  // C: 21-30
+    D: Infinity // D: >30
+  },
+  reliability: {
+    A: 90, // A: 90+
+    B: 80, // B: 80-89
+    C: 70, // C: 70-79
+    D: 0   // D: <70
+  }
+};
+
+export const getRatingFromScore = (score: number, metricType: MetricType): ScoreData => {
+  let rating: 'A' | 'B' | 'C' | 'D';
+  let description = '';
+  let reason = '';
+  let issues: string[] = [];
+  let improvements: string[] = [];
+  
+  // Apply the appropriate scoring logic based on metric type
   if (metricType === 'cyclomaticComplexity') {
-    // For cyclomatic complexity, lower is better
-    if (score <= 10) {
-      return { 
-        score: 'A', 
-        description: 'Low complexity', 
-        reason: 'The code has a straightforward control flow with minimal decision points.',
-        issues: [],
-        improvements: ['Code maintains an excellent level of simplicity']
-      };
-    } else if (score <= 20) {
-      return { 
-        score: 'B', 
-        description: 'Moderate complexity', 
-        reason: 'The code has a reasonable number of decision points.',
-        issues: ['Some conditional branches increase complexity'],
-        improvements: ['Consider extracting complex conditions into named functions']
-      };
-    } else if (score <= 30) {
-      return { 
-        score: 'C', 
-        description: 'High complexity', 
-        reason: 'Code contains numerous decision points making it difficult to follow.',
-        issues: ['Multiple nested conditions', 'Complex logical expressions'],
-        improvements: ['Break down complex methods into smaller functions', 'Simplify logical conditions']
-      };
+    // For complexity, lower is better
+    if (score <= scoreThresholds.cyclomaticComplexity.A) {
+      rating = 'A';
+      description = 'Low complexity';
+      reason = 'The code has a simple, straightforward flow.';
+      improvements = ['Continue maintaining low complexity as features are added.'];
+    } else if (score <= scoreThresholds.cyclomaticComplexity.B) {
+      rating = 'B';
+      description = 'Moderate complexity';
+      reason = 'The code has a moderate number of decision points.';
+      issues = ['Multiple nested conditions increase cognitive load.'];
+      improvements = ['Consider extracting complex conditions into well-named helper methods.'];
+    } else if (score <= scoreThresholds.cyclomaticComplexity.C) {
+      rating = 'C';
+      description = 'High complexity';
+      reason = 'The code has many decision points and paths.';
+      issues = [
+        'High number of branches and conditions',
+        'Code may be difficult to understand and test'
+      ];
+      improvements = [
+        'Break down complex methods into smaller, focused functions',
+        'Replace nested conditions with guard clauses',
+        'Consider a state machine or strategy pattern for complex logic'
+      ];
     } else {
-      return { 
-        score: 'D', 
-        description: 'Extreme complexity', 
-        reason: 'Code has excessive decision points making it highly prone to errors.',
-        issues: ['Excessive nesting', 'Too many decision paths', 'Complex conditional logic'],
-        improvements: ['Refactor using strategy pattern', 'Break down into multiple files/modules', 'Simplify logic flow']
-      };
+      rating = 'D';
+      description = 'Very high complexity';
+      reason = 'The code has an excessive number of decision points and paths.';
+      issues = [
+        'Extremely high number of branches and conditions',
+        'Difficult to understand, test, and maintain',
+        'High risk of bugs and regressions'
+      ];
+      improvements = [
+        'Urgent refactoring recommended',
+        'Decompose into multiple simpler methods',
+        'Consider architectural changes to simplify flow'
+      ];
     }
-  } else if (metricType === 'maintainability') {
-    // For maintainability, higher is better
-    if (score >= 70) { // Lowered threshold to ensure simple code gets A
-      return { 
-        score: 'A', 
-        description: 'Highly maintainable', 
-        reason: 'Code is well-structured, modular, and easy to modify.',
-        issues: [],
-        improvements: ['Code is already highly maintainable']
-      };
-    } else if (score >= 50) {
-      return { 
-        score: 'B', 
-        description: 'Maintainable', 
-        reason: 'Code is reasonably structured but has some areas for improvement.',
-        issues: ['Some functions could be more modular'],
-        improvements: ['Add more descriptive comments', 'Consider extracting some functionality into helper methods']
-      };
-    } else if (score >= 30) {
-      return { 
-        score: 'C', 
-        description: 'Difficult to maintain', 
-        reason: 'Code has structural issues that make modifications challenging.',
-        issues: ['Functions are too long', 'Poor separation of concerns', 'Limited comments'],
-        improvements: ['Break down large functions', 'Add comprehensive documentation', 'Improve function naming']
-      };
+  } else {
+    // For maintainability and reliability, higher is better
+    const thresholds = metricType === 'maintainability' ? 
+      scoreThresholds.maintainability : 
+      scoreThresholds.reliability;
+    
+    if (score >= thresholds.A) {
+      rating = 'A';
+      if (metricType === 'maintainability') {
+        description = 'Highly maintainable';
+        reason = 'The code is well-structured, documented, and easy to modify.';
+        improvements = ['Continue maintaining high code quality standards.'];
+      } else { // reliability
+        description = 'Highly reliable';
+        reason = 'The code handles errors and edge cases effectively.';
+        improvements = ['Continue maintaining robust error handling.'];
+      }
+    } else if (score >= thresholds.B) {
+      rating = 'B';
+      if (metricType === 'maintainability') {
+        description = 'Good maintainability';
+        reason = 'The code is generally well-structured but has some minor issues.';
+        issues = ['Some areas could benefit from better documentation or structure.'];
+        improvements = ['Add more comments to complex logic', 'Consider extracting reusable components.'];
+      } else { // reliability
+        description = 'Good reliability';
+        reason = 'The code handles most errors but could be improved in some areas.';
+        issues = ['Some error paths may not be fully handled.'];
+        improvements = ['Add more comprehensive error handling', 'Consider edge cases more thoroughly.'];
+      }
+    } else if (score >= thresholds.C) {
+      rating = 'C';
+      if (metricType === 'maintainability') {
+        description = 'Moderate maintainability';
+        reason = 'The code has significant structural or documentation issues.';
+        issues = [
+          'Insufficient comments',
+          'Some functions are too large',
+          'Variable naming could be improved'
+        ];
+        improvements = [
+          'Break down large functions into smaller ones',
+          'Add more comprehensive documentation',
+          'Improve variable naming for clarity'
+        ];
+      } else { // reliability
+        description = 'Moderate reliability';
+        reason = 'The code has significant gaps in error handling.';
+        issues = [
+          'Multiple potential error points without proper handling',
+          'Some edge cases not considered'
+        ];
+        improvements = [
+          'Add try-catch blocks around risky operations',
+          'Validate inputs more thoroughly',
+          'Handle edge cases explicitly'
+        ];
+      }
     } else {
-      return { 
-        score: 'D', 
-        description: 'Very difficult to maintain', 
-        reason: 'Code structure is problematic and modifications would likely introduce bugs.',
-        issues: ['Extremely long functions', 'Unclear variable names', 'No clear organization', 'Duplicated code'],
-        improvements: ['Major refactoring needed', 'Restructure into a more modular design', 'Follow single responsibility principle']
-      };
-    }
-  } else { // reliability
-    // For reliability, higher is better
-    if (score >= 70) { // Lowered threshold to ensure simple code gets A
-      return { 
-        score: 'A', 
-        description: 'Highly reliable', 
-        reason: 'Code handles errors properly and validates inputs thoroughly.',
-        issues: [],
-        improvements: ['Code is already designed with good reliability practices']
-      };
-    } else if (score >= 50) {
-      return { 
-        score: 'B', 
-        description: 'Reliable with minor issues', 
-        reason: 'Code has decent error handling but some edge cases may be missed.',
-        issues: ['Some edge cases may not be handled'],
-        improvements: ['Add more comprehensive input validation', 'Consider additional error cases']
-      };
-    } else if (score >= 30) {
-      return { 
-        score: 'C', 
-        description: 'Reliability concerns', 
-        reason: 'Code lacks proper error handling in several areas.',
-        issues: ['Inadequate error handling', 'Limited input validation', 'Potential runtime exceptions'],
-        improvements: ['Implement try-catch blocks', 'Add input validation', 'Handle null/undefined values']
-      };
-    } else {
-      return { 
-        score: 'D', 
-        description: 'Highly unreliable', 
-        reason: 'Code is likely to fail in many scenarios without proper error handling.',
-        issues: ['No error handling', 'Missing input validation', 'Potential for frequent crashes'],
-        improvements: ['Add comprehensive error handling', 'Implement thorough input validation', 'Add defensive programming techniques']
-      };
+      rating = 'D';
+      if (metricType === 'maintainability') {
+        description = 'Poor maintainability';
+        reason = 'The code is difficult to understand and modify.';
+        issues = [
+          'Very large functions',
+          'Minimal or no comments',
+          'Unclear variable names',
+          'Deep nesting of control structures'
+        ];
+        improvements = [
+          'Urgent refactoring recommended',
+          'Break down monolithic functions',
+          'Add comprehensive documentation',
+          'Restructure deeply nested code'
+        ];
+      } else { // reliability
+        description = 'Poor reliability';
+        reason = 'The code is prone to errors and failures.';
+        issues = [
+          'Minimal or no error handling',
+          'Assumptions about inputs without validation',
+          'Multiple potential crash points'
+        ];
+        improvements = [
+          'Add comprehensive error handling throughout',
+          'Validate all inputs and function parameters',
+          'Handle all potential error states explicitly'
+        ];
+      }
     }
   }
+  
+  return {
+    score: rating,
+    description,
+    reason,
+    issues,
+    improvements
+  };
 };

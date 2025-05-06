@@ -906,49 +906,87 @@ function shouldFlagRiskyOperation(
 }
 
 export const categorizeViolations = (
-  issuesList: string[]
+  issuesList: string[],
+  lineReferences: { line: number; issue: string; severity: 'major' | 'minor' }[] = []
 ): CodeViolations & { reportMarkdown: string } => {
-  // Group unique issues and categorize them into major and minor
-  const issueMap = new Map<string, 'major' | 'minor'>();
+  // Create maps to track unique issues by category and type
+  const uniqueMajorIssuesByType = new Map<string, string>();
+  const uniqueMinorIssuesByType = new Map<string, string>();
 
-  // Categorize issues based on severity
-  issuesList.forEach((issue) => {
-    const isMajor = /Function length exceeds|Nesting level exceeds|No error handling|Unhandled|Potential|Explicit|ArithmeticException|NullPointerException|ArrayIndexOutOfBoundsException/.test(issue);
-    issueMap.set(issue, isMajor ? 'major' : 'minor');
-  });
+  // Helper function to get the issue type/category from full issue text
+  const getIssueType = (issue: string): string => {
+    // Extract the general issue type by removing variable specifics
+    if (issue.includes('nesting')) return 'Deep nesting';
+    if (issue.includes('function length')) return 'Long functions';
+    if (issue.includes('error handling')) return 'Missing error handling';
+    if (issue.includes('Insufficient comments')) return 'Low comment density';
+    if (issue.includes('Magic number')) return 'Magic numbers';
+    if (issue.includes('Single-letter') || issue.includes('Short variable')) return 'Non-descriptive variable names';
+    if (issue.includes('Array access')) return 'Unsafe array access';
+    if (issue.includes('NullPointerException') || issue.includes('null pointer')) return 'Null reference risk';
+    if (issue.includes('ArithmeticException') || issue.includes('Division')) return 'Division by zero risk';
+    if (issue.includes('redundant') || issue.includes('inefficient')) return 'Performance concerns';
+    if (issue.includes('console.log')) return 'Debug code in production';
+    if (issue.includes('TODO') || issue.includes('FIXME')) return 'Unresolved TODOs';
+    
+    // If no specific type is found, use the first few words
+    return issue.split(' ').slice(0, 3).join(' ');
+  };
 
-  // Separate major and minor issues into arrays
-  const majorIssues: string[] = [];
-  const minorIssues: string[] = [];
-
-  issueMap.forEach((severity, issue) => {
-    const formattedIssue = `- ${issue}`; // Formatting the issue for markdown
-    if (severity === 'major') {
-      majorIssues.push(formattedIssue);
+  // Process line references to categorize and deduplicate issues
+  lineReferences.forEach((ref) => {
+    const issueType = getIssueType(ref.issue);
+    const issueKey = `${issueType}`;
+    
+    if (ref.severity === 'major') {
+      if (!uniqueMajorIssuesByType.has(issueKey)) {
+        uniqueMajorIssuesByType.set(issueKey, ref.issue);
+      }
     } else {
-      minorIssues.push(formattedIssue);
+      if (!uniqueMinorIssuesByType.has(issueKey)) {
+        uniqueMinorIssuesByType.set(issueKey, ref.issue);
+      }
     }
   });
 
+  // Process string issues from the original list for any that might not have line references
+  issuesList.forEach((issue) => {
+    const issueType = getIssueType(issue);
+    const issueKey = `${issueType}`;
+    const isMajor = /Function length exceeds|Nesting level exceeds|No error handling|Unhandled|Potential|Explicit|ArithmeticException|NullPointerException|ArrayIndexOutOfBoundsException/.test(issue);
+    
+    if (isMajor) {
+      if (!uniqueMajorIssuesByType.has(issueKey)) {
+        uniqueMajorIssuesByType.set(issueKey, issue);
+      }
+    } else {
+      if (!uniqueMinorIssuesByType.has(issueKey)) {
+        uniqueMinorIssuesByType.set(issueKey, issue);
+      }
+    }
+  });
+
+  // Convert the maps to arrays for the report
+  const majorIssues: string[] = Array.from(uniqueMajorIssuesByType.values()).map(issue => `- ${issue}`);
+  const minorIssues: string[] = Array.from(uniqueMinorIssuesByType.values()).map(issue => `- ${issue}`);
+
   // Generate markdown report
   const reportMarkdown = [
-    `### Major Violations (${majorIssues.length})`,  // Title for Major Violations
-    ...majorIssues,                                  // List of Major Violations
+    `### Major Violations (${majorIssues.length})`,
+    ...majorIssues,
     ``,
-    `### Minor Violations (${minorIssues.length})`,  // Title for Minor Violations
-    ...minorIssues                                   // List of Minor Violations
-  ].join('\n'); // Join them with line breaks for markdown formatting
+    `### Minor Violations (${minorIssues.length})`,
+    ...minorIssues
+  ].join('\n');
 
-  // Return the categorized violations along with the markdown report
   return {
     major: majorIssues.length,
     minor: minorIssues.length,
     details: [], // Additional details can be added here if necessary
-    lineReferences: [], // Line references can be included based on code analysis
-    reportMarkdown: reportMarkdown  // Markdown formatted violations report
+    lineReferences: lineReferences, // Maintain original line references for display
+    reportMarkdown: reportMarkdown
   };
 };
-
 
 // Generate test cases from code
 export const generateTestCasesFromCode = (code: string, language: string): TestCase[] => {

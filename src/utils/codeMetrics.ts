@@ -1,4 +1,3 @@
-
 /**
  * Utility functions for calculating code metrics using standardized algorithms
  */
@@ -58,89 +57,129 @@ export const calculateCyclomaticComplexity = (code: string, language: string = '
   return Math.round(complexity * complexityMultiplier);
 };
 
-// Calculate maintainability index using the standard formula
+// Calculate maintainability index using the weighted model
 export const calculateMaintainability = (code: string, language: string = 'javascript'): number => {
-  // Maintainability Index = 171 - 5.2 * ln(HV) - 0.23 * CC - 16.2 * ln(LOC) + 50 * sin(sqrt(2.4 * CR))
-  // Where:
-  // HV = Halstead Volume
-  // CC = Cyclomatic Complexity
-  // LOC = Lines of Code
-  // CR = Comment Ratio (percentage)
-  
-  const lines = code.split('\n').filter(line => line.trim() !== '');
-  const linesOfCode = lines.length;
+  // Base maintainability score starts at 100
+  let maintainabilityScore = 100;
   
   // Check if this is likely competitive programming code
   const isCompetitiveProgramming = language === 'java' && 
                                  code.includes("public static void main") &&
                                  (code.includes("Scanner") || code.includes("BufferedReader"));
   
-  // Calculate Halstead Volume with language-specific adjustments
-  const codeWithoutStrings = code
-    .replace(/".*?"/g, '')
-    .replace(/'.*?'/g, '')
-    .replace(/`.*?`/g, '');
+  const lines = code.split('\n').filter(line => line.trim() !== '');
+  const linesOfCode = lines.length;
   
-  // Language-specific operator patterns
-  let operatorPatterns;
-  if (language === 'java') {
-    operatorPatterns = /[\+\-\*\/\=\<\>\!\&\|\^\~\%]+|instanceof|new|throw|try|catch|finally/g;
-  } else {
-    operatorPatterns = /[\+\-\*\/\=\<\>\!\&\|\^\~\%]+|instanceof|typeof|new|delete|in|of|await|yield/g;
+  // Skip detailed analysis for very simple code
+  if (linesOfCode < 10) {
+    return 95; // Very simple code gets high maintainability
   }
   
-  const operators = codeWithoutStrings.match(operatorPatterns) || [];
-  const operands = codeWithoutStrings.match(/\b[a-zA-Z_$][\w$]*\b(?!\s*\()/g) || [];
+  // 1. Check for deep nesting (major issue, -10 points)
+  let maxNesting = 0;
+  let currentNesting = 0;
   
-  const uniqueOperators = new Set(operators);
-  const uniqueOperands = new Set(operands);
-  
-  const n = uniqueOperators.size + uniqueOperands.size || 1; // Avoid division by zero
-  const N = operators.length + operands.length || 1; // Avoid division by zero
-  
-  // Calculate Halstead Volume: N * log2(n)
-  const halsteadVolume = N * Math.log2(n) || 1; // Avoid log(0)
-  
-  // Calculate comment percentage with language-specific comment detection
-  let commentLines = 0;
-  if (language === 'java') {
-    commentLines = lines.filter(line => 
-      line.trim().startsWith('//') || 
-      line.trim().startsWith('/*') || 
-      line.trim().startsWith('*') ||
-      line.trim().startsWith('/**') ||
-      line.trim().startsWith('@')  // Javadoc annotations
-    ).length;
-  } else {
-    commentLines = lines.filter(line => 
-      line.trim().startsWith('//') || 
-      line.trim().startsWith('/*') || 
-      line.trim().startsWith('*') ||
-      line.trim().startsWith('/**')
-    ).length;
+  for (const line of lines) {
+    const openBraces = (line.match(/{/g) || []).length;
+    const closedBraces = (line.match(/}/g) || []).length;
+    
+    currentNesting += openBraces - closedBraces;
+    maxNesting = Math.max(maxNesting, currentNesting);
   }
   
-  const commentRatio = commentLines / (linesOfCode || 1); // Avoid division by zero
+  // Penalize deep nesting
+  if (maxNesting > 4) {
+    maintainabilityScore -= Math.min(20, (maxNesting - 4) * 5); // Cap at -20 points
+  }
   
-  // Get cyclomatic complexity
-  const cyclomaticComplexity = calculateCyclomaticComplexity(code, language);
+  // 2. Check comment density (major issue, -10 points)
+  const commentLines = lines.filter(line =>
+    line.trim().startsWith('//') ||
+    line.trim().startsWith('/*') ||
+    line.trim().startsWith('*')
+  ).length;
   
-  // Calculate maintainability index using the standard formula
-  let maintainability = 171 - 
-                         5.2 * Math.log(halsteadVolume || 1) - 
-                         0.23 * cyclomaticComplexity - 
-                         16.2 * Math.log(linesOfCode || 1) + 
-                         50 * Math.sin(Math.sqrt(2.4 * commentRatio));
+  const commentRatio = commentLines / linesOfCode;
+  if (commentRatio < 0.05 && !isCompetitiveProgramming) {
+    maintainabilityScore -= 10; // -10 points for insufficient comments
+  } else if (commentRatio < 0.1 && !isCompetitiveProgramming) {
+    maintainabilityScore -= 5; // -5 points for low comments
+  }
   
-  // For competitive programming, we're more lenient with maintainability requirements
+  // 3. Check function length (major issue, -10 points)
+  let inFunction = false;
+  let currentFunctionLines = 0;
+  let longestFunction = 0;
+  
+  for (const line of lines) {
+    const isFunctionStart = language === 'java' ? 
+      (line.includes('void') || line.includes('public') || line.includes('private') || line.includes('protected')) && line.includes('(') && line.includes(')') && !line.includes(';') : 
+      (line.includes('function') || line.includes('=>')) && !line.includes('//');
+      
+    if (isFunctionStart) {
+      inFunction = true;
+      currentFunctionLines = 0;
+    }
+    
+    if (inFunction) {
+      currentFunctionLines++;
+      if (line.includes('}') && line.trim() === '}') {
+        inFunction = false;
+        longestFunction = Math.max(longestFunction, currentFunctionLines);
+      }
+    }
+  }
+  
+  // Penalize long functions
+  if (longestFunction > 30 && !isCompetitiveProgramming) {
+    maintainabilityScore -= Math.min(15, (longestFunction - 30) / 2); // Cap at -15 points
+  }
+  
+  // 4. Check for magic numbers (minor issue, -0.5 points each, up to -10)
+  const magicNumberMatches = code.match(/[^a-zA-Z0-9_\.]([3-9]|[1-9][0-9]+)(?![a-zA-Z0-9_\.])/g) || [];
+  const uniqueMagicNumbers = new Set(magicNumberMatches.map(m => m.trim()));
+  
+  maintainabilityScore -= Math.min(10, uniqueMagicNumbers.size * 0.5);
+  
+  // 5. Check for single-letter variables (minor issue, -0.5 points each, up to -5)
+  const varPatternByLanguage = language === 'java' ?
+    /\b(int|double|String|boolean|char|float|long)\s+([a-zA-Z]{1})\b/g :
+    /\b(var|let|const)\s+([a-zA-Z]{1})\b/g;
+  
+  const singleLetterMatches = code.match(varPatternByLanguage) || [];
+  const exemptVars = new Set(['i', 'j', 'k', 'n', 'm']); // Common loop variables
+  const problematicVars = singleLetterMatches.filter(match => {
+    const varName = match.match(/\b[a-zA-Z]{1}\b/)?.[0];
+    return varName && !exemptVars.has(varName);
+  });
+  
+  maintainabilityScore -= Math.min(5, problematicVars.length * 0.5);
+  
+  // 6. Check for error handling (major issue, -15 points)
+  const hasTryCatch = code.includes('try') && code.includes('catch');
+  const needsErrorHandling = 
+    (code.includes('throw') || 
+     code.includes('/') || 
+     code.includes('parse') ||
+     code.includes('JSON') ||
+     code.includes('readFile')) && 
+    !isCompetitiveProgramming;
+  
+  if (needsErrorHandling && !hasTryCatch) {
+    maintainabilityScore -= 15;
+  }
+  
+  // Apply different thresholds for competitive programming
   if (isCompetitiveProgramming) {
-    maintainability = Math.min(100, maintainability + 15); // Boost maintainability score
+    maintainabilityScore = Math.min(100, maintainabilityScore + 15); // Boost score for CP
   }
   
-  // Normalize to 0-100 scale
-  maintainability = Math.max(0, Math.min(100, maintainability));
+  // Ensure score stays within 0-100 range
+  maintainabilityScore = Math.max(0, Math.min(100, maintainabilityScore));
   
-  return Math.round(maintainability);
+  // Convert to letter grade
+  // A: 90+, B: 80-89, C: 70-79, D: <70
+  return Math.round(maintainabilityScore);
 };
 
 // Calculate reliability score based on formal static analysis principles
@@ -325,7 +364,7 @@ export const getCodeMetrics = (code: string, language: string = 'javascript') =>
       line.trim().startsWith('/*') || 
       line.trim().startsWith('*') ||
       line.trim().startsWith('/**') ||
-      line.trim().startsWith('@') // Javadoc annotations
+      line.trim().startsWith('@')  // Javadoc annotations
     ).length;
   } else {
     commentLines = lines.filter(line => 

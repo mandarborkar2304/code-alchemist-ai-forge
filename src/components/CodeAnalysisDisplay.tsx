@@ -41,6 +41,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
 }) => {
   const [expandedSection, setExpandedSection] = useState<'major' | 'minor' | null>(null);
   
+  // Helper functions for tooltips
   const getComplexityTooltip = () => (
     <p className="max-w-xs">
       A source code complexity that correlates to a number of coding errors.
@@ -92,9 +93,55 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
 
   const passedAllTests = analysis.testCases.every((tc) => tc.passed);
 
-  // Separate major and minor violations for display
-  const majorViolations = analysis.violations.lineReferences?.filter(ref => ref.severity === 'major') || [];
-  const minorViolations = analysis.violations.lineReferences?.filter(ref => ref.severity === 'minor') || [];
+  // Group violations by type and severity
+  const majorViolationTypes = new Map<string, {count: number, examples: string[]}>(); 
+  const minorViolationTypes = new Map<string, {count: number, examples: string[]}>();
+
+  // Helper to categorize violations by type
+  const categorizeViolation = (issue: string, severity: 'major' | 'minor') => {
+    let type = '';
+    
+    // Determine issue type for grouping
+    if (issue.includes('nesting') || issue.includes('Nesting')) {
+      type = 'Deep nesting';
+    } else if (issue.includes('error handling') || issue.includes('Exception')) {
+      type = 'Missing error handling';
+    } else if (issue.includes('Magic number') || issue.includes('magic number')) {
+      type = 'Magic numbers';
+    } else if (issue.includes('variable name') || issue.includes('Variable naming')) {
+      type = 'Non-descriptive variable names';
+    } else if (issue.includes('Array access') || issue.includes('array access')) {
+      type = 'Unsafe array access';
+    } else if (issue.includes('null') || issue.includes('Null')) {
+      type = 'Null reference risk';
+    } else if (issue.includes('division') || issue.includes('Division')) {
+      type = 'Division by zero risk';
+    } else if (issue.includes('redundant') || issue.includes('inefficient')) {
+      type = 'Performance concerns';
+    } else if (issue.includes('comment') || issue.includes('Comment')) {
+      type = 'Insufficient comments';
+    } else {
+      // Default to first 3 words for grouping
+      type = issue.split(' ').slice(0, 3).join(' ');
+    }
+    
+    const target = severity === 'major' ? majorViolationTypes : minorViolationTypes;
+    
+    if (!target.has(type)) {
+      target.set(type, { count: 1, examples: [issue] });
+    } else {
+      const current = target.get(type)!;
+      current.count++;
+      if (current.examples.length < 2) {
+        current.examples.push(issue);
+      }
+    }
+  };
+
+  // Categorize all violations
+  analysis.violations.lineReferences?.forEach(ref => {
+    categorizeViolation(ref.issue, ref.severity);
+  });
 
   return (
     <div className="space-y-4 h-full overflow-y-auto scrollbar-thin pr-2">
@@ -209,19 +256,19 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
               })}
             </TabsContent>
             
-            {/* Updated Violations Tab with separated Major and Minor sections */}
+            {/* Updated Violations Tab with categorized issues */}
             <TabsContent value="violations" className="space-y-4 min-h-[400px]">
               {/* Major Violations Section */}
-              <Alert variant={analysis.violations.major > 0 ? "destructive" : "default"}>
+              <Alert variant={majorViolationTypes.size > 0 ? "destructive" : "default"}>
                 <AlertOctagon className="h-4 w-4" />
                 <AlertTitle className="flex justify-between">
                   <span>Major Violations</span>
-                  <Badge variant={analysis.violations.major > 0 ? "destructive" : "outline"} className="ml-2">
-                    {analysis.violations.major}
+                  <Badge variant={majorViolationTypes.size > 0 ? "destructive" : "outline"} className="ml-2">
+                    {majorViolationTypes.size}
                   </Badge>
                 </AlertTitle>
                 <AlertDescription>
-                  {analysis.violations.major > 0 ? (
+                  {majorViolationTypes.size > 0 ? (
                     <div className="mt-2">
                       <Button 
                         variant="ghost" 
@@ -234,12 +281,24 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                       
                       {expandedSection === 'major' && (
                         <ul className="mt-2 space-y-1">
-                          {majorViolations.map((ref, i) => (
-                            <li key={i} className="text-sm flex items-start gap-1.5">
-                              <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                              <span>
-                                <span className="text-sm"> {ref.issue} </span>
-                              </span>
+                          {Array.from(majorViolationTypes.entries()).map(([type, data], i) => (
+                            <li key={i} className="text-sm">
+                              <div className="flex items-start gap-1.5">
+                                <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                                <div>
+                                  <strong>{type}</strong> ({data.count} {data.count === 1 ? 'instance' : 'instances'})
+                                  {data.examples.length > 0 && (
+                                    <ul className="ml-5 mt-1 list-disc text-xs opacity-90">
+                                      {data.examples.map((example, j) => (
+                                        <li key={j}>{example}</li>
+                                      ))}
+                                      {data.count > data.examples.length && (
+                                        <li className="italic">...and {data.count - data.examples.length} more</li>
+                                      )}
+                                    </ul>
+                                  )}
+                                </div>
+                              </div>
                             </li>
                           ))}
                         </ul>
@@ -257,11 +316,11 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                 <AlertTitle className="flex justify-between">
                   <span>Minor Violations</span>
                   <Badge variant="secondary" className="ml-2">
-                    {analysis.violations.minor}
+                    {minorViolationTypes.size}
                   </Badge>
                 </AlertTitle>
                 <AlertDescription>
-                  {analysis.violations.minor > 0 ? (
+                  {minorViolationTypes.size > 0 ? (
                     <div className="mt-2">
                       <Button 
                         variant="ghost" 
@@ -274,12 +333,24 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                       
                       {expandedSection === 'minor' && (
                         <ul className="mt-2 space-y-1">
-                          {minorViolations.map((ref, i) => (
-                            <li key={i} className="text-sm flex items-start gap-1.5">
-                              <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                              <span>
-                                <span className="text-sm"> {ref.issue}</span>
-                              </span>
+                          {Array.from(minorViolationTypes.entries()).map(([type, data], i) => (
+                            <li key={i} className="text-sm">
+                              <div className="flex items-start gap-1.5">
+                                <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                                <div>
+                                  <strong>{type}</strong> ({data.count} {data.count === 1 ? 'instance' : 'instances'})
+                                  {data.examples.length > 0 && (
+                                    <ul className="ml-5 mt-1 list-disc text-xs opacity-90">
+                                      {data.examples.map((example, j) => (
+                                        <li key={j}>{example}</li>
+                                      ))}
+                                      {data.count > data.examples.length && (
+                                        <li className="italic">...and {data.count - data.examples.length} more</li>
+                                      )}
+                                    </ul>
+                                  )}
+                                </div>
+                              </div>
                             </li>
                           ))}
                         </ul>
@@ -298,7 +369,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                 </CardHeader>
                 <CardContent className="p-4 pt-0">
                   <ul className="space-y-2 text-sm">
-                    {majorViolations.length > 0 && (
+                    {majorViolationTypes.size > 0 && (
                       <>
                         <li className="flex items-start gap-2">
                           <AlertTriangle className="h-4 w-4 mt-0.5 text-destructive" />
@@ -306,11 +377,11 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                         </li>
                         <li className="flex items-start gap-2">
                           <AlertTriangle className="h-4 w-4 mt-0.5 text-destructive" />
-                          <span>Add null checks before accessing object properties or methods.</span>
+                          <span>Break down deeply nested code blocks into separate helper methods.</span>
                         </li>
                       </>
                     )}
-                    {minorViolations.length > 0 && (
+                    {minorViolationTypes.size > 0 && (
                       <>
                         <li className="flex items-start gap-2">
                           <Info className="h-4 w-4 mt-0.5" />
@@ -322,7 +393,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                         </li>
                       </>
                     )}
-                    {majorViolations.length === 0 && minorViolations.length === 0 && (
+                    {majorViolationTypes.size === 0 && minorViolationTypes.size === 0 && (
                       <li className="text-center text-muted-foreground">
                         No specific improvements needed.
                       </li>
