@@ -10,7 +10,7 @@ type ScoreData = {
   improvements?: string[];
 };
 
-// Updated scoring thresholds
+// Updated scoring thresholds for SonarQube-like alignment
 const scoreThresholds = {
   maintainability: {
     A: 90, // A: 90+

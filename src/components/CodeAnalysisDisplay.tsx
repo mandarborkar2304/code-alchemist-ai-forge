@@ -59,10 +59,10 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
       The ability to update or modify the system under test.
       <br/><br/>
       <strong>Maintainability Ratings:</strong><br/>
-      A- Highly maintainable<br/>
-      B- Moderately maintainable<br/>
-      C- Low maintainability<br/>
-      D- Very difficult to maintain
+      A (≥90)- Highly maintainable<br/>
+      B (80-89)- Good maintainability<br/>
+      C (70-79)- Moderate maintainability<br/>
+      D (&lt;70)- Poor maintainability
     </p>
   );
 
@@ -120,6 +120,8 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
       type = 'Performance concerns';
     } else if (issue.includes('comment') || issue.includes('Comment')) {
       type = 'Insufficient comments';
+    } else if (issue.includes('function') || issue.includes('method')) {
+      type = 'Long functions';
     } else {
       // Default to first 3 words for grouping
       type = issue.split(' ').slice(0, 3).join(' ');
@@ -180,15 +182,15 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Lines of Code</p>
-                    <p className="text-sm font-medium">{analysis.metrics.linesOfCode}</p>
+                    <p className="text-sm font-medium">{analysis.metrics?.linesOfCode}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Function Count</p>
-                    <p className="text-sm font-medium">{analysis.metrics.functionCount}</p>
+                    <p className="text-sm font-medium">{analysis.metrics?.functionCount}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Avg Function Length</p>
-                    <p className="text-sm font-medium">{analysis.metrics.averageFunctionLength} lines</p>
+                    <p className="text-sm font-medium">{analysis.metrics?.averageFunctionLength} lines</p>
                   </div>
                 </div>
               </Card>

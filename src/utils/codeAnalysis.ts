@@ -282,8 +282,15 @@ if (needsErrorHandling && !hasTryCatch) {
   const issue = "No error handling mechanisms (try-catch) detected in complex code";
   issues.push(issue);
 
-  // ✅ Anchor the warning directly to the compute(...) method declaration line
-  const computeLine = lines.findIndex(l => /public static int compute/.test(l)) + 1 || 1;
+  // Anchor the warning directly to the compute method declaration line
+  const computeLine = lines.findIndex(l => 
+    /public\s+static\s+\w+\s+compute/.test(l) || 
+    /private\s+\w+\s+compute/.test(l) || 
+    /public\s+\w+\s+calculate/.test(l) ||
+    /function\s+compute/.test(l) ||
+    /const\s+compute/.test(l)
+  ) + 1 || 1;
+  
   lineReferences.push({
     line: computeLine,
     issue: "Missing error handling - consider adding try-catch blocks for robust code",
@@ -402,7 +409,7 @@ for (let i = 0; i < lines.length; i++) {
     });
     
     if (magicNumbersByValue.size > 0) {
-      issues.push("Magic numbers detected - consider using named constants");
+      issues.push(`Magic numbers detected (${magicNumbersByValue.size} unique constants) - consider using named constants`);
     }
   }
 
@@ -615,206 +622,212 @@ lineToIssue.forEach((value, line) => {
   };
 };
 
-// Helper function to deduplicate line references with improved logic to avoid duplicates
+// Helper function to deduplicate line references with improved logic
 function deduplicateLineReferences(
   refs: { line: number; issue: string; severity: 'major' | 'minor' }[]
 ): typeof refs {
-  const lineToBestIssue = new Map<number, { issue: string; severity: 'major' | 'minor' }>();
-
+  // Group issues by line number first
+  const issuesByLine = new Map<number, { issues: string[], severity: 'major' | 'minor' }>();
+  
   refs.forEach(ref => {
-    const normalizedIssue = ref.issue.trim();
-    const existing = lineToBestIssue.get(ref.line);
+    if (!issuesByLine.has(ref.line)) {
+      issuesByLine.set(ref.line, { issues: [], severity: 'minor' });
+    }
+    
+    const existingForLine = issuesByLine.get(ref.line)!;
+    
+    // Add issue if it's not a duplicate for this line
+    if (!existingForLine.issues.some(existing => 
+      isSimilarIssue(existing, ref.issue) ||
+      isSubsetIssue(existing, ref.issue)
+    )) {
+      existingForLine.issues.push(ref.issue);
+    }
+    
+    // Upgrade severity if current issue is major
+    if (ref.severity === 'major') {
+      existingForLine.severity = 'major';
+    }
+  });
+  
+  // Convert back to the expected format, keeping only the most significant issue per line
+  const deduplicated: typeof refs = [];
+  
+  issuesByLine.forEach((data, line) => {
+    if (data.issues.length > 0) {
+      // For each line, choose the most relevant issue:
+      // Prefer issues about nesting for nesting issues
+      let chosenIssue = data.issues[0];
+      
+      // Prioritize certain critical issues
+      for (const issue of data.issues) {
+        if (issue.includes('nesting') || 
+            issue.includes('error handling') || 
+            issue.includes('division by zero') ||
+            issue.includes('NullPointerException')) {
+          chosenIssue = issue;
+          break;
+        }
+      }
+      
+      deduplicated.push({
+        line,
+        issue: chosenIssue,
+        severity: data.severity
+      });
+    }
+  });
+  
+  return deduplicated;
+}
 
-    if (!existing) {
-      // First issue for this line
-      lineToBestIssue.set(ref.line, { issue: normalizedIssue, severity: ref.severity });
+// Check if two issues are similar enough to be considered duplicates
+function isSimilarIssue(issue1: string, issue2: string): boolean {
+  const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const norm1 = normalize(issue1);
+  const norm2 = normalize(issue2);
+  
+  // If they're very similar in normalized form
+  if (norm1 === norm2 || norm1.includes(norm2) || norm2.includes(norm1)) {
+    return true;
+  }
+  
+  // Check for specific patterns that indicate duplicates
+  if ((issue1.includes('nesting') && issue2.includes('nesting')) ||
+      (issue1.includes('array') && issue2.includes('array')) ||
+      (issue1.includes('null') && issue2.includes('null')) ||
+      (issue1.includes('division') && issue2.includes('division'))) {
+    return true;
+  }
+  
+  return false;
+}
+
+// Check if one issue is a subset/less specific version of another
+function isSubsetIssue(issue1: string, issue2: string): boolean {
+  const keywords = ['nesting', 'error handling', 'array', 'null', 'division', 'magic number', 
+                   'variable name', 'redundant', 'inefficient'];
+  
+  // Check if both issues refer to the same concept but one has more details
+  for (const keyword of keywords) {
+    if (issue1.includes(keyword) && issue2.includes(keyword) && 
+        (issue1.length < issue2.length * 0.7 || issue2.length < issue1.length * 0.7)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+// Enhanced categorization of violations
+export const categorizeViolations = (
+  issuesList: string[],
+  lineReferences: { line: number; issue: string; severity: 'major' | 'minor' }[] = []
+): CodeViolations & { reportMarkdown: string } => {
+  // Create maps to track unique issues by category and type
+  const uniqueMajorIssuesByType = new Map<string, string[]>();
+  const uniqueMinorIssuesByType = new Map<string, string[]>();
+
+  // Helper function to get the issue type/category from full issue text
+  const getIssueCategory = (issue: string): string => {
+    // Extract the general issue category
+    if (issue.includes('nesting')) return 'Deep nesting';
+    if (issue.includes('function length')) return 'Long functions';
+    if (issue.includes('error handling') || issue.includes('try-catch')) return 'Missing error handling';
+    if (issue.includes('comment') || issue.includes('documentation')) return 'Insufficient comments';
+    if (issue.includes('Magic number') || issue.includes('constant')) return 'Magic numbers';
+    if (issue.includes('variable name') || issue.includes('naming')) return 'Non-descriptive variable names';
+    if (issue.includes('Array') || issue.includes('bounds')) return 'Unsafe array access';
+    if (issue.includes('Null') || issue.includes('null reference')) return 'Null reference risk';
+    if (issue.includes('division') || issue.includes('ArithmeticException')) return 'Division by zero risk';
+    if (issue.includes('redundant') || issue.includes('inefficient') || issue.includes('performance')) return 'Performance concerns';
+    if (issue.includes('console.log')) return 'Debug code in production';
+    if (issue.includes('TODO') || issue.includes('FIXME')) return 'Unresolved TODOs';
+    
+    // If no specific type is found, use the first few words
+    return issue.split(' ').slice(0, 3).join(' ');
+  };
+
+  // Process line references to categorize issues
+  lineReferences.forEach((ref) => {
+    const issueCategory = getIssueCategory(ref.issue);
+    const issueKey = issueCategory;
+    
+    if (ref.severity === 'major') {
+      if (!uniqueMajorIssuesByType.has(issueKey)) {
+        uniqueMajorIssuesByType.set(issueKey, [ref.issue]);
+      } else if (!uniqueMajorIssuesByType.get(issueKey)!.some(i => isSimilarIssue(i, ref.issue))) {
+        uniqueMajorIssuesByType.get(issueKey)!.push(ref.issue);
+      }
     } else {
-      const isCurrentMajor = ref.severity === 'major';
-      const isExistingMajor = existing.severity === 'major';
-
-      // Replace if:
-      // - Current is major and existing is minor
-      // - Same severity but current issue is longer/more descriptive
-      if (
-        (!isExistingMajor && isCurrentMajor) ||
-        (ref.severity === existing.severity && normalizedIssue.length > existing.issue.length)
-      ) {
-        lineToBestIssue.set(ref.line, { issue: normalizedIssue, severity: ref.severity });
+      if (!uniqueMinorIssuesByType.has(issueKey)) {
+        uniqueMinorIssuesByType.set(issueKey, [ref.issue]);
+      } else if (!uniqueMinorIssuesByType.get(issueKey)!.some(i => isSimilarIssue(i, ref.issue))) {
+        uniqueMinorIssuesByType.get(issueKey)!.push(ref.issue);
       }
     }
   });
 
-  return Array.from(lineToBestIssue.entries()).map(([line, { issue, severity }]) => ({
-    line,
-    issue,
-    severity
-  }));
-}
-
-// Helper to find a method signature near a specific line
-function findNearbyMethodSignature(lines: string[], currentLine: number, range: number): string | null {
-  const start = Math.max(0, currentLine - range);
-  const end = Math.min(lines.length - 1, currentLine);
-  
-  for (let i = start; i < end; i++) {
-    const line = lines[i];
-    // Simple method signature detection for Java
-    if ((line.includes('public') || line.includes('private') || line.includes('protected')) && 
-        line.includes('(') && line.includes(')') && !line.includes(';')) {
-      return line.trim();
-    }
-  }
-  return null;
-}
-
-// Helper function to identify bounded loop variables
-function extractBoundedVariables(lines: string[], language: string): string[] {
-  const boundedVars: string[] = [];
-  
-  for (const line of lines) {
-    // For 'for' loops with explicit bounds
-    if (line.includes('for') && line.includes(':')) {
-      const match = line.match(/for\s*\(\s*\w+\s+(\w+)\s*:\s*\w+\s*\)/);
-      if (match && match[1]) {
-        boundedVars.push(match[1]);
-      }
-    }
-  }
-  
-  return boundedVars;
-}
-
-// Helper function to find variables that have null checks
-function extractNullCheckedVariables(lines: string[], language: string): string[] {
-  const checkedVars: string[] = [];
-
-  for (const line of lines) {
-    if (language === 'java') {
-      // Java null checks with support for compound conditions
-      const matches = [...line.matchAll(/(\w+)\s*!=\s*null/g)];
-      matches.forEach(m => checkedVars.push(m[1]));
-    } else {
-      // JS null/undefined checks with compound conditions
-      const matches = [...line.matchAll(/(\w+)\s*!==?\s*(null|undefined)/g)];
-      matches.forEach(m => checkedVars.push(m[1]));
-    }
-  }
-
-  return checkedVars;
-}
-
-
-// Helper function to extract loop variables
-function extractLoopVariables(code: string, language: string): string[] {
-  const vars: string[] = [];
-
-  const regex = language === 'java' 
-    ? /for\s*\(\s*\w+\s+(\w+)\s*=/g
-    : /for\s*\(\s*(?:let|var|const)?\s*(\w+)\s*=/g;
-
-  let match;
-  while ((match = regex.exec(code)) !== null) {
-    vars.push(match[1]);
-  }
-
-  return vars.filter(Boolean);
-}
-
-// Helper to extract function parameters
-function extractFunctionParameters(line: string, language: string): string[] {
-  const parameters: string[] = [];
-  
-  // Extract parameters from function definition
-  const paramMatch = line.match(/\(([^)]*)\)/);
-  if (paramMatch && paramMatch[1]) {
-    const params = paramMatch[1].split(',');
+  // Additional processing for issues without line references
+  issuesList.forEach((issue) => {
+    const issueCategory = getIssueCategory(issue);
+    const issueKey = issueCategory;
     
-    params.forEach(param => {
-      // Different parsing based on language
-      if (language === 'java') {
-        // Java: type paramName
-        const match = param.trim().match(/\w+\s+(\w+)/);
-        if (match && match[1]) {
-          parameters.push(match[1]);
-        }
-      } else {
-        // JS: paramName (or typing)
-        const match = param.trim().match(/(\w+)(\s*:|$)/);
-        if (match && match[1]) {
-          parameters.push(match[1]);
-        }
-      }
-    });
-  }
-  
-  return parameters;
-}
-
-// Helper to extract main function inputs in competitive programming context
-function extractMainFunctionInputs(lines: string[], language: string): string[] {
-  const inputs: string[] = [];
-  
-  if (language === 'java') {
-    // Look for Scanner or BufferedReader inputs in Java
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.includes('Scanner') || line.includes('BufferedReader')) {
-        // Extract the variable name
-        const match = line.match(/(\w+)\s*=\s*new\s+(Scanner|BufferedReader)/);
-        if (match && match[1]) {
-          inputs.push(match[1]); // Add the scanner/reader name
-          
-          // Also look for the next few lines for input variables
-          for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
-            const nextLine = lines[j];
-            const nextMatch = nextLine.match(/(\w+)\s*=\s*\w+\.(nextInt|nextLine|readLine)/);
-            if (nextMatch && nextMatch[1]) {
-              inputs.push(nextMatch[1]); // Add input variables
-            }
-          }
-        }
-      }
+    // Determine severity based on content
+    const isMajor = /Function length exceeds|Nesting level exceeds|No error handling|Unhandled|Potential|Explicit|ArithmeticException|NullPointerException|ArrayIndexOutOfBoundsException/.test(issue);
+    
+    const targetMap = isMajor ? uniqueMajorIssuesByType : uniqueMinorIssuesByType;
+    
+    if (!targetMap.has(issueKey)) {
+      targetMap.set(issueKey, [issue]);
+    } else if (!targetMap.get(issueKey)!.some(i => isSimilarIssue(i, issue))) {
+      targetMap.get(issueKey)!.push(issue);
     }
-  }
+  });
+
+  // Count total instances for each category
+  const countLineReferencesByCategory = (category: string, severity: 'major' | 'minor'): number => {
+    return lineReferences.filter(ref => 
+      getIssueCategory(ref.issue) === category && ref.severity === severity
+    ).length;
+  };
   
-  return inputs;
-}
+  // Build detailed markdown report with counts
+  const majorCategories = Array.from(uniqueMajorIssuesByType.keys());
+  const minorCategories = Array.from(uniqueMinorIssuesByType.keys());
+  
+  const majorIssuesList = majorCategories.map(category => {
+    const count = countLineReferencesByCategory(category, 'major');
+    const displayCount = count > 0 ? count : 1; // At least 1 if the category exists
+    return `- **${category}** (${displayCount} ${displayCount === 1 ? 'instance' : 'instances'})`;
+  });
+  
+  const minorIssuesList = minorCategories.map(category => {
+    const count = countLineReferencesByCategory(category, 'minor');
+    const displayCount = count > 0 ? count : 1; // At least 1 if the category exists
+    return `- **${category}** (${displayCount} ${displayCount === 1 ? 'instance' : 'instances'})`;
+  });
 
-// Helper to extract variable declarations in current scope
-function extractVariableDeclarations(line: string, language: string): string[] {
-  const variables: string[] = [];
+  // Generate markdown report
+  const reportMarkdown = [
+    `### Major Violations (${majorCategories.length})`,
+    ...majorIssuesList,
+    ``,
+    `### Minor Violations (${minorCategories.length})`,
+    ...minorIssuesList
+  ].join('\n');
 
-  // Skip lines that are commented out
-  if (line.trim().startsWith('//')) {
-    return variables;
-  }
+  // Adjust the line references to include only one entry per line
+  const adjustedLineReferences = deduplicateLineReferences(lineReferences);
 
-  if (language === 'java') {
-    // Java variable declarations: type varName
-    const matches = line.match(/\b(int|double|String|boolean|char|float|long|Integer|Double|Boolean)\s+(\w+)\s*(=|;)/g);
-    if (matches) {
-      matches.forEach(match => {
-        const varMatch = match.match(/\b(int|double|String|boolean|char|float|long|Integer|Double|Boolean)\s+(\w+)\s*(=|;)/);
-        if (varMatch && varMatch[2]) {
-          variables.push(varMatch[2]);
-        }
-      });
-    }
-  } else {
-    // JS variable declarations
-    const matches = line.match(/\b(var|let|const)\s+(\w+)\s*(=|;)/g);
-    if (matches) {
-      matches.forEach(match => {
-        const varMatch = match.match(/\b(var|let|const)\s+(\w+)\s*(=|;)/);
-        if (varMatch && varMatch[2]) {
-          variables.push(varMatch[2]);
-        }
-      });
-    }
-  }
-
-  return variables;
-}
+  return {
+    major: majorCategories.length,
+    minor: minorCategories.length,
+    details: [], // Not used anymore as we have more detailed categorization
+    lineReferences: adjustedLineReferences,
+    reportMarkdown: reportMarkdown
+  };
+};
 
 // Find try-catch blocks in code
 function findTryCatchBlocks(lines: string[]): {start: number, end: number}[] {
@@ -910,22 +923,22 @@ export const categorizeViolations = (
   lineReferences: { line: number; issue: string; severity: 'major' | 'minor' }[] = []
 ): CodeViolations & { reportMarkdown: string } => {
   // Create maps to track unique issues by category and type
-  const uniqueMajorIssuesByType = new Map<string, string>();
-  const uniqueMinorIssuesByType = new Map<string, string>();
+  const uniqueMajorIssuesByType = new Map<string, string[]>();
+  const uniqueMinorIssuesByType = new Map<string, string[]>();
 
   // Helper function to get the issue type/category from full issue text
-  const getIssueType = (issue: string): string => {
-    // Extract the general issue type by removing variable specifics
+  const getIssueCategory = (issue: string): string => {
+    // Extract the general issue category
     if (issue.includes('nesting')) return 'Deep nesting';
     if (issue.includes('function length')) return 'Long functions';
-    if (issue.includes('error handling')) return 'Missing error handling';
-    if (issue.includes('Insufficient comments')) return 'Low comment density';
-    if (issue.includes('Magic number')) return 'Magic numbers';
-    if (issue.includes('Single-letter') || issue.includes('Short variable')) return 'Non-descriptive variable names';
-    if (issue.includes('Array access')) return 'Unsafe array access';
-    if (issue.includes('NullPointerException') || issue.includes('null pointer')) return 'Null reference risk';
-    if (issue.includes('ArithmeticException') || issue.includes('Division')) return 'Division by zero risk';
-    if (issue.includes('redundant') || issue.includes('inefficient')) return 'Performance concerns';
+    if (issue.includes('error handling') || issue.includes('try-catch')) return 'Missing error handling';
+    if (issue.includes('comment') || issue.includes('documentation')) return 'Insufficient comments';
+    if (issue.includes('Magic number') || issue.includes('constant')) return 'Magic numbers';
+    if (issue.includes('variable name') || issue.includes('naming')) return 'Non-descriptive variable names';
+    if (issue.includes('Array') || issue.includes('bounds')) return 'Unsafe array access';
+    if (issue.includes('Null') || issue.includes('null reference')) return 'Null reference risk';
+    if (issue.includes('division') || issue.includes('ArithmeticException')) return 'Division by zero risk';
+    if (issue.includes('redundant') || issue.includes('inefficient') || issue.includes('performance')) return 'Performance concerns';
     if (issue.includes('console.log')) return 'Debug code in production';
     if (issue.includes('TODO') || issue.includes('FIXME')) return 'Unresolved TODOs';
     
@@ -933,57 +946,83 @@ export const categorizeViolations = (
     return issue.split(' ').slice(0, 3).join(' ');
   };
 
-  // Process line references to categorize and deduplicate issues
+  // Process line references to categorize issues
   lineReferences.forEach((ref) => {
-    const issueType = getIssueType(ref.issue);
-    const issueKey = `${issueType}`;
+    const issueCategory = getIssueCategory(ref.issue);
+    const issueKey = issueCategory;
     
     if (ref.severity === 'major') {
       if (!uniqueMajorIssuesByType.has(issueKey)) {
-        uniqueMajorIssuesByType.set(issueKey, ref.issue);
+        uniqueMajorIssuesByType.set(issueKey, [ref.issue]);
+      } else if (!uniqueMajorIssuesByType.get(issueKey)!.some(i => isSimilarIssue(i, ref.issue))) {
+        uniqueMajorIssuesByType.get(issueKey)!.push(ref.issue);
       }
     } else {
       if (!uniqueMinorIssuesByType.has(issueKey)) {
-        uniqueMinorIssuesByType.set(issueKey, ref.issue);
+        uniqueMinorIssuesByType.set(issueKey, [ref.issue]);
+      } else if (!uniqueMinorIssuesByType.get(issueKey)!.some(i => isSimilarIssue(i, ref.issue))) {
+        uniqueMinorIssuesByType.get(issueKey)!.push(ref.issue);
       }
     }
   });
 
-  // Process string issues from the original list for any that might not have line references
+  // Additional processing for issues without line references
   issuesList.forEach((issue) => {
-    const issueType = getIssueType(issue);
-    const issueKey = `${issueType}`;
+    const issueCategory = getIssueCategory(issue);
+    const issueKey = issueCategory;
+    
+    // Determine severity based on content
     const isMajor = /Function length exceeds|Nesting level exceeds|No error handling|Unhandled|Potential|Explicit|ArithmeticException|NullPointerException|ArrayIndexOutOfBoundsException/.test(issue);
     
-    if (isMajor) {
-      if (!uniqueMajorIssuesByType.has(issueKey)) {
-        uniqueMajorIssuesByType.set(issueKey, issue);
-      }
-    } else {
-      if (!uniqueMinorIssuesByType.has(issueKey)) {
-        uniqueMinorIssuesByType.set(issueKey, issue);
-      }
+    const targetMap = isMajor ? uniqueMajorIssuesByType : uniqueMinorIssuesByType;
+    
+    if (!targetMap.has(issueKey)) {
+      targetMap.set(issueKey, [issue]);
+    } else if (!targetMap.get(issueKey)!.some(i => isSimilarIssue(i, issue))) {
+      targetMap.get(issueKey)!.push(issue);
     }
   });
 
-  // Convert the maps to arrays for the report
-  const majorIssues: string[] = Array.from(uniqueMajorIssuesByType.values()).map(issue => `- ${issue}`);
-  const minorIssues: string[] = Array.from(uniqueMinorIssuesByType.values()).map(issue => `- ${issue}`);
+  // Count total instances for each category
+  const countLineReferencesByCategory = (category: string, severity: 'major' | 'minor'): number => {
+    return lineReferences.filter(ref => 
+      getIssueCategory(ref.issue) === category && ref.severity === severity
+    ).length;
+  };
+  
+  // Build detailed markdown report with counts
+  const majorCategories = Array.from(uniqueMajorIssuesByType.keys());
+  const minorCategories = Array.from(uniqueMinorIssuesByType.keys());
+  
+  const majorIssuesList = majorCategories.map(category => {
+    const count = countLineReferencesByCategory(category, 'major');
+    const displayCount = count > 0 ? count : 1; // At least 1 if the category exists
+    return `- **${category}** (${displayCount} ${displayCount === 1 ? 'instance' : 'instances'})`;
+  });
+  
+  const minorIssuesList = minorCategories.map(category => {
+    const count = countLineReferencesByCategory(category, 'minor');
+    const displayCount = count > 0 ? count : 1; // At least 1 if the category exists
+    return `- **${category}** (${displayCount} ${displayCount === 1 ? 'instance' : 'instances'})`;
+  });
 
   // Generate markdown report
   const reportMarkdown = [
-    `### Major Violations (${majorIssues.length})`,
-    ...majorIssues,
+    `### Major Violations (${majorCategories.length})`,
+    ...majorIssuesList,
     ``,
-    `### Minor Violations (${minorIssues.length})`,
-    ...minorIssues
+    `### Minor Violations (${minorCategories.length})`,
+    ...minorIssuesList
   ].join('\n');
 
+  // Adjust the line references to include only one entry per line
+  const adjustedLineReferences = deduplicateLineReferences(lineReferences);
+
   return {
-    major: majorIssues.length,
-    minor: minorIssues.length,
-    details: [], // Additional details can be added here if necessary
-    lineReferences: lineReferences, // Maintain original line references for display
+    major: majorCategories.length,
+    minor: minorCategories.length,
+    details: [], // Not used anymore as we have more detailed categorization
+    lineReferences: adjustedLineReferences,
     reportMarkdown: reportMarkdown
   };
 };

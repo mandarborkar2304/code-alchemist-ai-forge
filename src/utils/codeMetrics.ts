@@ -75,7 +75,18 @@ export const calculateMaintainability = (code: string, language: string = 'javas
     return 95; // Very simple code gets high maintainability
   }
   
-  // 1. Check for deep nesting (major issue, -10 points)
+  // Track violations for weighted scoring
+  const violations = {
+    deepNesting: { count: 0, penaltyPerItem: -5, maxPenalty: -20 }, // Major: deep nesting
+    longFunctions: { count: 0, penaltyPerItem: -5, maxPenalty: -15 }, // Major: long functions
+    missingErrorHandling: { count: 0, penaltyPerItem: -15, maxPenalty: -15 }, // Major: no error handling
+    lowCommentDensity: { count: 0, penaltyPerItem: -10, maxPenalty: -10 }, // Major: insufficient comments
+    magicNumbers: { count: 0, penaltyPerItem: -0.5, maxPenalty: -10, threshold: 5 }, // Minor: magic numbers
+    shortVariableNames: { count: 0, penaltyPerItem: -0.5, maxPenalty: -5, threshold: 5 }, // Minor: short variable names
+    redundantComputation: { count: 0, penaltyPerItem: -3, maxPenalty: -9 } // Major: inefficient code
+  };
+  
+  // 1. Check for deep nesting (major issue)
   let maxNesting = 0;
   let currentNesting = 0;
   
@@ -87,12 +98,12 @@ export const calculateMaintainability = (code: string, language: string = 'javas
     maxNesting = Math.max(maxNesting, currentNesting);
   }
   
-  // Penalize deep nesting
+  // Penalize deep nesting with weighted model
   if (maxNesting > 4) {
-    maintainabilityScore -= Math.min(20, (maxNesting - 4) * 5); // Cap at -20 points
+    violations.deepNesting.count = maxNesting - 4;
   }
   
-  // 2. Check comment density (major issue, -10 points)
+  // 2. Check comment density (major issue)
   const commentLines = lines.filter(line =>
     line.trim().startsWith('//') ||
     line.trim().startsWith('/*') ||
@@ -101,12 +112,12 @@ export const calculateMaintainability = (code: string, language: string = 'javas
   
   const commentRatio = commentLines / linesOfCode;
   if (commentRatio < 0.05 && !isCompetitiveProgramming) {
-    maintainabilityScore -= 10; // -10 points for insufficient comments
+    violations.lowCommentDensity.count = 2; // Severe lack of comments
   } else if (commentRatio < 0.1 && !isCompetitiveProgramming) {
-    maintainabilityScore -= 5; // -5 points for low comments
+    violations.lowCommentDensity.count = 1; // Moderate lack of comments
   }
   
-  // 3. Check function length (major issue, -10 points)
+  // 3. Check function length (major issue)
   let inFunction = false;
   let currentFunctionLines = 0;
   let longestFunction = 0;
@@ -130,32 +141,31 @@ export const calculateMaintainability = (code: string, language: string = 'javas
     }
   }
   
-  // Penalize long functions
+  // Penalize long functions with weighted model
   if (longestFunction > 30 && !isCompetitiveProgramming) {
-    maintainabilityScore -= Math.min(15, (longestFunction - 30) / 2); // Cap at -15 points
+    violations.longFunctions.count = Math.ceil((longestFunction - 30) / 10); // Every 10 lines over threshold counts as a violation
   }
   
-  // 4. Check for magic numbers (minor issue, -0.5 points each, up to -10)
+  // 4. Check for magic numbers with escalating penalties
   const magicNumberMatches = code.match(/[^a-zA-Z0-9_\.]([3-9]|[1-9][0-9]+)(?![a-zA-Z0-9_\.])/g) || [];
   const uniqueMagicNumbers = new Set(magicNumberMatches.map(m => m.trim()));
+  violations.magicNumbers.count = uniqueMagicNumbers.size;
   
-  maintainabilityScore -= Math.min(10, uniqueMagicNumbers.size * 0.5);
-  
-  // 5. Check for single-letter variables (minor issue, -0.5 points each, up to -5)
+  // 5. Check for single-letter variables with escalating penalties
+  const exemptVars = new Set(['i', 'j', 'k', 'n', 'm']); // Common loop variables
   const varPatternByLanguage = language === 'java' ?
     /\b(int|double|String|boolean|char|float|long)\s+([a-zA-Z]{1})\b/g :
     /\b(var|let|const)\s+([a-zA-Z]{1})\b/g;
   
   const singleLetterMatches = code.match(varPatternByLanguage) || [];
-  const exemptVars = new Set(['i', 'j', 'k', 'n', 'm']); // Common loop variables
   const problematicVars = singleLetterMatches.filter(match => {
     const varName = match.match(/\b[a-zA-Z]{1}\b/)?.[0];
     return varName && !exemptVars.has(varName);
   });
   
-  maintainabilityScore -= Math.min(5, problematicVars.length * 0.5);
+  violations.shortVariableNames.count = problematicVars.length;
   
-  // 6. Check for error handling (major issue, -15 points)
+  // 6. Check for error handling (major issue)
   const hasTryCatch = code.includes('try') && code.includes('catch');
   const needsErrorHandling = 
     (code.includes('throw') || 
@@ -166,8 +176,40 @@ export const calculateMaintainability = (code: string, language: string = 'javas
     !isCompetitiveProgramming;
   
   if (needsErrorHandling && !hasTryCatch) {
-    maintainabilityScore -= 15;
+    violations.missingErrorHandling.count = 1;
   }
+  
+  // 7. Check for redundant computation
+  const hasNestedLoops = (code.match(/for\s*\([^)]*\)[^{]*{[^}]*for\s*\(/g) || []).length > 0;
+  if (hasNestedLoops && !code.includes('//')) {
+    violations.redundantComputation.count = hasNestedLoops ? 1 : 0;
+  }
+  
+  // Apply all penalties with caps and escalation
+  Object.entries(violations).forEach(([key, violation]) => {
+    const { count, penaltyPerItem, maxPenalty, threshold } = violation as { 
+      count: number; 
+      penaltyPerItem: number; 
+      maxPenalty: number; 
+      threshold?: number 
+    };
+    
+    if (count > 0) {
+      let penalty = 0;
+      
+      // Apply escalating penalty if count exceeds threshold
+      if (threshold && count >= threshold) {
+        // For issues that occur frequently, increase the penalty
+        const baseImpact = Math.min(count * penaltyPerItem, maxPenalty);
+        const escalationFactor = 1.5; // 50% increase for frequent occurrences
+        penalty = Math.max(baseImpact * escalationFactor, baseImpact - 3); // At least 3 more penalty points
+      } else {
+        penalty = Math.min(count * penaltyPerItem, maxPenalty);
+      }
+      
+      maintainabilityScore += penalty;
+    }
+  });
   
   // Apply different thresholds for competitive programming
   if (isCompetitiveProgramming) {
