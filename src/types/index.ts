@@ -47,3 +47,17 @@ export interface TestCase {
   actualOutput?: string;
   executionDetails?: string;
 }
+
+// Add the missing types that are imported in codeMetrics.ts
+export type ScoreGrade = 'A' | 'B' | 'C' | 'D';
+
+export interface MetricsResult {
+  totalLines: number;
+  codeLines: number;
+  commentLines: number;
+  commentPercentage: number;
+  functionsCount: number;
+  averageFunctionLength: number;
+  maxNestingDepth: number;
+  cyclomaticComplexity: number;
+}
