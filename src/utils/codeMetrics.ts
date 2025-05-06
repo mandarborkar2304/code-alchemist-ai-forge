@@ -57,7 +57,7 @@ export const calculateCyclomaticComplexity = (code: string, language: string = '
   return Math.round(complexity * complexityMultiplier);
 };
 
-// Calculate maintainability index using the weighted model
+// Calculate maintainability index using the weighted model - aligned with SonarQube
 export const calculateMaintainability = (code: string, language: string = 'javascript'): number => {
   // Base maintainability score starts at 100
   let maintainabilityScore = 100;
@@ -75,18 +75,37 @@ export const calculateMaintainability = (code: string, language: string = 'javas
     return 95; // Very simple code gets high maintainability
   }
   
-  // Track violations for weighted scoring
+  // Track violations for weighted scoring with adjusted penalties to better align with SonarQube
   const violations = {
-    deepNesting: { count: 0, penaltyPerItem: -5, maxPenalty: -20 }, // Major: deep nesting
-    longFunctions: { count: 0, penaltyPerItem: -5, maxPenalty: -15 }, // Major: long functions
-    missingErrorHandling: { count: 0, penaltyPerItem: -15, maxPenalty: -15 }, // Major: no error handling
-    lowCommentDensity: { count: 0, penaltyPerItem: -10, maxPenalty: -10 }, // Major: insufficient comments
-    magicNumbers: { count: 0, penaltyPerItem: -0.5, maxPenalty: -10, threshold: 5 }, // Minor: magic numbers
-    shortVariableNames: { count: 0, penaltyPerItem: -0.5, maxPenalty: -5, threshold: 5 }, // Minor: short variable names
-    redundantComputation: { count: 0, penaltyPerItem: -3, maxPenalty: -9 } // Major: inefficient code
+    deepNesting: { count: 0, penaltyPerItem: -3, maxPenalty: -12 }, // Reduced from -5 to -3
+    longFunctions: { count: 0, penaltyPerItem: -3, maxPenalty: -12 }, // Kept as significant but reduced max impact
+    missingErrorHandling: { count: 0, penaltyPerItem: -3, maxPenalty: -9 }, // Reduced from -15 to -9
+    lowCommentDensity: { count: 0, penaltyPerItem: -7, maxPenalty: -7 }, // Concentrated as single impact
+    magicNumbers: { count: 0, penaltyPerItem: -0.5, maxPenalty: -6, threshold: 3 }, // Added threshold of 3 before penalties
+    shortVariableNames: { count: 0, penaltyPerItem: -0.5, maxPenalty: -4, threshold: 3 }, // Added threshold of 3
+    redundantComputation: { count: 0, penaltyPerItem: -2, maxPenalty: -6 } // Reduced slightly to better balance
   };
   
-  // 1. Check for deep nesting (major issue)
+  // Count logical code blocks for normalization
+  let logicalBlockCount = 0;
+  let functionCount = 0;
+  
+  // Detect function declarations to count logical blocks
+  const functionMatches = language === 'java' ? 
+    (code.match(/(?:public|private|protected)(?:\s+static)?\s+\w+\s+\w+\s*\([^)]*\)\s*\{/g) || []) :
+    (code.match(/function\s+\w+\s*\([^)]*\)\s*\{|const\s+\w+\s*=\s*(?:\([^)]*\)|[^=]+)\s*=>/g) || []);
+  
+  functionCount = functionMatches.length;
+  logicalBlockCount = Math.max(1, functionCount);
+  
+  // Count control structures for more accurate logical block count
+  const controlStructureMatches = code.match(/if\s*\([^)]+\)\s*\{|while\s*\([^)]+\)\s*\{|for\s*\([^)]+\)\s*\{|switch\s*\([^)]+\)\s*\{/g) || [];
+  logicalBlockCount += controlStructureMatches.length * 0.5; // Weight control structures at half of functions
+  
+  // Ensure minimum block count to prevent division by zero or extreme penalties in small files
+  logicalBlockCount = Math.max(1, logicalBlockCount);
+  
+  // 1. Check for deep nesting (major issue) with adjusted thresholds
   let maxNesting = 0;
   let currentNesting = 0;
   
@@ -98,12 +117,12 @@ export const calculateMaintainability = (code: string, language: string = 'javas
     maxNesting = Math.max(maxNesting, currentNesting);
   }
   
-  // Penalize deep nesting with weighted model
-  if (maxNesting > 4) {
-    violations.deepNesting.count = maxNesting - 4;
+  // Apply penalties for deep nesting with more gradual scaling
+  if (maxNesting > 3) { // Reduced threshold from 4 to 3 to align better with SonarQube
+    violations.deepNesting.count = maxNesting - 3;
   }
   
-  // 2. Check comment density (major issue)
+  // 2. Check comment density with revised thresholds
   const commentLines = lines.filter(line =>
     line.trim().startsWith('//') ||
     line.trim().startsWith('/*') ||
@@ -111,13 +130,12 @@ export const calculateMaintainability = (code: string, language: string = 'javas
   ).length;
   
   const commentRatio = commentLines / linesOfCode;
-  if (commentRatio < 0.05 && !isCompetitiveProgramming) {
-    violations.lowCommentDensity.count = 2; // Severe lack of comments
-  } else if (commentRatio < 0.1 && !isCompetitiveProgramming) {
-    violations.lowCommentDensity.count = 1; // Moderate lack of comments
+  // SonarQube applies comment density penalties more selectively
+  if (commentRatio < 0.05 && !isCompetitiveProgramming && linesOfCode > 30) {
+    violations.lowCommentDensity.count = 1; // Single count, higher per-item penalty
   }
   
-  // 3. Check function length (major issue)
+  // 3. Check function length with graduated penalty scales
   let inFunction = false;
   let currentFunctionLines = 0;
   let longestFunction = 0;
@@ -141,18 +159,22 @@ export const calculateMaintainability = (code: string, language: string = 'javas
     }
   }
   
-  // Penalize long functions with weighted model
-  if (longestFunction > 30 && !isCompetitiveProgramming) {
-    violations.longFunctions.count = Math.ceil((longestFunction - 30) / 10); // Every 10 lines over threshold counts as a violation
+  // More graduated penalty scale for long functions
+  if (longestFunction > 25) { // Reduced threshold to align with SonarQube
+    violations.longFunctions.count = Math.ceil((longestFunction - 25) / 15); // Increased divisor to reduce sensitivity
   }
   
-  // 4. Check for magic numbers with escalating penalties
+  // 4. Check for magic numbers with threshold before applying penalties
   const magicNumberMatches = code.match(/[^a-zA-Z0-9_\.]([3-9]|[1-9][0-9]+)(?![a-zA-Z0-9_\.])/g) || [];
   const uniqueMagicNumbers = new Set(magicNumberMatches.map(m => m.trim()));
-  violations.magicNumbers.count = uniqueMagicNumbers.size;
   
-  // 5. Check for single-letter variables with escalating penalties
-  const exemptVars = new Set(['i', 'j', 'k', 'n', 'm']); // Common loop variables
+  // Only count as violation if exceeds threshold
+  if (uniqueMagicNumbers.size >= violations.magicNumbers.threshold) {
+    violations.magicNumbers.count = uniqueMagicNumbers.size - violations.magicNumbers.threshold + 1;
+  }
+  
+  // 5. Check for single-letter variables with threshold before penalties
+  const exemptVars = new Set(['i', 'j', 'k', 'n', 'm', 'x', 'y']); // Extended common short vars
   const varPatternByLanguage = language === 'java' ?
     /\b(int|double|String|boolean|char|float|long)\s+([a-zA-Z]{1})\b/g :
     /\b(var|let|const)\s+([a-zA-Z]{1})\b/g;
@@ -163,29 +185,41 @@ export const calculateMaintainability = (code: string, language: string = 'javas
     return varName && !exemptVars.has(varName);
   });
   
-  violations.shortVariableNames.count = problematicVars.length;
+  // Only count as violation if exceeds threshold
+  if (problematicVars.length >= violations.shortVariableNames.threshold) {
+    violations.shortVariableNames.count = problematicVars.length - violations.shortVariableNames.threshold + 1;
+  }
   
-  // 6. Check for error handling (major issue)
+  // 6. Check for error handling (major issue) with context sensitivity
   const hasTryCatch = code.includes('try') && code.includes('catch');
   const needsErrorHandling = 
     (code.includes('throw') || 
-     code.includes('/') || 
+     (code.includes('/') && !isCompetitiveProgramming) || 
      code.includes('parse') ||
      code.includes('JSON') ||
      code.includes('readFile')) && 
-    !isCompetitiveProgramming;
+    !isCompetitiveProgramming &&
+    linesOfCode > 50; // Only consider larger files that are more likely to need error handling
   
   if (needsErrorHandling && !hasTryCatch) {
     violations.missingErrorHandling.count = 1;
   }
   
-  // 7. Check for redundant computation
+  // 7. Check for redundant computation with context-sensitive detection
   const hasNestedLoops = (code.match(/for\s*\([^)]*\)[^{]*{[^}]*for\s*\(/g) || []).length > 0;
-  if (hasNestedLoops && !code.includes('//')) {
-    violations.redundantComputation.count = hasNestedLoops ? 1 : 0;
+  
+  // More selective detection of actual redundant computation
+  if (hasNestedLoops) {
+    // Look for array accesses in nested context that could be optimized
+    const hasArrayAccess = code.match(/\w+\[\w+\].*for\s*\(/s) !== null;
+    if (hasArrayAccess) {
+      violations.redundantComputation.count = 1;
+    }
   }
   
-  // Apply all penalties with caps and escalation
+  // Apply all penalties with caps and normalization
+  let totalPenalty = 0;
+  
   Object.entries(violations).forEach(([key, violation]) => {
     const { count, penaltyPerItem, maxPenalty, threshold } = violation as { 
       count: number; 
@@ -197,30 +231,41 @@ export const calculateMaintainability = (code: string, language: string = 'javas
     if (count > 0) {
       let penalty = 0;
       
-      // Apply escalating penalty if count exceeds threshold
-      if (threshold && count >= threshold) {
-        // For issues that occur frequently, increase the penalty
-        const baseImpact = Math.min(count * penaltyPerItem, maxPenalty);
-        const escalationFactor = 1.5; // 50% increase for frequent occurrences
-        penalty = Math.max(baseImpact * escalationFactor, baseImpact - 3); // At least 3 more penalty points
+      // Apply threshold-based penalties for minor issues
+      if (threshold && count > 0) {
+        // Graduated penalty that increases as count grows higher above threshold
+        penalty = Math.min(count * penaltyPerItem, maxPenalty);
       } else {
         penalty = Math.min(count * penaltyPerItem, maxPenalty);
       }
       
-      maintainabilityScore += penalty;
+      // Aggregate all penalties to be normalized later
+      totalPenalty += penalty;
     }
   });
   
+  // Apply normalization based on logical block count to prevent overpenalizing large files
+  const normalizedPenalty = logicalBlockCount > 3 ? 
+                           totalPenalty / Math.sqrt(logicalBlockCount / 3) : 
+                           totalPenalty;
+  
+  // Apply the normalized penalty
+  maintainabilityScore += normalizedPenalty;
+  
   // Apply different thresholds for competitive programming
   if (isCompetitiveProgramming) {
-    maintainabilityScore = Math.min(100, maintainabilityScore + 15); // Boost score for CP
+    maintainabilityScore = Math.min(100, maintainabilityScore + 12); // Reduced boost from 15 to 12
   }
   
   // Ensure score stays within 0-100 range
   maintainabilityScore = Math.max(0, Math.min(100, maintainabilityScore));
   
-  // Convert to letter grade
-  // A: 90+, B: 80-89, C: 70-79, D: <70
+  // Apply final calibration to better align with SonarQube grades
+  // SonarQube tends to be slightly more lenient in edge cases
+  if (maintainabilityScore >= 87 && maintainabilityScore < 90) {
+    maintainabilityScore = 90; // Round up edge cases near the A threshold
+  }
+  
   return Math.round(maintainabilityScore);
 };
 
