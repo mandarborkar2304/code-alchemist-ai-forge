@@ -1,7 +1,9 @@
+
 import { CodeAnalysis } from "@/types";
 import CodeAnalysisDisplay from "@/components/CodeAnalysisDisplay";
 import { Brain } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { categorizeReliabilityIssues } from "@/utils/codeQualityRatings";
 
 interface AnalysisPanelProps {
   analysis: CodeAnalysis | null;
@@ -12,6 +14,10 @@ const AnalysisPanel = ({
   analysis,
   onApplyCorrection
 }: AnalysisPanelProps) => {
+  // Group reliability issues by category if they exist
+  const issueCategories = analysis?.reliability?.issues ? 
+    categorizeReliabilityIssues(analysis.reliability.issues) : [];
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex flex-col space-y-2">
@@ -28,6 +34,32 @@ const AnalysisPanel = ({
           analysis={analysis}
           onApplyCorrection={onApplyCorrection}
         />
+        
+        {issueCategories.length > 0 && (
+          <div className="mt-4 p-4 border rounded-md">
+            <h3 className="text-md font-medium mb-2">Issue Categories</h3>
+            {issueCategories.map((category, idx) => (
+              <div key={idx} className="mb-3">
+                <h4 className="text-sm font-semibold">{category.name} ({category.issues.length})</h4>
+                <ul className="text-sm list-disc pl-5">
+                  {category.issues.slice(0, 3).map((issue, i) => (
+                    <li key={i} className="text-muted-foreground">
+                      {issue.description} {issue.line ? `(line ${issue.line})` : ''} 
+                      <span className="text-xs ml-2 opacity-70">
+                        Impact: -{issue.impact} points
+                      </span>
+                    </li>
+                  ))}
+                  {category.issues.length > 3 && (
+                    <li className="text-muted-foreground italic">
+                      +{category.issues.length - 3} more issues...
+                    </li>
+                  )}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+
 export interface CodeQualityRating {
   score: 'A' | 'B' | 'C' | 'D';
   description: string;
@@ -11,6 +12,10 @@ export interface CodeViolations {
   minor: number;
   details: string[];
   lineReferences?: { line: number; issue: string; severity: 'major' | 'minor' }[]; // References to specific lines with severity
+  categories?: { 
+    category: string;
+    violations: { issue: string; severity: 'major' | 'minor'; impact: number }[];
+  }[];
 }
 
 export interface CodeAnalysis {
@@ -46,12 +51,21 @@ export interface TestCase {
 export type ScoreGrade = 'A' | 'B' | 'C' | 'D';
 
 export interface MetricsResult {
-  linesOfCode: number;  // Changed from totalLines
+  linesOfCode: number;  
   codeLines: number;
   commentLines: number;
   commentPercentage: number;
-  functionCount: number;  // Changed from functionsCount
+  functionCount: number;  
   averageFunctionLength: number;
   maxNestingDepth: number;
   cyclomaticComplexity: number;
+}
+
+// New interface for reliability issues
+export interface ReliabilityIssue {
+  type: 'critical' | 'major' | 'minor';
+  description: string;
+  impact: number;
+  category: 'runtime' | 'exception' | 'structure' | 'readability';
+  line?: number;
 }

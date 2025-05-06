@@ -1,13 +1,13 @@
-import { MetricsResult, ScoreGrade } from '@/types';
+import { MetricsResult, ScoreGrade, ReliabilityIssue } from '@/types';
 
-// Constants for metric calculation
-const CYCLOMATIC_COMPLEXITY_WEIGHT = 1;
-const NESTING_DEPTH_WEIGHT = 0.8;
-const ERROR_HANDLING_WEIGHT = 0.7;
-const BOUNDS_CHECK_WEIGHT = 0.5;
-const NULL_CHECK_WEIGHT = 0.6;
+// Constants for metric calculation and penalties
+const RUNTIME_CRITICAL_PENALTY = 5;
+const EXCEPTION_HANDLING_PENALTY = 3;
+const DEEP_NESTING_PENALTY = 3;
+const READABILITY_PENALTY = 2;
+const REDUNDANT_LOGIC_PENALTY = 1;
 
-// Calculate cyclomatic complexity
+// Calculate cyclomatic complexity with clearer thresholds
 export const calculateCyclomaticComplexity = (code: string, language: string): number => {
   // Calculate base complexity (1)
   let complexity = 1;
@@ -41,7 +41,7 @@ export const calculateCyclomaticComplexity = (code: string, language: string): n
   return complexity;
 };
 
-// Calculate maintainability with improved balancing and normalization
+// Calculate maintainability with improved balancing
 export const calculateMaintainability = (code: string, language: string): number => {
   let baseScore = 100;
   const lines = code.split("\n");
@@ -103,64 +103,127 @@ export const calculateMaintainability = (code: string, language: string): number
   return Math.max(0, Math.min(100, normalizedScore));
 };
 
-// Calculate reliability with contextual awareness and safer defaults
-export const calculateReliability = (code: string, language: string): number => {
+// Completely revised reliability calculation with specific penalties
+export const calculateReliability = (code: string, language: string): { score: number, issues: ReliabilityIssue[] } => {
   let baseScore = 100;
-  const lines = code.split("\n");
+  const lines = code.split('\n');
+  const reliabilityIssues: ReliabilityIssue[] = [];
   
-  // Context detection for reliability assessment
-  const isCompetitiveProgrammingContext = detectCompetitiveProgrammingContext(code, language);
+  // Detect critical runtime issues
+  
+  // 1. Check for potential divide-by-zero
+  lines.forEach((line, index) => {
+    if (line.match(/\/\s*0/) || line.match(/\/\s*[a-zA-Z_][a-zA-Z0-9_]*\s*(?!\s*[!=><])/) && !line.includes("!= 0") && !line.includes("!== 0")) {
+      reliabilityIssues.push({
+        type: 'critical',
+        description: 'Potential divide by zero',
+        impact: RUNTIME_CRITICAL_PENALTY,
+        category: 'runtime',
+        line: index + 1
+      });
+      baseScore -= RUNTIME_CRITICAL_PENALTY;
+    }
+  });
+  
+  // 2. Check for unchecked array access
   const safeLoopVariables = extractSafeLoopVariables(code, language);
-  const nullCheckedVariables = extractNullCheckedVariables(code, language);
-  const isSimpleNonErrorProneCode = code.length < 200 && !containsRiskyOperations(code, language);
+  const unsafeAccesses = findUnsafeArrayAccesses(code, language, safeLoopVariables);
   
-  // Significantly reduce penalties for certain contexts
-  const contextMultiplier = isCompetitiveProgrammingContext ? 0.5 : 
-                            isSimpleNonErrorProneCode ? 0.7 : 1.0;
+  unsafeAccesses.forEach(access => {
+    reliabilityIssues.push({
+      type: 'critical',
+      description: `Unchecked array access using ${access.indexVar} at line ${access.line}`,
+      impact: RUNTIME_CRITICAL_PENALTY,
+      category: 'runtime',
+      line: access.line
+    });
+    baseScore -= RUNTIME_CRITICAL_PENALTY;
+  });
   
-  // Error handling penalties with context awareness
-  if (requiresErrorHandling(code, language) && !hasErrorHandling(code, language)) {
-    // Less severe penalty when code has low complexity or is competitive programming
-    baseScore -= Math.round(5 * contextMultiplier);
+  // 3. Check for uncaught exceptions in risky operations
+  if (hasRiskyOperations(code, language) && !hasAppropriateErrorHandling(code, language)) {
+    const riskyLines = findRiskyOperationLines(code, language);
+    riskyLines.forEach(lineNum => {
+      reliabilityIssues.push({
+        type: 'major',
+        description: `Risky operation without proper error handling at line ${lineNum}`,
+        impact: EXCEPTION_HANDLING_PENALTY,
+        category: 'exception',
+        line: lineNum
+      });
+    });
+    baseScore -= EXCEPTION_HANDLING_PENALTY * Math.min(3, riskyLines.length); // Cap the penalty
   }
   
-  // Check for unsafe array access with context awareness
-  const unsafeArrayAccesses = countUnsafeArrayAccesses(code, language, safeLoopVariables);
-  if (unsafeArrayAccesses > 0) {
-    // Reduce penalty for competitive programming or if it's a simple example
-    baseScore -= Math.min(10, unsafeArrayAccesses * 2) * contextMultiplier;
+  // 4. Check for deep nesting
+  const nestingDepth = calculateMaxNestingDepth(code);
+  if (nestingDepth > 5) {
+    reliabilityIssues.push({
+      type: 'major',
+      description: `Excessive nesting depth of ${nestingDepth} levels`,
+      impact: DEEP_NESTING_PENALTY,
+      category: 'structure'
+    });
+    baseScore -= DEEP_NESTING_PENALTY;
   }
   
-  // Check for null safety issues with context awareness
-  const nullSafetyIssues = countNullSafetyIssues(code, language, nullCheckedVariables);
-  if (nullSafetyIssues > 0) {
-    baseScore -= Math.min(8, nullSafetyIssues * 2) * contextMultiplier;
+  // 5. Check for magic numbers
+  const magicNumbers = findMagicNumbers(code);
+  if (magicNumbers.length > 0) {
+    reliabilityIssues.push({
+      type: 'minor',
+      description: `${magicNumbers.length} magic numbers found`,
+      impact: READABILITY_PENALTY,
+      category: 'readability'
+    });
+    baseScore -= Math.min(READABILITY_PENALTY, Math.floor(magicNumbers.length / 3));
   }
   
-  // Input validation issues
-  if (hasUserInput(code, language) && !hasInputValidation(code, language) && !isCompetitiveProgrammingContext) {
-    baseScore -= 3;
+  // 6. Check for redundant logic
+  const redundantPatterns = findRedundantPatterns(code, language);
+  redundantPatterns.forEach(pattern => {
+    reliabilityIssues.push({
+      type: 'minor',
+      description: pattern.description,
+      impact: REDUNDANT_LOGIC_PENALTY,
+      category: 'structure',
+      line: pattern.line
+    });
+    baseScore -= REDUNDANT_LOGIC_PENALTY;
+  });
+  
+  // 7. Check for missing input validation
+  if (hasUserInput(code, language) && !hasInputValidation(code, language)) {
+    reliabilityIssues.push({
+      type: 'major',
+      description: 'User input without proper validation',
+      impact: EXCEPTION_HANDLING_PENALTY,
+      category: 'exception'
+    });
+    baseScore -= EXCEPTION_HANDLING_PENALTY;
   }
   
-  // Exception handling consistency for Java
-  if (language === 'java' && hasExplicitThrows(code) && !hasTryCatchOrThrowsDeclaration(code)) {
-    baseScore -= 3 * contextMultiplier;
+  // Cumulative effect for multiple issues
+  if (reliabilityIssues.length > 3) {
+    const additionalPenalty = Math.min(10, Math.floor(reliabilityIssues.length / 2));
+    baseScore -= additionalPenalty;
   }
   
-  // Normalize by risk level
-  const riskLevel = assessCodeRiskLevel(code, language);
-  const normalizedScore = baseScore + ((100 - baseScore) * (1 - riskLevel / 10));
+  // Ensure the score doesn't go below 0
+  const finalScore = Math.max(0, baseScore);
   
-  // Ensure the score is within bounds
-  return Math.max(0, Math.min(100, normalizedScore));
+  return { 
+    score: finalScore,
+    issues: reliabilityIssues
+  };
 };
 
-// Get code metrics
+// Get code metrics with updated properties
 export const getCodeMetrics = (code: string, language: string): MetricsResult => {
   const lines = code.split('\n');
   const codeLines = lines.filter(line => line.trim().length > 0).length;
   
-  const functionCount = countFunctions(code, language);  // Changed from functionsCount
+  const functionCount = countFunctions(code, language);
   const avgFunctionLength = functionCount > 0 ? 
     lines.length / functionCount : lines.length;
   
@@ -178,11 +241,11 @@ export const getCodeMetrics = (code: string, language: string): MetricsResult =>
   const complexityScore = calculateCyclomaticComplexity(code, language);
   
   return {
-    linesOfCode: lines.length,  // Changed from totalLines
+    linesOfCode: lines.length,
     codeLines,
     commentLines,
     commentPercentage,
-    functionCount,  // Changed from functionsCount
+    functionCount,
     averageFunctionLength: avgFunctionLength,
     maxNestingDepth: maxNesting,
     cyclomaticComplexity: complexityScore,
@@ -196,6 +259,8 @@ export const scoreToGrade = (score: number): ScoreGrade => {
   if (score >= 70) return 'C';
   return 'D';
 };
+
+// Helper functions for reliability assessment
 
 // Count functions in code
 const countFunctions = (code: string, language: string): number => {
@@ -244,59 +309,31 @@ const calculateMaxNestingDepth = (code: string): number => {
   return maxDepth;
 };
 
-// Count magic numbers
-const countMagicNumbers = (code: string): number => {
-  // Exclude common safe numbers like 0, 1, 2
-  const magicNumberMatches = code.match(/[^a-zA-Z0-9_\.]([3-9]|[1-9][0-9]+)(?![a-zA-Z0-9_\.])/g);
-  return magicNumberMatches ? magicNumberMatches.length : 0;
-};
-
-// Count single-letter variables
-const countSingleLetterVariables = (code: string, language: string): number => {
+// Find magic numbers (non-standard hardcoded literals)
+const findMagicNumbers = (code: string): { value: string, line: number }[] => {
+  const results: { value: string, line: number }[] = [];
   const lines = code.split('\n');
-  let count = 0;
-  const safeVars = new Set(['i', 'j', 'k', 'x', 'y', 'n', 'm']); // Common loop variables
   
-  for (const line of lines) {
-    // Skip loop declarations where single-letter variables are common
-    if (line.includes('for ')) continue;
+  lines.forEach((line, index) => {
+    // Exclude common safe numbers like 0, 1, 2 and numbers in strings
+    const magicNumberMatches = line.match(/(?<!\w|\.|-|"|'|`)\s*-?[3-9]\d*(?!\w|\.|-|"|'|`)/g);
     
-    let matches;
-    if (language === 'java') {
-      matches = line.match(/\b(?:int|String|boolean|double|char|long)\s+([a-zA-Z])\b/g);
-    } else {
-      matches = line.match(/\b(?:let|const|var)\s+([a-zA-Z])\b/g);
+    // Exclude numbers in variable declarations, array indices, and common patterns
+    if (magicNumberMatches && 
+        !line.includes('for') && 
+        !line.includes('case') && 
+        !line.includes('const') && 
+        !line.includes('=')) {
+      magicNumberMatches.forEach(match => {
+        results.push({
+          value: match.trim(),
+          line: index + 1
+        });
+      });
     }
-    
-    if (matches) {
-      for (const match of matches) {
-        const varName = match.split(/\s+/).pop();
-        if (varName && varName.length === 1 && !safeVars.has(varName)) {
-          count++;
-        }
-      }
-    }
-  }
+  });
   
-  return count;
-};
-
-// Context detection for competitive programming
-const detectCompetitiveProgrammingContext = (code: string, language: string): boolean => {
-  // Common competitive programming patterns
-  const hasMainMethod = code.includes('public static void main') || code.includes('function main');
-  const hasStdinInput = code.includes('Scanner') || code.includes('BufferedReader') || 
-                      code.includes('readline') || code.includes('process.stdin');
-  const hasArrayManipulation = code.includes('[') && code.includes(']') && 
-                               (code.includes('sort') || code.includes('length') || code.includes('push'));
-  const hasAlgorithmicPatterns = code.includes('for') && 
-                                (code.includes('min') || code.includes('max') || code.includes('sum'));
-  
-  // Typical competitive programming file size is small to medium
-  const isSmallToMedium = code.length < 1000;
-  
-  return (hasMainMethod && hasStdinInput && isSmallToMedium) || 
-         (hasMainMethod && hasArrayManipulation && hasAlgorithmicPatterns && isSmallToMedium);
+  return results;
 };
 
 // Extract variables that are safely bounded in loops
@@ -324,90 +361,14 @@ const extractSafeLoopVariables = (code: string, language: string): string[] => {
   return safeVars;
 };
 
-// Extract variables that have null checks
-const extractNullCheckedVariables = (code: string, language: string): string[] => {
-  const nullCheckedVars: string[] = [];
+// Find unsafe array accesses
+const findUnsafeArrayAccesses = (code: string, language: string, safeVariables: string[]): { indexVar: string, line: number }[] => {
+  const results: { indexVar: string, line: number }[] = [];
   const lines = code.split('\n');
   
-  for (const line of lines) {
-    // Check for null checks (obj != null, obj !== null, etc)
-    const nullCheckMatch = line.match(/if\s*\(\s*(\w+)\s*!==?\s*null\b/);
-    if (nullCheckMatch && nullCheckMatch[1]) {
-      nullCheckedVars.push(nullCheckMatch[1]);
-    }
-    
-    // Check for existence checks (if (obj), etc)
-    const existenceCheckMatch = line.match(/if\s*\(\s*(\w+)\s*\)/);
-    if (existenceCheckMatch && existenceCheckMatch[1]) {
-      nullCheckedVars.push(existenceCheckMatch[1]);
-    }
-    
-    // Optional chaining in JavaScript/TypeScript
-    if (language !== 'java') {
-      const optionalChainingMatch = line.match(/(\w+)\?\./g);
-      if (optionalChainingMatch) {
-        for (const match of optionalChainingMatch) {
-          nullCheckedVars.push(match.replace('?.', ''));
-        }
-      }
-    }
-    
-    // Java Optional or Objects.nonNull
-    if (language === 'java') {
-      if (line.includes('Optional<') || line.includes('Objects.nonNull')) {
-        const optionalMatch = line.match(/(\w+)\.(?:isPresent|get|orElse|orElseGet)\(/);
-        if (optionalMatch && optionalMatch[1]) {
-          nullCheckedVars.push(optionalMatch[1]);
-        }
-      }
-    }
-  }
-  
-  return nullCheckedVars;
-};
-
-// Check if code contains risky operations that would require error handling
-const containsRiskyOperations = (code: string, language: string): boolean => {
-  // These patterns indicate higher risk operations
-  const riskyPatterns = [
-    /\.parse\(/, // JSON.parse or similar
-    /new FileReader|new Scanner/, // File operations
-    /fetch\(|axios\.|http\./, // Network requests
-    /throw new Error|throw new Exception/, // Explicit throws
-    /\/\s*0|%\s*0/, // Division by zero risk
-    /\.substring\(\s*\d+\s*\)|\.charAt\(\s*\d+\s*\)/ // String operations without bounds check
-  ];
-  
-  return riskyPatterns.some(pattern => pattern.test(code));
-};
-
-// Check if code requires error handling based on operations performed
-const requiresErrorHandling = (code: string, language: string): boolean => {
-  // Simple code without risky operations doesn't need explicit error handling
-  if (!containsRiskyOperations(code, language)) {
-    return false;
-  }
-  
-  // Check for code complexity that would warrant error handling
-  const hasComplexFlow = code.includes('if') && code.includes('for');
-  const isLongEnough = code.split('\n').length > 15;
-  
-  return hasComplexFlow && isLongEnough;
-};
-
-// Check if code has error handling mechanisms
-const hasErrorHandling = (code: string, language: string): boolean => {
-  return code.includes('try') && code.includes('catch');
-};
-
-// Count unsafe array accesses that aren't protected
-const countUnsafeArrayAccesses = (code: string, language: string, safeVariables: string[]): number => {
-  const lines = code.split('\n');
-  let count = 0;
-  
-  for (const line of lines) {
-    // Skip array access within loop or with constant index, which is generally safe
-    if (line.includes('for') || line.includes('while')) continue;
+  lines.forEach((line, index) => {
+    // Skip array access within loop headers, which is generally safe
+    if (line.includes('for') && line.includes(';')) continue;
     
     // Match array accesses with variable index
     const arrayAccessMatches = line.match(/\w+\s*\[\s*(\w+)\s*\]/g);
@@ -416,52 +377,124 @@ const countUnsafeArrayAccesses = (code: string, language: string, safeVariables:
         const indexVarMatch = match.match(/\[\s*(\w+)\s*\]/);
         if (indexVarMatch && indexVarMatch[1]) {
           const indexVar = indexVarMatch[1];
-          // Only count as unsafe if not a safe loop variable and not a number literal
-          if (!safeVariables.includes(indexVar) && !/^\d+$/.test(indexVar)) {
-            count++;
+          // Only count as unsafe if not a safe loop variable, not a number literal,
+          // and not checked with bounds validation in the same line
+          if (!safeVariables.includes(indexVar) && 
+              !/^\d+$/.test(indexVar) &&
+              !line.includes(`${indexVar} < `) &&
+              !line.includes(`${indexVar} <= `) &&
+              !line.includes('length')) {
+            results.push({
+              indexVar,
+              line: index + 1
+            });
           }
         }
       }
     }
-  }
+  });
   
-  return count;
+  return results;
 };
 
-// Count null safety issues
-const countNullSafetyIssues = (code: string, language: string, nullCheckedVars: string[]): number => {
-  const lines = code.split('\n');
-  let count = 0;
+// Check if code has risky operations
+const hasRiskyOperations = (code: string, language: string): boolean => {
+  const riskyPatterns = [
+    /\.parse\(/, // JSON.parse or similar
+    /new FileReader|new Scanner/, // File operations
+    /fetch\(|axios\.|http\./, // Network requests
+    /\/\s*[a-zA-Z_][a-zA-Z0-9_]*\s*(?!\s*[!=><])/, // Division by variable without zero check
+    /throw\s+new\s+\w+/, // Explicit throws
+    /\.substring\(\s*\d+\s*\)|\.charAt\(\s*\d+\s*\)/ // String operations without bounds check
+  ];
   
-  for (const line of lines) {
-    // Skip lines with null checks
-    if (line.includes('!= null') || line.includes('!== null') || 
-        line.includes('?.') || line.includes('||') || line.includes('&&')) {
-      continue;
+  return riskyPatterns.some(pattern => pattern.test(code));
+};
+
+// Find lines with risky operations
+const findRiskyOperationLines = (code: string, language: string): number[] => {
+  const results: number[] = [];
+  const lines = code.split('\n');
+  
+  const riskyPatterns = [
+    /\.parse\(/,
+    /new FileReader|new Scanner/,
+    /fetch\(|axios\.|http\./,
+    /\/\s*[a-zA-Z_][a-zA-Z0-9_]*\s*(?!\s*[!=><])/,
+    /throw\s+new\s+\w+/,
+    /\.substring\(\s*\d+\s*\)|\.charAt\(\s*\d+\s*\)/
+  ];
+  
+  lines.forEach((line, index) => {
+    if (riskyPatterns.some(pattern => pattern.test(line)) && 
+        !line.includes('try') && 
+        !line.includes('catch')) {
+      results.push(index + 1);
+    }
+  });
+  
+  return results;
+};
+
+// Check for appropriate error handling
+const hasAppropriateErrorHandling = (code: string, language: string): boolean => {
+  // Check if there are try-catch blocks
+  const hasTryCatch = code.includes('try') && code.includes('catch');
+  
+  // Check if there are error objects being thrown
+  const hasErrorThrows = /throw\s+new\s+\w+/.test(code);
+  
+  // Check for error return patterns
+  const hasErrorReturnPattern = /return\s+(?:null|undefined|false|err|\{.*?error|\{\s*success:\s*false)/.test(code);
+  
+  return hasTryCatch || (hasErrorThrows && hasErrorReturnPattern);
+};
+
+// Find redundant patterns in code
+const findRedundantPatterns = (code: string, language: string): { description: string, line: number }[] => {
+  const results: { description: string, line: number }[] = [];
+  const lines = code.split('\n');
+  
+  // Check for redundant if-else patterns
+  let prevCondition = '';
+  lines.forEach((line, index) => {
+    // Check for identical consecutive if conditions
+    const ifMatch = line.match(/if\s*\((.*?)\)/);
+    if (ifMatch && ifMatch[1] === prevCondition && prevCondition !== '') {
+      results.push({
+        description: 'Redundant condition check',
+        line: index + 1
+      });
+    }
+    if (ifMatch) prevCondition = ifMatch[1];
+    
+    // Check for negated conditions in else-if that could be simplified
+    if (line.includes('else if') && line.includes('!')) {
+      results.push({
+        description: 'Negated condition in else-if could be simplified',
+        line: index + 1
+      });
     }
     
-    // Match property access with dot notation
-    const propertyAccessMatches = line.match(/(\w+)\.\w+/g);
-    if (propertyAccessMatches) {
-      for (const match of propertyAccessMatches) {
-        const objectName = match.split('.')[0];
-        // Only count as unsafe if not previously null-checked
-        if (!nullCheckedVars.includes(objectName)) {
-          count++;
-          break; // Count only once per line to avoid over-penalization
-        }
-      }
+    // Check for redundant null checks
+    if ((line.includes('=== null') || line.includes('!== null')) && 
+        (line.includes('=== undefined') || line.includes('!== undefined'))) {
+      results.push({
+        description: 'Redundant null/undefined check',
+        line: index + 1
+      });
     }
-  }
+  });
   
-  return count;
+  return results;
 };
 
-// Check for user input handling
+// Check for user input
 const hasUserInput = (code: string, language: string): boolean => {
   const inputPatterns = [
     /Scanner|BufferedReader|readline|readLine|prompt\(|process\.stdin|input\(/,
-    /getElementById|querySelector|event\.|onChange|onClick/
+    /getElementById|querySelector|event\.|onChange|onClick/,
+    /\.value|\.val\(\)|e\.target\.value/
   ];
   
   return inputPatterns.some(pattern => pattern.test(code));
@@ -470,53 +503,13 @@ const hasUserInput = (code: string, language: string): boolean => {
 // Check for input validation
 const hasInputValidation = (code: string, language: string): boolean => {
   const validationPatterns = [
-    /if\s*\(\s*\w+\s*(==|!=|>=|<=|>|<)/,
-    /parseInt|parseFloat|trim\(\)|\.length\s*(?:>|<|===|!==)/,
+    /if\s*\(\s*\w+/,
+    /parseInt|parseFloat|trim\(\)|\.length/,
     /try\s*{[\s\S]*?}\s*catch/,
     /\w+\s*instanceof\s+\w+/,
-    /isNaN\(|typeof\s+\w+\s*===|\.test\(/
+    /isNaN\(|typeof\s+\w+\s*===|\.test\(/,
+    /validate|validation|sanitize|check|isValid/
   ];
   
   return validationPatterns.some(pattern => pattern.test(code));
-};
-
-// Java-specific: Check for explicit throws
-const hasExplicitThrows = (code: string): boolean => {
-  return /throw\s+new\s+\w+/.test(code);
-};
-
-// Java-specific: Check for proper exception handling
-const hasTryCatchOrThrowsDeclaration = (code: string): boolean => {
-  return /try\s*{[\s\S]*?}\s*catch/.test(code) || /\)\s*throws\s+\w+/.test(code);
-};
-
-// Assess overall code risk level (0-10 scale)
-const assessCodeRiskLevel = (code: string, language: string): number => {
-  let riskScore = 0;
-  
-  // High-risk operations
-  if (code.includes('parse(') || code.includes('eval(')) riskScore += 2;
-  if (code.includes('File') || code.includes('fs.')) riskScore += 2;
-  if (code.includes('fetch(') || code.includes('axios')) riskScore += 1;
-  
-  // Data handling risks
-  const hasArrays = (code.match(/\[.*\]/g) || []).length > 2;
-  const hasLoops = (code.match(/for\s*\(|while\s*\(/g) || []).length > 1;
-  if (hasArrays && hasLoops) riskScore += 1;
-  
-  // User input risk
-  if (hasUserInput(code, language)) riskScore += 1;
-  
-  // External dependencies risk
-  const hasExternalDeps = (code.match(/import\s+|require\(/g) || []).length > 3;
-  if (hasExternalDeps) riskScore += 1;
-  
-  // Risk mitigations
-  if (hasErrorHandling(code, language)) riskScore -= 1;
-  if (hasInputValidation(code, language)) riskScore -= 1;
-  
-  // Context-based risk adjustments
-  if (detectCompetitiveProgrammingContext(code, language)) riskScore = Math.max(1, riskScore - 2);
-  
-  return Math.max(0, Math.min(10, riskScore));
 };
