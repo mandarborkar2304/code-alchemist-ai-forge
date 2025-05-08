@@ -41,7 +41,7 @@ export const calculateCyclomaticComplexity = (code: string, language: string): n
   return complexity;
 };
 
-// Calculate maintainability with improved scoring for monolithic functions and modularity
+// Calculate maintainability with balanced scoring for SonarQube alignment
 export const calculateMaintainability = (code: string, language: string): number => {
   let baseScore = 100;
   const lines = code.split("\n");
@@ -55,30 +55,27 @@ export const calculateMaintainability = (code: string, language: string): number
            !trimmed.startsWith("/*");
   }).length;
   
-  // Modularity and size penalty (more progressive penalties)
-  if (codeLines > 300) baseScore -= 15;
-  else if (codeLines > 200) baseScore -= 10;
-  else if (codeLines > 100) baseScore -= 5;
-  else if (codeLines > 50) baseScore -= 2;
-  
-  // Gather metrics for normalization
+  // Function count for calculation
   const functionsCount = countFunctions(code, language);
   
-  // Function length penalties (more progressive)
+  // More balanced size penalties with reasonable thresholds
+  // Only penalize significantly when exceeding reasonable limits
+  if (codeLines > 500) baseScore -= 10;
+  else if (codeLines > 300) baseScore -= 5;
+  else if (codeLines > 150) baseScore -= 2;
+  
+  // Function length penalties with more reasonable thresholds
   const avgFunctionLength = functionsCount > 0 ? codeLines / functionsCount : codeLines;
-  if (avgFunctionLength > 50) baseScore -= 15; // More severe penalty
-  else if (avgFunctionLength > 30) baseScore -= 10;
-  else if (avgFunctionLength > 20) baseScore -= 5;
-  else if (avgFunctionLength > 15) baseScore -= 2;
+  if (avgFunctionLength > 50) baseScore -= 10; // SonarQube-aligned threshold
+  else if (avgFunctionLength > 30) baseScore -= 5;
+  else if (avgFunctionLength > 20) baseScore -= 2;
   
-  // Nesting depth penalties (more strict)
+  // Nesting depth penalties with reasonable thresholds
   const maxNestingDepth = calculateMaxNestingDepth(code);
-  if (maxNestingDepth > 5) baseScore -= 15;
-  else if (maxNestingDepth > 4) baseScore -= 10;
-  else if (maxNestingDepth > 3) baseScore -= 5;
-  else if (maxNestingDepth > 2) baseScore -= 2;
-  
-  // Comment density penalties (more lenient)
+  if (maxNestingDepth > 4) baseScore -= 8; // Only penalize significantly for excessive nesting
+  else if (maxNestingDepth > 3) baseScore -= 3; // Moderate penalty for deeper nesting
+
+  // Comment density with more lenient approach
   const commentLines = lines.filter(line => {
     const trimmed = line.trim();
     return trimmed.startsWith("//") || 
@@ -87,46 +84,46 @@ export const calculateMaintainability = (code: string, language: string): number
   }).length;
   
   const commentRatio = codeLines > 0 ? commentLines / codeLines : 0;
-  if (commentRatio < 0.05) baseScore -= 5;
-  else if (commentRatio < 0.1) baseScore -= 3;
+  if (commentRatio < 0.05 && codeLines > 100) baseScore -= 3; // Only penalize large files with few comments
+  else if (commentRatio < 0.1 && codeLines > 200) baseScore -= 2;
   
-  // Magic number penalties
+  // Magic number penalties - more targeted approach
   const magicNumbers = findMagicNumbers(code);
-  if (magicNumbers.length > 10) baseScore -= 8;
-  else if (magicNumbers.length > 5) baseScore -= 5;
-  else if (magicNumbers.length > 2) baseScore -= 2;
+  if (magicNumbers.length > 10) baseScore -= 5;
+  else if (magicNumbers.length > 5) baseScore -= 3;
+  else if (magicNumbers.length > 2) baseScore -= 1;
   
-  // Single-letter variable penalties (cumulative)
+  // Single-letter variable penalties - reduced impact
   const singleLetterVarCount = countSingleLetterVariables(code, language);
-  if (singleLetterVarCount.count > 10) baseScore -= 8;
-  else if (singleLetterVarCount.count > 5) baseScore -= 5;
-  else if (singleLetterVarCount.count > 2) baseScore -= 2;
+  if (singleLetterVarCount.count > 8) baseScore -= 4;
+  else if (singleLetterVarCount.count > 4) baseScore -= 2;
+  else if (singleLetterVarCount.count > 2) baseScore -= 1;
   
-  // Check for code repetition and monolithic structure
+  // Code repetition check - less aggressive penalties
   const repetitionScore = checkCodeRepetition(code, language);
-  baseScore -= repetitionScore;
+  baseScore -= Math.min(10, repetitionScore); // Cap the repetition penalty at 10 points
   
   // Ensure score is within bounds
   return Math.max(0, Math.min(100, baseScore));
 };
 
-// Helper function to check for code repetition patterns
+// Helper function to check for code repetition patterns with reduced penalties
 const checkCodeRepetition = (code: string, language: string): number => {
   let repetitionPenalty = 0;
   const lines = code.split("\n");
   
-  // Check for repeated blocks of 3+ lines
-  const blockSize = 3;
+  // Check for repeated blocks of 4+ lines (increased threshold)
+  const blockSize = 4;
   const blocks = new Map<string, number>();
   
   for (let i = 0; i <= lines.length - blockSize; i++) {
     const block = lines.slice(i, i + blockSize).join("\n").trim();
-    if (block.length > 10) { // Ignore very small blocks
+    if (block.length > 20) { // Ignore small blocks
       blocks.set(block, (blocks.get(block) || 0) + 1);
     }
   }
   
-  // Count repeated blocks
+  // Count repeated blocks with proportional penalty
   let repeatedBlocks = 0;
   blocks.forEach((count, block) => {
     if (count > 1) {
@@ -134,27 +131,28 @@ const checkCodeRepetition = (code: string, language: string): number => {
     }
   });
   
-  // Apply penalty based on repeated blocks (2 points per repetition)
-  repetitionPenalty += Math.min(10, repeatedBlocks * 2);
+  // Apply more lenient penalty (1 point per repetition)
+  repetitionPenalty += Math.min(6, repeatedBlocks);
   
-  // Check for repeated similar structures (like switch statements or if-else chains)
+  // Check for switch statements - reduced penalties
   const switchStatements = code.match(/switch\s*\([^)]+\)\s*{/g) || [];
-  if (switchStatements.length > 2) {
-    repetitionPenalty += Math.min(5, (switchStatements.length - 2) * 2);
+  if (switchStatements.length > 3) { // Only penalize excessive switch usage
+    repetitionPenalty += Math.min(3, (switchStatements.length - 3));
   }
   
-  // Check for long if-else chains
+  // Check for long if-else chains - reduced penalties
   let ifElseChainCount = 0;
-  for (let i = 0; i < lines.length - 3; i++) {
+  for (let i = 0; i < lines.length - 4; i++) {
     if (lines[i].includes("if (") && 
         lines[i+1].includes("else if (") && 
-        lines[i+2].includes("else if (")) {
-      ifElseChainCount++;
+        lines[i+2].includes("else if (") &&
+        lines[i+3].includes("else if (")) {
+      ifElseChainCount++; // Only count chains of 4+ conditions
     }
   }
   
   if (ifElseChainCount > 1) {
-    repetitionPenalty += Math.min(5, ifElseChainCount * 2);
+    repetitionPenalty += Math.min(4, ifElseChainCount);
   }
   
   return repetitionPenalty;

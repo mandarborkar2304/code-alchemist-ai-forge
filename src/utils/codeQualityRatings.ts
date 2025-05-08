@@ -85,7 +85,7 @@ export const getRatingFromScore = (score: number, metricType: MetricType, issues
       ];
     }
   } else if (metricType === 'maintainability') {
-    // Enhanced maintainability scoring with more specific issues and progressive penalties
+    // Refined maintainability scoring with balanced penalties and SonarQube alignment
     
     // For maintainability, higher is better
     if (score >= scoreThresholds.maintainability.A) {
@@ -96,7 +96,7 @@ export const getRatingFromScore = (score: number, metricType: MetricType, issues
     } else if (score >= scoreThresholds.maintainability.B) {
       rating = 'B';
       description = 'Good maintainability';
-      reason = 'The code is generally well-structured but has some minor issues.';
+      reason = 'The code is generally well-structured with some minor improvement opportunities.';
       issuesList = [
         'Some areas could benefit from better documentation or structure.',
         'Minor code duplication may exist.'
@@ -109,36 +109,36 @@ export const getRatingFromScore = (score: number, metricType: MetricType, issues
     } else if (score >= scoreThresholds.maintainability.C) {
       rating = 'C';
       description = 'Moderate maintainability';
-      reason = 'The code has significant structural or modularity issues.';
+      reason = 'The code has some structural or modularity issues that hinder maintenance.';
       issuesList = [
         'Insufficient comments or documentation',
-        'Some functions are too large or have too many responsibilities',
-        'Repetitive code patterns without abstraction',
-        'Unclear variable naming in some areas'
+        'Some functions exceed recommended size limits',
+        'Some code duplication without abstraction',
+        'Unclear variable naming in places'
       ];
       improvements = [
-        'Break down large functions into smaller, single-purpose ones',
+        'Break down larger functions into smaller, single-purpose ones',
         'Extract common functionality into shared utilities',
-        'Add more comprehensive documentation',
-        'Improve variable naming for clarity'
+        'Improve documentation coverage',
+        'Enhance variable naming for clarity'
       ];
     } else {
       rating = 'D';
       description = 'Poor maintainability';
-      reason = 'The code lacks proper structure, contains significant duplication, or is overly complex.';
+      reason = 'The code has significant structure issues that make maintenance difficult.';
       issuesList = [
-        'Monolithic functions with multiple responsibilities',
-        'Minimal or no comments',
-        'Unclear variable names',
-        'Deep nesting of control structures',
+        'Functions exceeding size thresholds',
+        'Minimal or no documentation',
+        'Unclear naming conventions',
+        'Excessive nesting of control structures',
         'Significant code duplication',
         'Magic numbers and hardcoded values'
       ];
       improvements = [
-        'Urgent refactoring recommended',
-        'Break down monolithic functions into smaller, focused ones',
+        'Refactoring recommended',
+        'Break down large functions into smaller, focused units',
         'Add comprehensive documentation',
-        'Restructure deeply nested code',
+        'Simplify deeply nested code',
         'Extract duplicate code into reusable functions',
         'Replace magic numbers with named constants'
       ];
