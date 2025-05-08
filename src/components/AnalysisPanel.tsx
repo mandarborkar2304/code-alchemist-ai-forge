@@ -1,4 +1,3 @@
-
 import { CodeAnalysis, ReliabilityIssue } from "@/types";
 import CodeAnalysisDisplay from "@/components/CodeAnalysisDisplay";
 import { Brain } from "lucide-react";
@@ -16,7 +15,21 @@ const AnalysisPanel = ({
 }: AnalysisPanelProps) => {
   // Group reliability issues by category if they exist
   const issueCategories = analysis?.reliability?.issues ? 
-    categorizeReliabilityIssues(analysis.reliability.issues as ReliabilityIssue[]) : [];
+    // Check if issues are of type ReliabilityIssue[] or convert if they are strings
+    Array.isArray(analysis.reliability.issues) && 
+    typeof analysis.reliability.issues[0] === 'string' ?
+      // If they're strings, convert them to ReliabilityIssue objects with minimum required properties
+      categorizeReliabilityIssues(
+        (analysis.reliability.issues as string[]).map(issue => ({
+          type: 'minor',
+          description: issue,
+          impact: 1,
+          category: 'readability'
+        }))
+      ) : 
+      // Otherwise use them directly as ReliabilityIssue[]
+      categorizeReliabilityIssues(analysis.reliability.issues as ReliabilityIssue[]) 
+    : [];
 
   return (
     <div className="flex flex-col h-full">
