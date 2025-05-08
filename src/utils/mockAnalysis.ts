@@ -1,9 +1,11 @@
+
 import { CodeAnalysis } from "@/types";
 import { 
   calculateCyclomaticComplexity,
   calculateMaintainability,
   calculateReliability,
-  getCodeMetrics
+  getCodeMetrics,
+  scoreToGrade
 } from "./codeMetrics";
 import { getRatingFromScore } from "./codeQualityRatings";
 import { 
@@ -16,12 +18,12 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
   // Calculate metrics using proper algorithms with language awareness
   const cyclomaticComplexityScore = calculateCyclomaticComplexity(code, language);
   const maintainabilityScore = calculateMaintainability(code, language);
-  const reliabilityScore = calculateReliability(code, language);
+  const reliabilityResult = calculateReliability(code, language);
   
   // Get the ratings for each metric
   const cyclomaticComplexity = getRatingFromScore(cyclomaticComplexityScore, 'cyclomaticComplexity');
   const maintainability = getRatingFromScore(maintainabilityScore, 'maintainability');
-  const reliability = getRatingFromScore(reliabilityScore, 'reliability');
+  const reliability = getRatingFromScore(reliabilityResult.score, 'reliability', reliabilityResult.issues);
   
   // For simple code with only arithmetic operations and linear flow,
   // ensure no violations are reported

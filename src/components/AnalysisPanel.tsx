@@ -1,5 +1,5 @@
 
-import { CodeAnalysis } from "@/types";
+import { CodeAnalysis, ReliabilityIssue } from "@/types";
 import CodeAnalysisDisplay from "@/components/CodeAnalysisDisplay";
 import { Brain } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
@@ -16,7 +16,7 @@ const AnalysisPanel = ({
 }: AnalysisPanelProps) => {
   // Group reliability issues by category if they exist
   const issueCategories = analysis?.reliability?.issues ? 
-    categorizeReliabilityIssues(analysis.reliability.issues) : [];
+    categorizeReliabilityIssues(analysis.reliability.issues as ReliabilityIssue[]) : [];
 
   return (
     <div className="flex flex-col h-full">

@@ -1,3 +1,4 @@
+
 import { MetricsResult, ScoreGrade, ReliabilityIssue } from '@/types';
 
 // Constants for metric calculation and penalties
@@ -89,8 +90,8 @@ export const calculateMaintainability = (code: string, language: string): number
   else if (commentRatio < 0.1) baseScore -= 1;
   
   // Magic number penalties (only if exceeding threshold)
-  const magicNumberCount = findMagicNumbers(code).length;
-  if (magicNumberCount > 5) baseScore -= Math.min(3, Math.floor(magicNumberCount / 5));
+  const magicNumbers = findMagicNumbers(code);
+  if (magicNumbers.length > 5) baseScore -= Math.min(3, Math.floor(magicNumbers.length / 5));
   
   // Single-letter variable penalties (only if exceeding threshold)
   const singleLetterVarCount = countSingleLetterVariables(code, language);
@@ -431,9 +432,12 @@ const findUnsafeArrayAccesses = (code: string, language: string, safeVariables: 
   const results: { indexVar: string, line: number }[] = [];
   const lines = code.split('\n');
   
-  lines.forEach((line, index) => {
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
     // Skip array access within loop headers, which is generally safe
-    if (line.includes('for') && line.includes(';')) return;
+    if (line.includes('for') && line.includes(';')) {
+      continue;
+    }
     
     // Match array accesses with variable index
     const arrayAccessMatches = line.match(/\w+\s*\[\s*(\w+)\s*\]/g);
@@ -457,7 +461,7 @@ const findUnsafeArrayAccesses = (code: string, language: string, safeVariables: 
         }
       }
     }
-  });
+  }
   
   return results;
 };

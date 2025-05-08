@@ -1,4 +1,3 @@
-
 export interface CodeQualityRating {
   score: 'A' | 'B' | 'C' | 'D';
   description: string;
