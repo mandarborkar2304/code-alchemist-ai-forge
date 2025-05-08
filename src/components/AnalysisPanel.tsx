@@ -9,27 +9,30 @@ interface AnalysisPanelProps {
   onApplyCorrection: (code: string) => void;
 }
 
+function isReliabilityIssueArray(arr: any[]): arr is ReliabilityIssue[] {
+  return arr.length > 0 && typeof arr[0] === "object" && "description" in arr[0];
+}
+
+
 const AnalysisPanel = ({
   analysis,
   onApplyCorrection
 }: AnalysisPanelProps) => {
   // Group reliability issues by category if they exist
-  const issueCategories = analysis?.reliability?.issues ? 
-    // Check if issues are of type ReliabilityIssue[] or convert if they are strings
-    Array.isArray(analysis.reliability.issues) && 
-    typeof analysis.reliability.issues[0] === 'string' ?
-      // If they're strings, convert them to ReliabilityIssue objects with minimum required properties
-      categorizeReliabilityIssues(
-        (analysis.reliability.issues as string[]).map(issue => ({
-          type: 'minor',
-          description: issue,
-          impact: 1,
-          category: 'readability'
-        }))
-      ) : 
-      // Otherwise use them directly as ReliabilityIssue[]
-      categorizeReliabilityIssues(analysis.reliability.issues as ReliabilityIssue[]) 
-    : [];
+  const issueCategories = analysis?.reliability?.issues
+  ? Array.isArray(analysis.reliability.issues)
+    ? isReliabilityIssueArray(analysis.reliability.issues)
+      ? categorizeReliabilityIssues(analysis.reliability.issues)
+      : categorizeReliabilityIssues(
+          analysis.reliability.issues.map((issue: string) => ({
+            type: 'minor',
+            description: issue,
+            impact: 1,
+            category: 'readability',
+          }))
+        )
+    : []
+  : [];
 
   return (
     <div className="flex flex-col h-full">
