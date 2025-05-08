@@ -1,3 +1,4 @@
+
 import { CodeAnalysis, ReliabilityIssue } from "@/types";
 import CodeAnalysisDisplay from "@/components/CodeAnalysisDisplay";
 import { Brain } from "lucide-react";
@@ -13,26 +14,25 @@ function isReliabilityIssueArray(arr: any[]): arr is ReliabilityIssue[] {
   return arr.length > 0 && typeof arr[0] === "object" && "description" in arr[0];
 }
 
-
 const AnalysisPanel = ({
   analysis,
   onApplyCorrection
 }: AnalysisPanelProps) => {
   // Group reliability issues by category if they exist
   const issueCategories = analysis?.reliability?.issues
-  ? Array.isArray(analysis.reliability.issues)
-    ? isReliabilityIssueArray(analysis.reliability.issues)
-      ? categorizeReliabilityIssues(analysis.reliability.issues)
-      : categorizeReliabilityIssues(
-          analysis.reliability.issues.map((issue: string) => ({
-            type: 'minor',
-            description: issue,
-            impact: 1,
-            category: 'readability',
-          }))
-        )
-    : []
-  : [];
+    ? Array.isArray(analysis.reliability.issues)
+      ? isReliabilityIssueArray(analysis.reliability.issues)
+        ? categorizeReliabilityIssues(analysis.reliability.issues)
+        : categorizeReliabilityIssues(
+            analysis.reliability.issues.map((issue: string) => ({
+              type: 'minor',
+              description: issue,
+              impact: 1,
+              category: 'readability',
+            }))
+          )
+      : []
+    : [];
 
   return (
     <div className="flex flex-col h-full">

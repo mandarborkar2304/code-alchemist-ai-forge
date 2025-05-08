@@ -1,4 +1,3 @@
-
 import { MetricsResult, ScoreGrade, ReliabilityIssue } from '@/types';
 
 // Constants for metric calculation and penalties
@@ -8,7 +7,7 @@ const DEEP_NESTING_PENALTY = 3;
 const READABILITY_PENALTY = 2;
 const REDUNDANT_LOGIC_PENALTY = 1;
 
-// Calculate cyclomatic complexity with clearer thresholds
+// Calculate cyclomatic complexity with industry-standard approach
 export const calculateCyclomaticComplexity = (code: string, language: string): number => {
   // Calculate base complexity (1)
   let complexity = 1;
@@ -42,7 +41,7 @@ export const calculateCyclomaticComplexity = (code: string, language: string): n
   return complexity;
 };
 
-// Calculate maintainability with improved balancing
+// Calculate maintainability with improved scoring for monolithic functions and modularity
 export const calculateMaintainability = (code: string, language: string): number => {
   let baseScore = 100;
   const lines = code.split("\n");
@@ -56,26 +55,28 @@ export const calculateMaintainability = (code: string, language: string): number
            !trimmed.startsWith("/*");
   }).length;
   
-  // Logic size penalty (reduced from previous version)
-  if (codeLines > 200) baseScore -= 5;
-  else if (codeLines > 100) baseScore -= 3;
-  else if (codeLines > 50) baseScore -= 1;
+  // Modularity and size penalty (more progressive penalties)
+  if (codeLines > 300) baseScore -= 15;
+  else if (codeLines > 200) baseScore -= 10;
+  else if (codeLines > 100) baseScore -= 5;
+  else if (codeLines > 50) baseScore -= 2;
   
   // Gather metrics for normalization
   const functionsCount = countFunctions(code, language);
-  const logicalBlocks = Math.max(1, countLogicalBlocks(code)); // Avoid division by zero
   
-  // Function length penalties
+  // Function length penalties (more progressive)
   const avgFunctionLength = functionsCount > 0 ? codeLines / functionsCount : codeLines;
-  if (avgFunctionLength > 50) baseScore -= 5;
-  else if (avgFunctionLength > 30) baseScore -= 3;
-  else if (avgFunctionLength > 20) baseScore -= 1;
+  if (avgFunctionLength > 50) baseScore -= 15; // More severe penalty
+  else if (avgFunctionLength > 30) baseScore -= 10;
+  else if (avgFunctionLength > 20) baseScore -= 5;
+  else if (avgFunctionLength > 15) baseScore -= 2;
   
-  // Nesting depth penalties (reduced)
+  // Nesting depth penalties (more strict)
   const maxNestingDepth = calculateMaxNestingDepth(code);
-  if (maxNestingDepth > 5) baseScore -= 3;
-  else if (maxNestingDepth > 3) baseScore -= 2;
-  else if (maxNestingDepth > 2) baseScore -= 1;
+  if (maxNestingDepth > 5) baseScore -= 15;
+  else if (maxNestingDepth > 4) baseScore -= 10;
+  else if (maxNestingDepth > 3) baseScore -= 5;
+  else if (maxNestingDepth > 2) baseScore -= 2;
   
   // Comment density penalties (more lenient)
   const commentLines = lines.filter(line => {
@@ -86,22 +87,77 @@ export const calculateMaintainability = (code: string, language: string): number
   }).length;
   
   const commentRatio = codeLines > 0 ? commentLines / codeLines : 0;
-  if (commentRatio < 0.05) baseScore -= 2;
-  else if (commentRatio < 0.1) baseScore -= 1;
+  if (commentRatio < 0.05) baseScore -= 5;
+  else if (commentRatio < 0.1) baseScore -= 3;
   
-  // Magic number penalties (only if exceeding threshold)
+  // Magic number penalties
   const magicNumbers = findMagicNumbers(code);
-  if (magicNumbers.length > 5) baseScore -= Math.min(3, Math.floor(magicNumbers.length / 5));
+  if (magicNumbers.length > 10) baseScore -= 8;
+  else if (magicNumbers.length > 5) baseScore -= 5;
+  else if (magicNumbers.length > 2) baseScore -= 2;
   
-  // Single-letter variable penalties (only if exceeding threshold)
+  // Single-letter variable penalties (cumulative)
   const singleLetterVarCount = countSingleLetterVariables(code, language);
-  if (singleLetterVarCount.count > 3) baseScore -= Math.min(2, Math.floor(singleLetterVarCount.count / 3));
+  if (singleLetterVarCount.count > 10) baseScore -= 8;
+  else if (singleLetterVarCount.count > 5) baseScore -= 5;
+  else if (singleLetterVarCount.count > 2) baseScore -= 2;
   
-  // Normalize penalties by code size
-  const normalizedScore = baseScore + (10 - Math.min(10, Math.max(0, (100 - baseScore) / logicalBlocks)));
+  // Check for code repetition and monolithic structure
+  const repetitionScore = checkCodeRepetition(code, language);
+  baseScore -= repetitionScore;
   
   // Ensure score is within bounds
-  return Math.max(0, Math.min(100, normalizedScore));
+  return Math.max(0, Math.min(100, baseScore));
+};
+
+// Helper function to check for code repetition patterns
+const checkCodeRepetition = (code: string, language: string): number => {
+  let repetitionPenalty = 0;
+  const lines = code.split("\n");
+  
+  // Check for repeated blocks of 3+ lines
+  const blockSize = 3;
+  const blocks = new Map<string, number>();
+  
+  for (let i = 0; i <= lines.length - blockSize; i++) {
+    const block = lines.slice(i, i + blockSize).join("\n").trim();
+    if (block.length > 10) { // Ignore very small blocks
+      blocks.set(block, (blocks.get(block) || 0) + 1);
+    }
+  }
+  
+  // Count repeated blocks
+  let repeatedBlocks = 0;
+  blocks.forEach((count, block) => {
+    if (count > 1) {
+      repeatedBlocks += count - 1; // -1 because one occurrence is fine
+    }
+  });
+  
+  // Apply penalty based on repeated blocks (2 points per repetition)
+  repetitionPenalty += Math.min(10, repeatedBlocks * 2);
+  
+  // Check for repeated similar structures (like switch statements or if-else chains)
+  const switchStatements = code.match(/switch\s*\([^)]+\)\s*{/g) || [];
+  if (switchStatements.length > 2) {
+    repetitionPenalty += Math.min(5, (switchStatements.length - 2) * 2);
+  }
+  
+  // Check for long if-else chains
+  let ifElseChainCount = 0;
+  for (let i = 0; i < lines.length - 3; i++) {
+    if (lines[i].includes("if (") && 
+        lines[i+1].includes("else if (") && 
+        lines[i+2].includes("else if (")) {
+      ifElseChainCount++;
+    }
+  }
+  
+  if (ifElseChainCount > 1) {
+    repetitionPenalty += Math.min(5, ifElseChainCount * 2);
+  }
+  
+  return repetitionPenalty;
 };
 
 // Completely revised reliability calculation with specific penalties
@@ -206,8 +262,8 @@ export const calculateReliability = (code: string, language: string): { score: n
 
   // 8. Check for single-letter variable names
   const singleLetterVariables = countSingleLetterVariables(code, language);
-    if (singleLetterVariables.variables.length > 0) {
-      singleLetterVariables.variables.forEach(variable => {
+  if (singleLetterVariables.variables.length > 0) {
+    singleLetterVariables.variables.forEach(variable => {
       reliabilityIssues.push({
         type: 'minor',
         description: `Single-letter variable '${variable.name}' found at line ${variable.line}`,
@@ -219,7 +275,6 @@ export const calculateReliability = (code: string, language: string): { score: n
     });
   }
 
-  
   // Cumulative effect for multiple issues
   if (reliabilityIssues.length > 3) {
     const additionalPenalty = Math.min(10, Math.floor(reliabilityIssues.length / 2));
@@ -399,8 +454,6 @@ const countSingleLetterVariables = (code: string, language: string): { count: nu
 
   return { count: results.length, variables: results };
 };
-
-
 
 // Extract variables that are safely bounded in loops
 const extractSafeLoopVariables = (code: string, language: string): string[] => {

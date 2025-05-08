@@ -21,11 +21,11 @@ const scoreThresholds = {
     D: 0   // D: <70
   },
   cyclomaticComplexity: {
-    // New clearer thresholds based on industry standards
+    // Revised thresholds based on industry standards (SonarQube-like)
     A: 5,   // A: ≤5 (Low complexity)
     B: 10,  // B: 6-10 (Moderate complexity)
-    C: 15,  // C: 11-15 (High complexity)
-    D: 16   // D: 16+ (Very high complexity)
+    C: 14,  // C: 11-14 (High complexity)
+    D: 15   // D: 15+ (Very high complexity)
   },
   reliability: {
     A: 90, // A: 90+ (Highly reliable)
@@ -44,21 +44,21 @@ export const getRatingFromScore = (score: number, metricType: MetricType, issues
   
   // Apply the appropriate scoring logic based on metric type
   if (metricType === 'cyclomaticComplexity') {
-    // For complexity, lower is better - using new thresholds
+    // For complexity, lower is better - using tightened thresholds
     if (score <= scoreThresholds.cyclomaticComplexity.A) {
       rating = 'A';
-      description = 'Low complexity';
+      description = `Low complexity (CC: ${score})`;
       reason = 'The code has a simple, straightforward flow with few decision points.';
       improvements = ['Continue maintaining low complexity as features are added.'];
     } else if (score <= scoreThresholds.cyclomaticComplexity.B) {
       rating = 'B';
-      description = 'Moderate complexity';
+      description = `Moderate complexity (CC: ${score})`;
       reason = 'The code has a moderate number of decision points but remains reasonably easy to understand.';
       issuesList = ['Multiple conditions increase cognitive load.'];
       improvements = ['Consider extracting complex conditions into well-named helper methods.'];
     } else if (score <= scoreThresholds.cyclomaticComplexity.C) {
       rating = 'C';
-      description = 'High complexity';
+      description = `High complexity (CC: ${score})`;
       reason = 'The code has many decision points and paths, making it harder to test fully.';
       issuesList = [
         'High number of branches and conditions',
@@ -71,7 +71,7 @@ export const getRatingFromScore = (score: number, metricType: MetricType, issues
       ];
     } else {
       rating = 'D';
-      description = 'Very high complexity';
+      description = `Very high complexity (CC: ${score})`;
       reason = 'The code has an excessive number of decision points and paths, making it difficult to understand and maintain.';
       issuesList = [
         'Extremely high number of branches and conditions',
@@ -85,47 +85,62 @@ export const getRatingFromScore = (score: number, metricType: MetricType, issues
       ];
     }
   } else if (metricType === 'maintainability') {
+    // Enhanced maintainability scoring with more specific issues and progressive penalties
+    
     // For maintainability, higher is better
     if (score >= scoreThresholds.maintainability.A) {
       rating = 'A';
       description = 'Highly maintainable';
-      reason = 'The code is well-structured, documented, and easy to modify.';
+      reason = 'The code is well-structured, modular, and follows good design principles.';
       improvements = ['Continue maintaining high code quality standards.'];
     } else if (score >= scoreThresholds.maintainability.B) {
       rating = 'B';
       description = 'Good maintainability';
       reason = 'The code is generally well-structured but has some minor issues.';
-      issuesList = ['Some areas could benefit from better documentation or structure.'];
-      improvements = ['Add more comments to complex logic', 'Consider extracting reusable components.'];
+      issuesList = [
+        'Some areas could benefit from better documentation or structure.',
+        'Minor code duplication may exist.'
+      ];
+      improvements = [
+        'Add more comments to complex logic',
+        'Extract repeated patterns into helper functions',
+        'Consider using more descriptive naming'
+      ];
     } else if (score >= scoreThresholds.maintainability.C) {
       rating = 'C';
       description = 'Moderate maintainability';
-      reason = 'The code has significant structural or documentation issues.';
+      reason = 'The code has significant structural or modularity issues.';
       issuesList = [
-        'Insufficient comments',
-        'Some functions are too large',
-        'Variable naming could be improved'
+        'Insufficient comments or documentation',
+        'Some functions are too large or have too many responsibilities',
+        'Repetitive code patterns without abstraction',
+        'Unclear variable naming in some areas'
       ];
       improvements = [
-        'Break down large functions into smaller ones',
+        'Break down large functions into smaller, single-purpose ones',
+        'Extract common functionality into shared utilities',
         'Add more comprehensive documentation',
         'Improve variable naming for clarity'
       ];
     } else {
       rating = 'D';
       description = 'Poor maintainability';
-      reason = 'The code is difficult to understand and modify.';
+      reason = 'The code lacks proper structure, contains significant duplication, or is overly complex.';
       issuesList = [
-        'Very large functions',
+        'Monolithic functions with multiple responsibilities',
         'Minimal or no comments',
         'Unclear variable names',
-        'Deep nesting of control structures'
+        'Deep nesting of control structures',
+        'Significant code duplication',
+        'Magic numbers and hardcoded values'
       ];
       improvements = [
         'Urgent refactoring recommended',
-        'Break down monolithic functions',
+        'Break down monolithic functions into smaller, focused ones',
         'Add comprehensive documentation',
-        'Restructure deeply nested code'
+        'Restructure deeply nested code',
+        'Extract duplicate code into reusable functions',
+        'Replace magic numbers with named constants'
       ];
     }
   } else { // reliability
@@ -134,6 +149,8 @@ export const getRatingFromScore = (score: number, metricType: MetricType, issues
       // Check for critical issues that should prevent an A rating
       const hasCriticalIssues = issues.some(issue => issue.type === 'critical');
       const hasMajorIssues = issues.some(issue => issue.type === 'major');
+      const hasInputValidation = issues.some(issue => issue.description.includes('input validation'));
+      const hasErrorHandling = issues.some(issue => issue.description.includes('error handling'));
       
       // Add specific issues to the list
       issuesList = issues.map(issue => issue.description);
@@ -160,6 +177,11 @@ export const getRatingFromScore = (score: number, metricType: MetricType, issues
       // Major issues should cap at 'B' at best
       if (hasMajorIssues) {
         score = Math.min(score, scoreThresholds.reliability.B);
+      }
+      
+      // Ensure code with missing input validation or error handling can't get an A
+      if (!hasInputValidation || !hasErrorHandling) {
+        score = Math.min(score, scoreThresholds.reliability.B - 1);
       }
     }
     
