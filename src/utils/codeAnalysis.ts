@@ -1,3 +1,4 @@
+
 import { CodeViolations } from '@/types';
 import { TestCase } from '@/types';
 import { ReliabilityIssue } from '@/types';
@@ -22,6 +23,16 @@ export const rules = {
   },
   noGlobalVariables: {
     enabled: true
+  },
+  nestingRules: {
+    exemptPatterns: [
+      // Functional patterns that shouldn't count as nesting
+      "\\.map\\s*\\(",
+      "\\.filter\\s*\\(",
+      "\\.reduce\\s*\\(",
+      "\\.forEach\\s*\\(",
+      "\\.then\\s*\\("
+    ]
   },
   unhandledExceptions: {
     enabled: true,
@@ -245,6 +256,35 @@ const extractNullCheckedVariables = (lines: string[], language: string): string[
   }
   
   return nullCheckedVars;
+};
+
+// Extract variables that have zero checks
+const extractZeroCheckedVariables = (lines: string[], language: string): string[] => {
+  const zeroCheckedVars: string[] = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Check for zero checks like: if (var != 0), if (var !== 0), etc.
+    const zeroCheckMatches = line.match(/if\s*\(\s*(\w+)\s*(?:!=|!==|>)\s*0\s*\)/);
+    if (zeroCheckMatches && zeroCheckMatches[1]) {
+      zeroCheckedVars.push(zeroCheckMatches[1]);
+    }
+    
+    // Check for reversed zero checks like: if (0 != var), if (0 !== var), etc.
+    const reversedZeroCheckMatches = line.match(/if\s*\(\s*0\s*(?:!=|!==|<)\s*(\w+)\s*\)/);
+    if (reversedZeroCheckMatches && reversedZeroCheckMatches[1]) {
+      zeroCheckedVars.push(reversedZeroCheckMatches[1]);
+    }
+    
+    // Check for non-zero validation before division
+    const divChecks = line.match(/if\s*\(\s*(\w+)\s*(?:!=|!==|>)\s*0\s*\)[^;]*\/\s*\1/);
+    if (divChecks && divChecks[1]) {
+      zeroCheckedVars.push(divChecks[1]);
+    }
+  }
+  
+  return zeroCheckedVars;
 };
 
 // Extract main function input parameters
@@ -781,9 +821,6 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
     }
   }
 
-  // Find try-catch blocks to avoid flagging protected code
-  const tryCatchBlocks = findTryCatchBlocks(lines);
-
   // Create a map to deduplicate similar issues
   const exceptionIssueMap = new Map<string, { count: number; lines: Set<number> }>();
 
@@ -808,14 +845,6 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
           }
 
           if (regex.test(line)) {
-            // Determine if this is a positive pattern (indicating safety) or negative (indicating risk)
-            const isPositivePattern = operation.isPositive === true;
-            
-            // For positive patterns like optional chaining, track the line but don't flag it
-            if (isPositivePattern) {
-              continue;
-            }
-            
             // Check if this line is within a try-catch block
             const isInTryCatch = tryCatchBlocks.some(block => {
               const isInBlock = i >= block.start && i <= block.end;
