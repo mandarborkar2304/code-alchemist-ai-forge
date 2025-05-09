@@ -7,6 +7,7 @@ export interface ScoreData {
   reason: string;
   issues?: string[] | ReliabilityIssue[];
   improvements?: string[];
+  warningFlag?: boolean; // New field to indicate potential scoring inconsistencies
 }
 
 export interface IssueGroup {
