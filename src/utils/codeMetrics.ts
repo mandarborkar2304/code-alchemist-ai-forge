@@ -1,52 +1,81 @@
+
 import { MetricsResult, ScoreGrade, ReliabilityIssue } from '@/types';
 
-// Constants for metric calculation and penalties
-const RUNTIME_CRITICAL_PENALTY = 5;
-const EXCEPTION_HANDLING_PENALTY = 3;
-const DEEP_NESTING_PENALTY = 3;
-const READABILITY_PENALTY = 2;
-const REDUNDANT_LOGIC_PENALTY = 1;
+// Constants for metric calculation and penalties - SonarQube aligned
+const RUNTIME_CRITICAL_PENALTY = 20;  // Higher penalty for critical bugs
+const EXCEPTION_HANDLING_PENALTY = 10; // Medium penalty for exception issues
+const DEEP_NESTING_PENALTY = 5;        // Structural issue penalty
+const READABILITY_PENALTY = 3;         // Code smells penalty
+const REDUNDANT_LOGIC_PENALTY = 2;     // Minor code smell penalty
 
-// Calculate cyclomatic complexity with industry-standard approach
+// McCabe's Cyclomatic Complexity calculation
 export const calculateCyclomaticComplexity = (code: string, language: string): number => {
-  // Calculate base complexity (1)
+  // Start with base complexity (1)
   let complexity = 1;
-
-  // Count decision points
   const lines = code.split("\n");
   
-  for (const line of lines) {
-    // Count conditional statements
-    if (line.includes("if ") || line.includes("else if") || 
-        line.includes("? ") || line.includes("case ")) {
+  // Track scope depth to properly analyze nested structures
+  let scopeDepth = 0;
+  const scopeStack: string[] = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Skip empty lines and comments
+    if (line.length === 0 || line.startsWith('//') || line.startsWith('/*') || line.startsWith('*')) {
+      continue;
+    }
+    
+    // Count all conditional statements (SonarQube-aligned)
+    if (line.includes("if ") || line.match(/}\s*else\s+if/) || 
+        line.includes("switch ") || line.includes("case ")) {
       complexity++;
     }
     
     // Count loops
     if (line.includes("for ") || line.includes("while ") || 
-        line.includes("do {") || line.includes("forEach")) {
+        line.includes("do {") || line.match(/\.\s*forEach\s*\(/)) {
       complexity++;
     }
     
-    // Count catch blocks
+    // Count each catch block
     if (line.includes("catch ")) {
       complexity++;
     }
     
-    // Count logical operators (&&, ||) that create additional paths
+    // Count logical operators that create new paths (AND, OR)
     const logicalOps = (line.match(/&&|\|\|/g) || []).length;
     complexity += logicalOps;
+    
+    // Count ternary operators
+    const ternaryOps = (line.match(/\?.*:/g) || []).length;
+    complexity += ternaryOps;
+    
+    // Track scope for more accurate analysis
+    const openBraces = (line.match(/{/g) || []).length;
+    const closeBraces = (line.match(/}/g) || []).length;
+    
+    scopeDepth += openBraces - closeBraces;
+    
+    // Handle return statements with logical conditions that short-circuit execution
+    if (scopeDepth > 0 && line.includes("return ") && 
+        (line.includes("&&") || line.includes("||"))) {
+      complexity++;
+    }
   }
   
   return complexity;
 };
 
-// Calculate maintainability with balanced scoring for SonarQube alignment
+// Calculate maintainability using a formula similar to Maintainability Index with SonarQube calibration
 export const calculateMaintainability = (code: string, language: string): number => {
-  let baseScore = 100;
+  let baseScore = 100;  // Start with perfect score
   const lines = code.split("\n");
   
-  // Count meaningful code lines (non-empty, non-comment)
+  // Calculate Halstead Volume approximation
+  const halsteadMetrics = calculateHalsteadMetrics(code);
+  
+  // Count logical lines of code (non-empty, non-comment)
   const codeLines = lines.filter(line => {
     const trimmed = line.trim();
     return trimmed.length > 0 && 
@@ -55,27 +84,32 @@ export const calculateMaintainability = (code: string, language: string): number
            !trimmed.startsWith("/*");
   }).length;
   
-  // Function count for calculation
-  const functionsCount = countFunctions(code, language);
+  // Function size analysis
+  const functionInfo = analyzeFunctionSizes(code, language);
+  const avgFunctionLength = functionInfo.avgSize;
+  const maxFunctionSize = functionInfo.maxSize;
   
-  // More balanced size penalties with reasonable thresholds
-  // Only penalize significantly when exceeding reasonable limits
-  if (codeLines > 500) baseScore -= 10;
-  else if (codeLines > 300) baseScore -= 5;
-  else if (codeLines > 150) baseScore -= 2;
-  
-  // Function length penalties with more reasonable thresholds
-  const avgFunctionLength = functionsCount > 0 ? codeLines / functionsCount : codeLines;
-  if (avgFunctionLength > 50) baseScore -= 10; // SonarQube-aligned threshold
-  else if (avgFunctionLength > 30) baseScore -= 5;
-  else if (avgFunctionLength > 20) baseScore -= 2;
-  
-  // Nesting depth penalties with reasonable thresholds
+  // Calculate nesting depth
   const maxNestingDepth = calculateMaxNestingDepth(code);
-  if (maxNestingDepth > 4) baseScore -= 8; // Only penalize significantly for excessive nesting
-  else if (maxNestingDepth > 3) baseScore -= 3; // Moderate penalty for deeper nesting
-
-  // Comment density with more lenient approach
+  
+  // Maintainability metrics with SonarQube-aligned thresholds
+  
+  // 1. Size penalties
+  if (codeLines > 1000) baseScore -= 15; 
+  else if (codeLines > 500) baseScore -= 10;
+  else if (codeLines > 250) baseScore -= 5;
+  
+  // 2. Function size penalties
+  if (maxFunctionSize > 100) baseScore -= 15;  // SonarQube critical threshold
+  else if (maxFunctionSize > 60) baseScore -= 10; // SonarQube major threshold
+  else if (maxFunctionSize > 30) baseScore -= 5;  // SonarQube minor threshold
+  
+  // 3. Nesting depth penalties
+  if (maxNestingDepth > 5) baseScore -= 15;  // SonarQube critical threshold
+  else if (maxNestingDepth > 4) baseScore -= 10; // SonarQube major threshold
+  else if (maxNestingDepth > 3) baseScore -= 5;  // SonarQube minor threshold
+  
+  // 4. Comment density (prefer quality over quantity)
   const commentLines = lines.filter(line => {
     const trimmed = line.trim();
     return trimmed.startsWith("//") || 
@@ -84,91 +118,231 @@ export const calculateMaintainability = (code: string, language: string): number
   }).length;
   
   const commentRatio = codeLines > 0 ? commentLines / codeLines : 0;
-  if (commentRatio < 0.05 && codeLines > 100) baseScore -= 3; // Only penalize large files with few comments
-  else if (commentRatio < 0.1 && codeLines > 200) baseScore -= 2;
   
-  // Magic number penalties - more targeted approach
-  const magicNumbers = findMagicNumbers(code);
-  if (magicNumbers.length > 10) baseScore -= 5;
-  else if (magicNumbers.length > 5) baseScore -= 3;
-  else if (magicNumbers.length > 2) baseScore -= 1;
+  // SonarQube-like approach to comment coverage
+  if (commentRatio < 0.05 && codeLines > 100) baseScore -= 5;
   
-  // Single-letter variable penalties - reduced impact
-  const singleLetterVarCount = countSingleLetterVariables(code, language);
-  if (singleLetterVarCount.count > 8) baseScore -= 4;
-  else if (singleLetterVarCount.count > 4) baseScore -= 2;
-  else if (singleLetterVarCount.count > 2) baseScore -= 1;
+  // 5. Halstead volume penalties
+  if (halsteadMetrics.volume > 8000) baseScore -= 10;  // Very high complexity
+  else if (halsteadMetrics.volume > 4000) baseScore -= 5; // High complexity
   
-  // Code repetition check - less aggressive penalties
-  const repetitionScore = checkCodeRepetition(code, language);
-  baseScore -= Math.min(10, repetitionScore); // Cap the repetition penalty at 10 points
+  // 6. Cyclomatic complexity contribution to maintainability
+  const complexityScore = calculateCyclomaticComplexity(code, language);
+  if (complexityScore > 30) baseScore -= 15;
+  else if (complexityScore > 20) baseScore -= 10;
+  else if (complexityScore > 10) baseScore -= 5;
+  
+  // 7. Code duplication penalties
+  const codeRepetitionPenalty = calculateCodeRepetitionPenalty(code, language);
+  baseScore -= codeRepetitionPenalty;
+  
+  // 8. Variable naming quality
+  const namingPenalty = calculateNamingQualityPenalty(code, language);
+  baseScore -= namingPenalty;
   
   // Ensure score is within bounds
   return Math.max(0, Math.min(100, baseScore));
 };
 
-// Helper function to check for code repetition patterns with reduced penalties
-const checkCodeRepetition = (code: string, language: string): number => {
-  let repetitionPenalty = 0;
-  const lines = code.split("\n");
+// Helper function to calculate an approximation of Halstead metrics
+const calculateHalsteadMetrics = (code: string): { volume: number } => {
+  // Count operators and operands
+  const operatorPatterns = [
+    /[+\-*/%=&|^<>!~?:]/g,  // Basic operators
+    /\+\+|--|&&|\|\||\+=|-=|\*=|\/=|%=|<<=|>>=|&=|\|=|\^=/g, // Compound operators
+    /for|if|while|do|switch|return|throw|try|catch|new|delete|typeof|instanceof|void|yield|await/g // Keywords as operators
+  ];
   
-  // Check for repeated blocks of 4+ lines (increased threshold)
-  const blockSize = 4;
+  let operators = 0;
+  operatorPatterns.forEach(pattern => {
+    const matches = code.match(pattern);
+    if (matches) operators += matches.length;
+  });
+  
+  // Approximate operands (variables, literals, etc.)
+  const operandPatterns = [
+    /\b[a-zA-Z_][a-zA-Z0-9_]*\b/g,  // Identifiers
+    /\b\d+(\.\d+)?\b/g,  // Number literals
+    /"([^"\\]|\\[^"])*"|'([^'\\]|\\[^'])*'|`([^`\\]|\\[^`])*`/g  // String literals
+  ];
+  
+  let operands = 0;
+  operandPatterns.forEach(pattern => {
+    const matches = code.match(pattern);
+    if (matches) operands += matches.length;
+  });
+  
+  const n1 = Math.max(1, operators); // number of unique operators
+  const n2 = Math.max(1, operands);  // number of unique operands
+  const N1 = operators;              // total operators
+  const N2 = operands;               // total operands
+  
+  // Calculate Halstead volume: (N1 + N2) * log2(n1 + n2)
+  const volume = (N1 + N2) * Math.log2(n1 + n2);
+  
+  return { volume };
+};
+
+// Helper to analyze function sizes
+const analyzeFunctionSizes = (code: string, language: string): { avgSize: number, maxSize: number } => {
+  const lines = code.split('\n');
+  const functionRanges: { start: number, end: number }[] = [];
+  
+  let inFunction = false;
+  let functionStart = 0;
+  let braceCount = 0;
+  
+  // Simple function detection heuristic
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Function start detection
+    if (!inFunction && 
+        (line.match(/function\s+\w+\s*\(/) || 
+         line.match(/\w+\s*=\s*function\s*\(/) ||
+         line.match(/\w+\s*:\s*function\s*\(/) ||
+         line.match(/\w+\s*\([^)]*\)\s*{/) ||
+         line.match(/\w+\s*=\s*\([^)]*\)\s*=>/) ||
+         line.match(/\w+\s*=>\s*{/))) {
+      inFunction = true;
+      functionStart = i;
+      braceCount = 0;
+    }
+    
+    // Count braces to track function body
+    if (inFunction) {
+      braceCount += (line.match(/{/g) || []).length;
+      braceCount -= (line.match(/}/g) || []).length;
+      
+      // Function end detection
+      if (braceCount === 0 && line.includes('}')) {
+        functionRanges.push({ start: functionStart, end: i });
+        inFunction = false;
+      }
+    }
+  }
+  
+  // Calculate function sizes
+  const functionSizes = functionRanges.map(range => range.end - range.start + 1);
+  const totalFunctionLines = functionSizes.reduce((sum, size) => sum + size, 0);
+  const maxSize = functionSizes.length > 0 ? Math.max(...functionSizes) : 0;
+  const avgSize = functionSizes.length > 0 ? totalFunctionLines / functionSizes.length : 0;
+  
+  return { avgSize, maxSize };
+};
+
+// Calculate the maximum nesting depth
+const calculateMaxNestingDepth = (code: string): number => {
+  const lines = code.split('\n');
+  let maxDepth = 0;
+  let currentDepth = 0;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Count only control structure nesting, not all braces
+    if (line.match(/\b(if|for|while|switch|catch)\b.*{/) || 
+        (line.includes('{') && line.includes('function'))) {
+      currentDepth++;
+      maxDepth = Math.max(maxDepth, currentDepth);
+    } 
+    else if (line.includes('}')) {
+      // Only decrease depth if we're likely closing a control structure
+      // This is a simplification; a real parser would be more accurate
+      if (currentDepth > 0 && !line.match(/{.*}/)) {
+        currentDepth--;
+      }
+    }
+  }
+  
+  return maxDepth;
+};
+
+// Calculate code repetition penalty (simplified duplication analysis)
+const calculateCodeRepetitionPenalty = (code: string, language: string): number => {
+  let penalty = 0;
+  const lines = code.split('\n');
+  
+  // Check for repeated blocks with at least 5 lines
+  const blockSize = 5;
   const blocks = new Map<string, number>();
   
   for (let i = 0; i <= lines.length - blockSize; i++) {
-    const block = lines.slice(i, i + blockSize).join("\n").trim();
-    if (block.length > 20) { // Ignore small blocks
+    const block = lines.slice(i, i + blockSize).join('\n').trim();
+    if (block.length > 30) { // Ignore trivial blocks
       blocks.set(block, (blocks.get(block) || 0) + 1);
     }
   }
   
-  // Count repeated blocks with proportional penalty
-  let repeatedBlocks = 0;
+  // Calculate duplication penalty
+  let duplicationRate = 0;
+  let duplicatedLines = 0;
+  
   blocks.forEach((count, block) => {
     if (count > 1) {
-      repeatedBlocks += count - 1; // -1 because one occurrence is fine
+      // Count duplicated lines (minus 1 for the first occurrence)
+      const linesInBlock = block.split('\n').length;
+      duplicatedLines += linesInBlock * (count - 1);
     }
   });
   
-  // Apply more lenient penalty (1 point per repetition)
-  repetitionPenalty += Math.min(6, repeatedBlocks);
+  // Calculate duplication percentage
+  duplicationRate = lines.length > 0 ? (duplicatedLines / lines.length) * 100 : 0;
   
-  // Check for switch statements - reduced penalties
-  const switchStatements = code.match(/switch\s*\([^)]+\)\s*{/g) || [];
-  if (switchStatements.length > 3) { // Only penalize excessive switch usage
-    repetitionPenalty += Math.min(3, (switchStatements.length - 3));
-  }
+  // SonarQube-aligned duplication penalties
+  if (duplicationRate > 20) penalty += 15;  // Critical duplication
+  else if (duplicationRate > 10) penalty += 10; // Significant duplication
+  else if (duplicationRate > 5) penalty += 5;   // Moderate duplication
   
-  // Check for long if-else chains - reduced penalties
-  let ifElseChainCount = 0;
-  for (let i = 0; i < lines.length - 4; i++) {
-    if (lines[i].includes("if (") && 
-        lines[i+1].includes("else if (") && 
-        lines[i+2].includes("else if (") &&
-        lines[i+3].includes("else if (")) {
-      ifElseChainCount++; // Only count chains of 4+ conditions
-    }
-  }
-  
-  if (ifElseChainCount > 1) {
-    repetitionPenalty += Math.min(4, ifElseChainCount);
-  }
-  
-  return repetitionPenalty;
+  return penalty;
 };
 
-// Completely revised reliability calculation with specific penalties
+// Calculate naming quality penalties
+const calculateNamingQualityPenalty = (code: string, language: string): number => {
+  let penalty = 0;
+  
+  // Count single-letter variables (excluding common loop counters)
+  const singleLetterVars = countSingleLetterVariables(code, language);
+  
+  // Count inconsistent naming conventions
+  const namingInconsistencies = detectNamingInconsistencies(code, language);
+  
+  // Apply penalties based on SonarQube-like rules
+  if (singleLetterVars.count > 8) penalty += 5;
+  else if (singleLetterVars.count > 4) penalty += 3;
+  else if (singleLetterVars.count > 2) penalty += 1;
+  
+  if (namingInconsistencies > 5) penalty += 5;
+  else if (namingInconsistencies > 2) penalty += 3;
+  else if (namingInconsistencies > 0) penalty += 1;
+  
+  return penalty;
+};
+
+// Comprehensive reliability calculation aligned with SonarQube bug detection
 export const calculateReliability = (code: string, language: string): { score: number, issues: ReliabilityIssue[] } => {
   let baseScore = 100;
-  const lines = code.split('\n');
   const reliabilityIssues: ReliabilityIssue[] = [];
+  const lines = code.split('\n');
   
-  // Detect critical runtime issues
+  // 1. Null pointer / undefined checks
+  detectNullDereference(code, language).forEach(issue => {
+    reliabilityIssues.push({
+      type: 'critical',
+      description: `Potential null/undefined reference at line ${issue.line}`,
+      impact: RUNTIME_CRITICAL_PENALTY,
+      category: 'runtime',
+      line: issue.line
+    });
+    baseScore -= RUNTIME_CRITICAL_PENALTY;
+  });
   
-  // 1. Check for potential divide-by-zero
+  // 2. Detect divide by zero
   lines.forEach((line, index) => {
-    if (line.match(/\/\s*0/) || line.match(/\/\s*[a-zA-Z_][a-zA-Z0-9_]*\s*(?!\s*[!=><])/) && !line.includes("!= 0") && !line.includes("!== 0")) {
+    if (line.match(/\/\s*0/) || 
+        (line.match(/\/\s*[a-zA-Z_][a-zA-Z0-9_]*\s*(?!\s*[!=><])/) && 
+         !line.includes("!= 0") && !line.includes("!== 0") && 
+         !line.includes("> 0"))) {
       reliabilityIssues.push({
         type: 'critical',
         description: 'Potential divide by zero',
@@ -180,14 +354,14 @@ export const calculateReliability = (code: string, language: string): { score: n
     }
   });
   
-  // 2. Check for unchecked array access
+  // 3. Unchecked array access
   const safeLoopVariables = extractSafeLoopVariables(code, language);
-  const unsafeAccesses = findUnsafeArrayAccesses(code, language, safeLoopVariables);
+  const unsafeArrayAccesses = detectUnsafeArrayAccesses(code, language, safeLoopVariables);
   
-  unsafeAccesses.forEach(access => {
+  unsafeArrayAccesses.forEach(access => {
     reliabilityIssues.push({
-      type: 'critical',
-      description: `Unchecked array access using ${access.indexVar} at line ${access.line}`,
+      type: 'major',
+      description: `Unchecked array access using ${access.indexVar}`,
       impact: RUNTIME_CRITICAL_PENALTY,
       category: 'runtime',
       line: access.line
@@ -195,26 +369,39 @@ export const calculateReliability = (code: string, language: string): { score: n
     baseScore -= RUNTIME_CRITICAL_PENALTY;
   });
   
-  // 3. Check for uncaught exceptions in risky operations
-  if (hasRiskyOperations(code, language) && !hasAppropriateErrorHandling(code, language)) {
+  // 4. Detect resource leaks
+  const resourceLeaks = detectResourceLeaks(code, language);
+  resourceLeaks.forEach(leak => {
+    reliabilityIssues.push({
+      type: 'major',
+      description: `Potential resource leak: ${leak.resource}`,
+      impact: EXCEPTION_HANDLING_PENALTY,
+      category: 'runtime',
+      line: leak.line
+    });
+    baseScore -= EXCEPTION_HANDLING_PENALTY;
+  });
+  
+  // 5. Improper exception handling
+  if (hasRiskyOperations(code, language) && !hasAdequateErrorHandling(code, language)) {
     const riskyLines = findRiskyOperationLines(code, language);
     riskyLines.forEach(lineNum => {
       reliabilityIssues.push({
         type: 'major',
-        description: `Risky operation without proper error handling at line ${lineNum}`,
+        description: `Risky operation without proper error handling`,
         impact: EXCEPTION_HANDLING_PENALTY,
         category: 'exception',
         line: lineNum
       });
     });
-    baseScore -= EXCEPTION_HANDLING_PENALTY * Math.min(3, riskyLines.length); // Cap the penalty
+    baseScore -= EXCEPTION_HANDLING_PENALTY * Math.min(3, riskyLines.length);
   }
   
-  // 4. Check for deep nesting
+  // 6. Deep nesting
   const nestingDepth = calculateMaxNestingDepth(code);
   if (nestingDepth > 5) {
     reliabilityIssues.push({
-      type: 'major',
+      type: 'minor',
       description: `Excessive nesting depth of ${nestingDepth} levels`,
       impact: DEEP_NESTING_PENALTY,
       category: 'structure'
@@ -222,32 +409,20 @@ export const calculateReliability = (code: string, language: string): { score: n
     baseScore -= DEEP_NESTING_PENALTY;
   }
   
-  // 5. Check for magic numbers
-  const magicNumbers = findMagicNumbers(code);
-  if (magicNumbers.length > 0) {
+  // 7. Detect dead code and unreachable branches (simplified)
+  const deadCodeIssues = detectDeadCode(code, language);
+  deadCodeIssues.forEach(issue => {
     reliabilityIssues.push({
       type: 'minor',
-      description: `${magicNumbers.length} magic numbers found`,
+      description: issue.description,
       impact: READABILITY_PENALTY,
-      category: 'readability'
-    });
-    baseScore -= Math.min(READABILITY_PENALTY, Math.floor(magicNumbers.length / 3));
-  }
-  
-  // 6. Check for redundant logic
-  const redundantPatterns = findRedundantPatterns(code, language);
-  redundantPatterns.forEach(pattern => {
-    reliabilityIssues.push({
-      type: 'minor',
-      description: pattern.description,
-      impact: REDUNDANT_LOGIC_PENALTY,
       category: 'structure',
-      line: pattern.line
+      line: issue.line
     });
-    baseScore -= REDUNDANT_LOGIC_PENALTY;
+    baseScore -= READABILITY_PENALTY;
   });
   
-  // 7. Check for missing input validation
+  // 8. Check for input validation
   if (hasUserInput(code, language) && !hasInputValidation(code, language)) {
     reliabilityIssues.push({
       type: 'major',
@@ -257,256 +432,85 @@ export const calculateReliability = (code: string, language: string): { score: n
     });
     baseScore -= EXCEPTION_HANDLING_PENALTY;
   }
-
-  // 8. Check for single-letter variable names
-  const singleLetterVariables = countSingleLetterVariables(code, language);
-  if (singleLetterVariables.variables.length > 0) {
-    singleLetterVariables.variables.forEach(variable => {
-      reliabilityIssues.push({
-        type: 'minor',
-        description: `Single-letter variable '${variable.name}' found at line ${variable.line}`,
-        impact: READABILITY_PENALTY,  
-        category: 'readability',
-        line: variable.line
-      });
-      baseScore -= READABILITY_PENALTY;
-    });
-  }
-
-  // Cumulative effect for multiple issues
-  if (reliabilityIssues.length > 3) {
-    const additionalPenalty = Math.min(10, Math.floor(reliabilityIssues.length / 2));
-    baseScore -= additionalPenalty;
-  }
   
-  // Ensure the score doesn't go below 0
-  const finalScore = Math.max(0, baseScore);
-  
-  return { 
-    score: finalScore,
+  // Ensure score doesn't go below 0
+  return {
+    score: Math.max(0, baseScore),
     issues: reliabilityIssues
   };
 };
 
-// Get code metrics with updated properties
-export const getCodeMetrics = (code: string, language: string): MetricsResult => {
-  const lines = code.split('\n');
-  const codeLines = lines.filter(line => line.trim().length > 0).length;
-  
-  const functionCount = countFunctions(code, language);
-  const avgFunctionLength = functionCount > 0 ? 
-    lines.length / functionCount : lines.length;
-  
-  const commentLines = lines.filter(line => {
-    const trimmed = line.trim();
-    return trimmed.startsWith('//') || 
-           trimmed.startsWith('/*') ||
-           trimmed.startsWith('*');
-  }).length;
-  
-  const commentPercentage = (commentLines / Math.max(1, lines.length)) * 100;
-  
-  const maxNesting = calculateMaxNestingDepth(code);
-  
-  const complexityScore = calculateCyclomaticComplexity(code, language);
-  
-  return {
-    linesOfCode: lines.length,
-    codeLines,
-    commentLines,
-    commentPercentage,
-    functionCount,
-    averageFunctionLength: avgFunctionLength,
-    maxNestingDepth: maxNesting,
-    cyclomaticComplexity: complexityScore,
-  };
-};
-
-// Helper function to convert score to letter grade
-export const scoreToGrade = (score: number): ScoreGrade => {
-  if (score >= 90) return 'A';
-  if (score >= 80) return 'B';
-  if (score >= 70) return 'C';
-  return 'D';
-};
-
-// Helper functions for reliability assessment
-
-// Count functions in code
-const countFunctions = (code: string, language: string): number => {
-  const lines = code.split('\n');
-  let count = 0;
-  
-  for (const line of lines) {
-    // Match function declarations based on language
-    if (language === 'java') {
-      if (/(?:public|private|protected)(?:\s+static)?\s+\w+\s+\w+\s*\([^)]*\)\s*\{/.test(line)) {
-        count++;
-      }
-    } else {
-      // JavaScript/TypeScript function detection
-      if (/function\s+\w+\s*\(/.test(line) || 
-          /const\s+\w+\s*=\s*(?:async\s*)?\([^)]*\)\s*=>/.test(line) ||
-          /^\s*\w+\s*\([^)]*\)\s*\{/.test(line)) {
-        count++;
-      }
-    }
-  }
-  
-  return Math.max(1, count); // At least 1 function
-};
-
-// Count logical blocks (if, for, while, etc.)
-const countLogicalBlocks = (code: string): number => {
-  const blockMatches = code.match(/if\s*\(|for\s*\(|while\s*\(|switch\s*\(|case\s+|else\s*\{|try\s*\{|catch\s*\(/g);
-  return blockMatches ? blockMatches.length : 1; // At least 1 block
-};
-
-// Calculate maximum nesting depth
-const calculateMaxNestingDepth = (code: string): number => {
-  const lines = code.split('\n');
-  let maxDepth = 0;
-  let currentDepth = 0;
-  
-  for (const line of lines) {
-    const openBraces = (line.match(/{/g) || []).length;
-    const closingBraces = (line.match(/}/g) || []).length;
-    
-    currentDepth += openBraces - closingBraces;
-    maxDepth = Math.max(maxDepth, currentDepth);
-  }
-  
-  return maxDepth;
-};
-
-// Find magic numbers (non-standard hardcoded literals)
-const findMagicNumbers = (code: string): { value: string, line: number }[] => {
-  const results: { value: string, line: number }[] = [];
+// Helper function to detect null/undefined dereferences
+const detectNullDereference = (code: string, language: string): { line: number }[] => {
+  const results: { line: number }[] = [];
   const lines = code.split('\n');
   
   lines.forEach((line, index) => {
-    // Exclude common safe numbers like 0, 1, 2 and numbers in strings
-    const magicNumberMatches = line.match(/(?<!\w|\.|-|"|'|`)\s*-?[3-9]\d*(?!\w|\.|-|"|'|`)/g);
-    
-    // Exclude numbers in variable declarations, array indices, and common patterns
-    if (magicNumberMatches && 
-        !line.includes('for') && 
-        !line.includes('case') && 
-        !line.includes('const') && 
-        !line.includes('=')) {
-      magicNumberMatches.forEach(match => {
-        results.push({
-          value: match.trim(),
-          line: index + 1
-        });
-      });
+    // Match patterns like obj.property without a preceding null check
+    const matches = line.match(/(\w+)\.(\w+)/g);
+    if (matches) {
+      for (const match of matches) {
+        const objectName = match.split('.')[0];
+        
+        // Check if this variable was checked for null/undefined in this or previous lines
+        const wasChecked = lines.slice(0, index + 1).some(prevLine => 
+          prevLine.includes(`${objectName} !==`) || 
+          prevLine.includes(`${objectName} !=`) || 
+          prevLine.includes(`typeof ${objectName}`) ||
+          prevLine.includes(`if (${objectName})`) ||
+          prevLine.includes(`if(!${objectName})`)
+        );
+        
+        // Exclude console.log and common safe patterns
+        const isSafePattern = 
+          match.startsWith('console.') ||
+          match.startsWith('Math.') || 
+          match.startsWith('Object.') ||
+          match.startsWith('Array.');
+          
+        if (!wasChecked && !isSafePattern && objectName !== 'this') {
+          results.push({ line: index + 1 });
+          break; // Only report one issue per line
+        }
+      }
     }
   });
   
   return results;
 };
 
-// Count single-letter variable declarations, tuned per language
-const countSingleLetterVariables = (code: string, language: string): { count: number, variables: { name: string, line: number }[] } => {
-  const results: { name: string, line: number }[] = [];
-  const lines = code.split('\n');
-
-  lines.forEach((line, index) => {
-    let match: RegExpMatchArray[] = [];
-
-    switch (language.toLowerCase()) {
-      case 'javascript':
-      case 'typescript':
-        match = [...line.matchAll(/\b(?:let|const|var)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=|;|\s)/g)];
-        break;
-
-      case 'java':
-        match = [...line.matchAll(/\b(?:int|float|double|char|String|long|short|boolean)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=|;|\s)/g)];
-        break;
-
-      case 'c':
-      case 'c++':
-        match = [...line.matchAll(/\b(?:int|float|double|char|long|short|unsigned|signed|void)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=|;|\s)/g)];
-        break;
-
-      case 'python':
-        // Avoid matches in function definitions, loops, imports, and class definitions
-        if (!/^\s*(def|class|for|while|if|elif|else|try|except|import|from)\b/.test(line)) {
-          match = [...line.matchAll(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*[^=]/g)];
-        }
-        break;
-
-      default:
-        // Generic fallback (assumes common `let`, `var`, or `type name =`)
-        match = [...line.matchAll(/\b(?:let|const|var|int|float|char|string)\s+([a-zA-Z_][a-zA-Z0-9_]*)/g)];
-        break;
-    }
-
-    match.forEach(m => {
-      const variableName = m[1];
-      if (variableName.length === 1 && /^[a-zA-Z_]$/.test(variableName)) {
-        results.push({ name: variableName, line: index + 1 });
-      }
-    });
-  });
-
-  return { count: results.length, variables: results };
-};
-
-// Extract variables that are safely bounded in loops
-const extractSafeLoopVariables = (code: string, language: string): string[] => {
-  const safeVars: string[] = [];
-  const lines = code.split('\n');
-  
-  // Extract bounded loop indices
-  for (const line of lines) {
-    if (line.includes('for')) {
-      // Regular for loops with explicit bounds
-      const forMatch = line.match(/for\s*\(\s*(?:let|var|const|int)\s+(\w+)\s*=.*?;\s*\1\s*<(?:=)?\s*(?:\w+).*?;\s*\1\s*(?:\+\+|--|\+=)/);
-      if (forMatch && forMatch[1]) {
-        safeVars.push(forMatch[1]);
-      }
-      
-      // For-of loops are safe for array access
-      const forOfMatch = line.match(/for\s*\(\s*(?:let|var|const|int)\s+(\w+)\s+of\s+(\w+)/);
-      if (forOfMatch && forOfMatch[1]) {
-        safeVars.push(forOfMatch[1]);
-      }
-    }
-  }
-  
-  return safeVars;
-};
-
-// Find unsafe array accesses
-const findUnsafeArrayAccesses = (code: string, language: string, safeVariables: string[]): { indexVar: string, line: number }[] => {
+// Detect unsafe array accesses
+const detectUnsafeArrayAccesses = (code: string, language: string, safeVariables: string[]): { indexVar: string, line: number }[] => {
   const results: { indexVar: string, line: number }[] = [];
   const lines = code.split('\n');
   
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
-    // Skip array access within loop headers, which is generally safe
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Skip array access in loop headers (typically safe)
     if (line.includes('for') && line.includes(';')) {
       continue;
     }
     
-    // Match array accesses with variable index
+    // Find array access with variable index
     const arrayAccessMatches = line.match(/\w+\s*\[\s*(\w+)\s*\]/g);
     if (arrayAccessMatches) {
       for (const match of arrayAccessMatches) {
         const indexVarMatch = match.match(/\[\s*(\w+)\s*\]/);
         if (indexVarMatch && indexVarMatch[1]) {
           const indexVar = indexVarMatch[1];
-          // Only count as unsafe if not a safe loop variable, not a number literal,
-          // and not checked with bounds validation in the same line
+          
+          // Check if variable is used safely
           if (!safeVariables.includes(indexVar) && 
-              !/^\d+$/.test(indexVar) &&
-              !line.includes(`${indexVar} < `) &&
-              !line.includes(`${indexVar} <= `) &&
-              !line.includes('length')) {
+              !/^\d+$/.test(indexVar) && 
+              !line.includes(`${indexVar} < `) && 
+              !line.includes(`${indexVar} <= `) && 
+              !line.includes('length') && 
+              !line.includes('?.') && // Optional chaining
+              !line.includes('||')) {  // Default value
             results.push({
               indexVar,
-              line: index + 1
+              line: i + 1
             });
           }
         }
@@ -517,18 +521,130 @@ const findUnsafeArrayAccesses = (code: string, language: string, safeVariables: 
   return results;
 };
 
+// Extract variables that are safely bounded in loops
+const extractSafeLoopVariables = (code: string, language: string): string[] => {
+  const safeVars: string[] = [];
+  const lines = code.split('\n');
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    if (line.includes('for')) {
+      // Standard for loops with bounds check
+      const forMatch = line.match(/for\s*\(\s*(?:let|var|const|int)\s+(\w+)\s*=.*?;\s*\1\s*<(?:=)?\s*(?:\w+|\w+\.\w+).*?;\s*\1\s*(?:\+\+|--|\+=)/);
+      if (forMatch && forMatch[1]) {
+        safeVars.push(forMatch[1]);
+      }
+      
+      // For-of loops (safe for array access)
+      const forOfMatch = line.match(/for\s*\(\s*(?:let|var|const)\s+(\w+)\s+of\s+(\w+)/);
+      if (forOfMatch && forOfMatch[1]) {
+        safeVars.push(forOfMatch[1]);
+      }
+      
+      // For-in loops
+      const forInMatch = line.match(/for\s*\(\s*(?:let|var|const)\s+(\w+)\s+in\s+(\w+)/);
+      if (forInMatch && forInMatch[1]) {
+        safeVars.push(forInMatch[1]);
+      }
+    }
+  }
+  
+  return safeVars;
+};
+
+// Detect potential resource leaks
+const detectResourceLeaks = (code: string, language: string): { resource: string, line: number }[] => {
+  const results: { resource: string, line: number }[] = [];
+  const lines = code.split('\n');
+  
+  // Resource creation patterns that may need explicit cleanup
+  const resourcePatterns = [
+    { regex: /new FileReader|new FileWriter|createReadStream|createWriteStream/, type: 'file handle' },
+    { regex: /new Socket|createServer|connect\(/, type: 'network connection' },
+    { regex: /new XMLHttpRequest|fetch\(/, type: 'HTTP connection' },
+    { regex: /navigator\.getUserMedia|navigator\.mediaDevices\.getUserMedia/, type: 'media stream' }
+  ];
+  
+  // Track resource variables
+  const resourceVars: { name: string, type: string, line: number }[] = [];
+  
+  // Find resource creation
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    resourcePatterns.forEach(pattern => {
+      if (pattern.regex.test(line)) {
+        // Try to extract variable name
+        const assignMatch = line.match(/(?:const|let|var)\s+(\w+)\s*=/);
+        if (assignMatch && assignMatch[1]) {
+          resourceVars.push({ 
+            name: assignMatch[1],
+            type: pattern.type, 
+            line: i + 1 
+          });
+        } else {
+          // Resource created but not stored in tracked variable
+          results.push({
+            resource: pattern.type,
+            line: i + 1
+          });
+        }
+      }
+    });
+  }
+  
+  // Check if resources are properly closed
+  resourceVars.forEach(resource => {
+    const isProperlyHandled = lines.some(line => 
+      line.includes(`${resource.name}.close()`) ||
+      line.includes(`${resource.name}.destroy()`) ||
+      line.includes(`${resource.name}.dispose()`) ||
+      line.includes(`${resource.name}.release()`) ||
+      line.includes(`try`) && line.includes(`finally`) && line.includes(resource.name)
+    );
+    
+    if (!isProperlyHandled) {
+      results.push({
+        resource: resource.type,
+        line: resource.line
+      });
+    }
+  });
+  
+  return results;
+};
+
 // Check if code has risky operations
 const hasRiskyOperations = (code: string, language: string): boolean => {
   const riskyPatterns = [
-    /\.parse\(/, // JSON.parse or similar
-    /new FileReader|new Scanner/, // File operations
-    /fetch\(|axios\.|http\./, // Network requests
-    /\/\s*[a-zA-Z_][a-zA-Z0-9_]*\s*(?!\s*[!=><])/, // Division by variable without zero check
-    /throw\s+new\s+\w+/, // Explicit throws
-    /\.substring\(\s*\d+\s*\)|\.charAt\(\s*\d+\s*\)/ // String operations without bounds check
+    /\.parse\(/,                     // JSON.parse or similar
+    /new FileReader|readFileSync/,   // File operations
+    /fetch\(|axios\.|http\.|https:/, // Network requests
+    /localStorage\.|sessionStorage\./, // Browser storage
+    /new Promise/,                   // Promise creation
+    /\.catch\(/,                     // Existing catch suggests risk
+    /throw\s+new\s+\w+/              // Explicit throws
   ];
   
   return riskyPatterns.some(pattern => pattern.test(code));
+};
+
+// Check if adequate error handling exists
+const hasAdequateErrorHandling = (code: string, language: string): boolean => {
+  // SonarQube-aligned error handling checks
+  const hasTryCatch = code.includes('try') && code.includes('catch');
+  
+  // Error objects or promise rejections
+  const hasErrorHandling = /\.catch\s*\(|throw\s+new\s+\w+|instanceof\s+Error/.test(code);
+  
+  // Explicit error return patterns
+  const hasErrorReturns = /return\s+(?:null|undefined|false|err|\{.*?error|\{\s*success:\s*false)/.test(code);
+  
+  // Error logging
+  const hasErrorLogging = /console\.error|logger\.error/.test(code);
+  
+  return hasTryCatch || (hasErrorHandling && (hasErrorReturns || hasErrorLogging));
 };
 
 // Find lines with risky operations
@@ -538,11 +654,10 @@ const findRiskyOperationLines = (code: string, language: string): number[] => {
   
   const riskyPatterns = [
     /\.parse\(/,
-    /new FileReader|new Scanner/,
+    /new FileReader|readFileSync/,
     /fetch\(|axios\.|http\./,
-    /\/\s*[a-zA-Z_][a-zA-Z0-9_]*\s*(?!\s*[!=><])/,
-    /throw\s+new\s+\w+/,
-    /\.substring\(\s*\d+\s*\)|\.charAt\(\s*\d+\s*\)/
+    /localStorage\.|sessionStorage\./,
+    /new Promise/
   ];
   
   lines.forEach((line, index) => {
@@ -556,51 +671,60 @@ const findRiskyOperationLines = (code: string, language: string): number[] => {
   return results;
 };
 
-// Check for appropriate error handling
-const hasAppropriateErrorHandling = (code: string, language: string): boolean => {
-  // Check if there are try-catch blocks
-  const hasTryCatch = code.includes('try') && code.includes('catch');
-  
-  // Check if there are error objects being thrown
-  const hasErrorThrows = /throw\s+new\s+\w+/.test(code);
-  
-  // Check for error return patterns
-  const hasErrorReturnPattern = /return\s+(?:null|undefined|false|err|\{.*?error|\{\s*success:\s*false)/.test(code);
-  
-  return hasTryCatch || (hasErrorThrows && hasErrorReturnPattern);
-};
-
-// Find redundant patterns in code
-const findRedundantPatterns = (code: string, language: string): { description: string, line: number }[] => {
+// Detect probable dead code segments
+const detectDeadCode = (code: string, language: string): { description: string, line: number }[] => {
   const results: { description: string, line: number }[] = [];
   const lines = code.split('\n');
   
-  // Check for redundant if-else patterns
-  let prevCondition = '';
+  // Pattern 1: Code after return/break/continue
+  for (let i = 0; i < lines.length - 1; i++) {
+    const line = lines[i].trim();
+    const nextLine = lines[i + 1].trim();
+    
+    if (line.match(/^\s*return\s+.*;$/) || 
+        line === 'return;' || 
+        line === 'break;' || 
+        line === 'continue;') {
+      
+      // Check if next line is not a closing brace, comment, or empty
+      if (nextLine !== '}' && 
+          !nextLine.startsWith('//') && 
+          !nextLine.startsWith('/*') &&
+          nextLine !== '') {
+        
+        // Check indentation to ensure they're in the same block
+        const currentIndent = lines[i].length - lines[i].trimLeft().length;
+        const nextIndent = lines[i + 1].length - lines[i + 1].trimLeft().length;
+        
+        if (nextIndent >= currentIndent) {
+          results.push({
+            description: 'Unreachable code after control flow statement',
+            line: i + 2  // +2 because we're reporting the line after return
+          });
+        }
+      }
+    }
+  }
+  
+  // Pattern 2: Conditions that are always true/false
   lines.forEach((line, index) => {
-    // Check for identical consecutive if conditions
-    const ifMatch = line.match(/if\s*\((.*?)\)/);
-    if (ifMatch && ifMatch[1] === prevCondition && prevCondition !== '') {
+    // Check for common patterns like if (true), if (false)
+    if (line.includes('if (true)') || line.includes('if(true)')) {
       results.push({
-        description: 'Redundant condition check',
+        description: 'Condition is always true',
         line: index + 1
       });
-    }
-    if (ifMatch) prevCondition = ifMatch[1];
-    
-    // Check for negated conditions in else-if that could be simplified
-    if (line.includes('else if') && line.includes('!')) {
+    } else if (line.includes('if (false)') || line.includes('if(false)')) {
       results.push({
-        description: 'Negated condition in else-if could be simplified',
+        description: 'Condition is always false - unreachable code',
         line: index + 1
       });
     }
     
-    // Check for redundant null checks
-    if ((line.includes('=== null') || line.includes('!== null')) && 
-        (line.includes('=== undefined') || line.includes('!== undefined'))) {
+    // Check for empty catch blocks
+    if (line.includes('catch') && lines[index + 1] && lines[index + 1].trim() === '{}') {
       results.push({
-        description: 'Redundant null/undefined check',
+        description: 'Empty catch block suppresses exceptions',
         line: index + 1
       });
     }
@@ -609,12 +733,13 @@ const findRedundantPatterns = (code: string, language: string): { description: s
   return results;
 };
 
-// Check for user input
+// Check for user input presence
 const hasUserInput = (code: string, language: string): boolean => {
   const inputPatterns = [
-    /Scanner|BufferedReader|readline|readLine|prompt\(|process\.stdin|input\(/,
-    /getElementById|querySelector|event\.|onChange|onClick/,
-    /\.value|\.val\(\)|e\.target\.value/
+    /(?:document|window)\.getElementById|querySelector|event\.|onChange|onClick/,
+    /\.value|\.val\(\)|e\.target\.value/,
+    /(?:req|request)\.(?:body|params|query)/,
+    /process\.argv|prompt\(|readline|Scanner/
   ];
   
   return inputPatterns.some(pattern => pattern.test(code));
@@ -623,13 +748,140 @@ const hasUserInput = (code: string, language: string): boolean => {
 // Check for input validation
 const hasInputValidation = (code: string, language: string): boolean => {
   const validationPatterns = [
-    /if\s*\(\s*\w+/,
-    /parseInt|parseFloat|trim\(\)|\.length/,
-    /try\s*{[\s\S]*?}\s*catch/,
-    /\w+\s*instanceof\s+\w+/,
-    /isNaN\(|typeof\s+\w+\s*===|\.test\(/,
-    /validate|validation|sanitize|check|isValid/
+    /(?:parseInt|parseFloat|Number)\s*\(/,
+    /typeof\s+\w+\s*===?\s*["'](?:string|number|boolean)/,
+    /\w+\s+instanceof\s+/,
+    /\.\s*(?:match|test|exec)\s*\(/,
+    /\.\s*(?:length|size)\s*[<>=]/,
+    /if\s*\(\s*\w+\s*[<>=!]/,
+    /Object\.prototype\.toString/,
+    /\bissafeinteger\b|\bisnan\b|\bisfinite\b/i,
+    /validate|sanitize|escape|check|isValid/
   ];
   
   return validationPatterns.some(pattern => pattern.test(code));
+};
+
+// Count single-letter variables
+const countSingleLetterVariables = (code: string, language: string): { count: number, variables: { name: string, line: number }[] } => {
+  const results: { name: string, line: number }[] = [];
+  const lines = code.split('\n');
+  
+  // Common acceptable single-letter variables in loops
+  const commonLoopVars = new Set(['i', 'j', 'k', 'n', 'x', 'y']);
+  
+  lines.forEach((line, index) => {
+    // Different patterns based on language
+    let match: RegExpMatchArray | null = null;
+    
+    if (['javascript', 'typescript'].includes(language.toLowerCase())) {
+      match = line.match(/\b(?:let|const|var)\s+([a-zA-Z])(?![a-zA-Z0-9_])/);
+    } else if (language.toLowerCase() === 'java') {
+      match = line.match(/\b(?:int|float|double|char|String|long|short|boolean)\s+([a-zA-Z])(?![a-zA-Z0-9_])/);
+    } else {
+      // Generic fallback
+      match = line.match(/\b(?:let|const|var|int|float|char|string)\s+([a-zA-Z])(?![a-zA-Z0-9_])/);
+    }
+    
+    if (match && match[1]) {
+      const varName = match[1];
+      // Exclude common loop variables
+      if (!commonLoopVars.has(varName)) {
+        results.push({ name: varName, line: index + 1 });
+      }
+    }
+  });
+  
+  return { count: results.length, variables: results };
+};
+
+// Detect naming inconsistencies
+const detectNamingInconsistencies = (code: string, language: string): number => {
+  const lines = code.split('\n');
+  
+  // Extract variable names
+  const varNames: string[] = [];
+  const funcNames: string[] = [];
+  
+  // Simple extraction - a real analyzer would use AST
+  lines.forEach(line => {
+    // Variable declarations
+    const varMatches = line.match(/\b(?:let|const|var)\s+(\w+)/g);
+    if (varMatches) {
+      varMatches.forEach(match => {
+        const name = match.replace(/\b(?:let|const|var)\s+/, '');
+        varNames.push(name);
+      });
+    }
+    
+    // Function declarations
+    const funcMatches = line.match(/function\s+(\w+)/g);
+    if (funcMatches) {
+      funcMatches.forEach(match => {
+        const name = match.replace(/function\s+/, '');
+        funcNames.push(name);
+      });
+    }
+  });
+  
+  // Count inconsistencies
+  let inconsistencies = 0;
+  
+  // Check for mixed camelCase and snake_case in variables
+  const hasCamelCase = varNames.some(name => /[a-z][A-Z]/.test(name));
+  const hasSnakeCase = varNames.some(name => name.includes('_'));
+  
+  if (hasCamelCase && hasSnakeCase) {
+    inconsistencies++;
+  }
+  
+  // Check for inconsistent function naming
+  const hasCamelCaseFuncs = funcNames.some(name => /^[a-z]/.test(name) && /[a-z][A-Z]/.test(name));
+  const hasPascalCaseFuncs = funcNames.some(name => /^[A-Z]/.test(name));
+  
+  if (hasCamelCaseFuncs && hasPascalCaseFuncs && funcNames.length > 2) {
+    inconsistencies++;
+  }
+  
+  return inconsistencies;
+};
+
+// Full code metrics calculation
+export const getCodeMetrics = (code: string, language: string): MetricsResult => {
+  const lines = code.split('\n');
+  const codeLines = lines.filter(line => line.trim().length > 0).length;
+  
+  // Updated function count calculation
+  const functionInfo = analyzeFunctionSizes(code, language);
+  const avgFunctionLength = functionInfo.avgSize;
+  
+  const commentLines = lines.filter(line => {
+    const trimmed = line.trim();
+    return trimmed.startsWith('//') || 
+           trimmed.startsWith('/*') ||
+           trimmed.startsWith('*');
+  }).length;
+  
+  const commentPercentage = (commentLines / Math.max(1, lines.length)) * 100;
+  const maxNesting = calculateMaxNestingDepth(code);
+  const complexityScore = calculateCyclomaticComplexity(code, language);
+  
+  return {
+    linesOfCode: lines.length,
+    codeLines,
+    commentLines,
+    commentPercentage,
+    functionCount: Math.max(1, functionInfo.avgSize > 0 ? Math.round(codeLines / functionInfo.avgSize) : 1),
+    averageFunctionLength: avgFunctionLength,
+    maxNestingDepth: maxNesting,
+    cyclomaticComplexity: complexityScore,
+  };
+};
+
+// Helper function to convert score to letter grade
+export const scoreToGrade = (score: number): ScoreGrade => {
+  if (score >= 90) return 'A';
+  if (score >= 80) return 'B';
+  if (score >= 70) return 'C';
+  return 'D';
 };

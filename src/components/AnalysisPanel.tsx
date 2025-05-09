@@ -18,7 +18,7 @@ const AnalysisPanel = ({
   analysis,
   onApplyCorrection
 }: AnalysisPanelProps) => {
-  // Group reliability issues by category if they exist
+  // Group reliability issues by SonarQube-style categories
   const issueCategories = analysis?.reliability?.issues
     ? Array.isArray(analysis.reliability.issues)
       ? isReliabilityIssueArray(analysis.reliability.issues)
@@ -53,7 +53,7 @@ const AnalysisPanel = ({
         
         {issueCategories.length > 0 && (
           <div className="mt-4 p-4 border rounded-md">
-            <h3 className="text-md font-medium mb-2">Issue Categories</h3>
+            <h3 className="text-md font-medium mb-2">SonarQube-Style Analysis</h3>
             {issueCategories.map((category, idx) => (
               <div key={idx} className="mb-3">
                 <h4 className="text-sm font-semibold">{category.name} ({category.issues.length})</h4>
@@ -61,7 +61,7 @@ const AnalysisPanel = ({
                   {category.issues.slice(0, 3).map((issue, i) => (
                     <li key={i} className="text-muted-foreground">
                       {issue.description} {issue.line ? `(line ${issue.line})` : ''} 
-                      <span className="text-xs ml-2 opacity-70">
+                      <span className={`text-xs ml-2 ${issue.type === 'critical' ? 'text-red-500' : issue.type === 'major' ? 'text-amber-500' : 'text-blue-500'}`}>
                         Impact: -{issue.impact} points
                       </span>
                     </li>
