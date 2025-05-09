@@ -1,5 +1,5 @@
 
-import { CodeAnalysis } from "@/types";
+import { CodeAnalysis, ReliabilityIssue } from "@/types";
 import { 
   calculateCyclomaticComplexity,
   calculateMaintainability,
@@ -15,7 +15,7 @@ import {
 } from "./codeAnalysis";
 
 export const generateMockAnalysis = (code: string, language: string): CodeAnalysis => {
-  // Calculate metrics using SonarQube-aligned algorithms
+  // Calculate metrics using enhanced SonarQube-aligned algorithms
   const cyclomaticComplexityScore = calculateCyclomaticComplexity(code, language);
   const maintainabilityScore = calculateMaintainability(code, language);
   const reliabilityResult = calculateReliability(code, language);
@@ -38,18 +38,23 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
     lineReferences = analysisResult.lineReferences;
   }
   
-  // Categorize violations using SonarQube terminology
+  // Enhanced categorization using SonarQube terminology
   const violations = categorizeViolations(issuesList, lineReferences);
   violations.lineReferences = lineReferences;
   
-  // Get code metrics
+  // Get code metrics with enhanced detail
   const metrics = getCodeMetrics(code, language);
   
-  // Generate test cases
+  // Generate test cases with SonarQube-style methodology
   const testCases = generateTestCasesFromCode(code, language);
   
-  // Compute overall code quality score with weighted reliability
-  const overallGrade = computeOverallGrade(cyclomaticComplexity.score, maintainability.score, reliability.score);
+  // Compute overall code quality score with weighted reliability (SonarQube style)
+  const overallGrade = computeOverallGrade(
+    cyclomaticComplexity.score, 
+    maintainability.score, 
+    reliability.score,
+    reliabilityResult.issues || []
+  );
   
   // Generate language-specific AI suggestions with SonarQube terminology
   let aiSuggestions: string;
@@ -73,7 +78,7 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
 };
 
 // Generate Java-specific SonarQube-style suggestions
-function generateSonarQubeStyleJavaSuggestions(code: string, violations: any, metrics: any, issues: any[]): string {
+function generateSonarQubeStyleJavaSuggestions(code: string, violations: any, metrics: any, issues: ReliabilityIssue[]): string {
   let suggestions = "# SonarQube-Style Code Analysis\n\n";
   
   // Detect competitive programming context
@@ -89,46 +94,103 @@ function generateSonarQubeStyleJavaSuggestions(code: string, violations: any, me
     suggestions += "- Algorithm efficiency is the primary focus\n\n";
   }
   
-  // Add SonarQube-style issue section
+  // Add SonarQube-style issue section using enhanced categorization
   suggestions += "## Quality Issues\n\n";
   
-  // Group issues by type (Bugs vs Code Smells)
+  // Group issues by type with exact SonarQube terminology
   const bugs = issues.filter(i => i.category === 'runtime' || i.category === 'exception');
   const codeSmells = issues.filter(i => i.category === 'structure' || i.category === 'readability');
+  const vulnerabilities = issues.filter(i => i.description.toLowerCase().includes('security') || 
+                                           i.description.toLowerCase().includes('injection'));
   
+  // Add SonarQube-style severity indicators
   if (bugs.length > 0) {
     suggestions += "### Bugs\n\n";
-    bugs.forEach(bug => {
-      suggestions += `- ${bug.description}${bug.line ? ` (line ${bug.line})` : ''}\n`;
+    const criticalBugs = bugs.filter(i => i.type === 'critical');
+    const majorBugs = bugs.filter(i => i.type === 'major');
+    const minorBugs = bugs.filter(i => i.type === 'minor');
+    
+    if (criticalBugs.length > 0) {
+      suggestions += "#### Blocker Issues\n\n";
+      criticalBugs.forEach(bug => {
+        suggestions += `- ${bug.description}${bug.line ? ` (line ${bug.line})` : ''} - **Impact: ${bug.impact} points**\n`;
+      });
+      suggestions += "\n";
+    }
+    
+    if (majorBugs.length > 0) {
+      suggestions += "#### Major Issues\n\n";
+      majorBugs.forEach(bug => {
+        suggestions += `- ${bug.description}${bug.line ? ` (line ${bug.line})` : ''}\n`;
+      });
+      suggestions += "\n";
+    }
+    
+    if (minorBugs.length > 0) {
+      suggestions += "#### Minor Issues\n\n";
+      minorBugs.forEach(bug => {
+        suggestions += `- ${bug.description}${bug.line ? ` (line ${bug.line})` : ''}\n`;
+      });
+      suggestions += "\n";
+    }
+  }
+  
+  if (vulnerabilities.length > 0) {
+    suggestions += "### Vulnerabilities\n\n";
+    vulnerabilities.forEach(vuln => {
+      suggestions += `- ${vuln.description}${vuln.line ? ` (line ${vuln.line})` : ''}\n`;
     });
     suggestions += "\n";
   }
   
   if (codeSmells.length > 0) {
     suggestions += "### Code Smells\n\n";
-    codeSmells.forEach(smell => {
-      suggestions += `- ${smell.description}${smell.line ? ` (line ${smell.line})` : ''}\n`;
-    });
-    suggestions += "\n";
+    
+    // Group code smells by category for better organization
+    const structureSmells = codeSmells.filter(i => i.category === 'structure');
+    const readabilitySmells = codeSmells.filter(i => i.category === 'readability');
+    
+    if (structureSmells.length > 0) {
+      suggestions += "#### Structure Issues\n\n";
+      structureSmells.forEach(smell => {
+        suggestions += `- ${smell.description}${smell.line ? ` (line ${smell.line})` : ''}\n`;
+      });
+      suggestions += "\n";
+    }
+    
+    if (readabilitySmells.length > 0) {
+      suggestions += "#### Maintainability Issues\n\n";
+      readabilitySmells.forEach(smell => {
+        suggestions += `- ${smell.description}${smell.line ? ` (line ${smell.line})` : ''}\n`;
+      });
+      suggestions += "\n";
+    }
   }
   
-  // Add maintainability issues
+  // Add maintainability issues with SonarQube-style metrics
   if (metrics.averageFunctionLength > 30 && !isCompetitiveProgramming) {
-    suggestions += "### Maintainability Issues\n\n";
+    suggestions += "### Maintainability Metrics\n\n";
     suggestions += `- Method length: Average of ${Math.round(metrics.averageFunctionLength)} lines exceeds recommended length of 30 lines\n`;
     suggestions += "- Consider extracting complex logic into smaller, focused helper methods\n\n";
   }
   
-  // Add complexity issues if relevant
-  if (metrics.cyclomaticComplexity > 10) {
-    suggestions += "### Complexity Issues\n\n";
-    suggestions += `- Cyclomatic Complexity: ${metrics.cyclomaticComplexity} exceeds recommended threshold of 10\n`;
-    suggestions += "- Consider refactoring complex methods into smaller units with clear responsibilities\n\n";
+  // Add complexity issues with SonarQube-style metrics
+  if (metrics.cyclomaticComplexity > 0) {
+    suggestions += "### Complexity Metrics\n\n";
+    suggestions += `- Cyclomatic Complexity: ${metrics.cyclomaticComplexity}\n`;
+    suggestions += `- Max Nesting Depth: ${metrics.maxNestingDepth}\n`;
+    
+    if (metrics.cyclomaticComplexity > 10) {
+      suggestions += "- **Action Required**: Consider refactoring complex methods into smaller units with clear responsibilities\n";
+    }
+    
+    suggestions += "\n";
   }
   
-  // Add documentation insights
+  // Add documentation insights with SonarQube-style recommendations
   if (metrics.commentPercentage < 15 && !isCompetitiveProgramming && metrics.linesOfCode > 30) {
     suggestions += "### Documentation Issues\n\n";
+    suggestions += `- Comment Density: ${Math.round(metrics.commentPercentage)}% (SonarQube recommends >20%)\n`;
     suggestions += "- Insufficient comments: Add JavaDoc comments to classes and methods\n";
     suggestions += "- Consider adding @param and @return tags to method documentation\n\n";
   }
@@ -152,20 +214,49 @@ function generateSonarQubeStyleJavaSuggestions(code: string, violations: any, me
 }
 
 // Generate SonarQube-style suggestions for other languages
-function generateSonarQubeStyleSuggestions(code: string, violations: any, metrics: any, language: string, issues: any[]): string {
+function generateSonarQubeStyleSuggestions(
+  code: string, 
+  violations: any, 
+  metrics: any, 
+  language: string, 
+  issues: ReliabilityIssue[]
+): string {
   let suggestions = `# SonarQube-Style ${language.charAt(0).toUpperCase() + language.slice(1)} Analysis\n\n`;
+  
+  // Add file metrics summary in SonarQube style
+  suggestions += "## File Metrics\n\n";
+  suggestions += `- Lines of Code: ${metrics.linesOfCode}\n`;
+  suggestions += `- Functions: ${metrics.functionCount}\n`;
+  suggestions += `- Cyclomatic Complexity: ${metrics.cyclomaticComplexity}\n`;
+  suggestions += `- Comment Density: ${Math.round(metrics.commentPercentage)}%\n\n`;
+  
+  // Add badges for each quality dimension (SonarQube style)
+  suggestions += "## Quality Ratings\n\n";
+  suggestions += "| Dimension | Grade | Description |\n";
+  suggestions += "|-----------|-------|-------------|\n";
+  
+  // Calculate grades based on issues
+  const reliabilityGrade = getRatingFromScore(calculateReliability(code, language).score, 'reliability', issues).score;
+  const maintainabilityGrade = getRatingFromScore(calculateMaintainability(code, language), 'maintainability').score;
+  const complexityGrade = getRatingFromScore(calculateCyclomaticComplexity(code, language), 'cyclomaticComplexity').score;
+  
+  suggestions += `| Reliability | ${reliabilityGrade} | ${getGradeDescription('reliability', reliabilityGrade)} |\n`;
+  suggestions += `| Maintainability | ${maintainabilityGrade} | ${getGradeDescription('maintainability', maintainabilityGrade)} |\n`;
+  suggestions += `| Complexity | ${complexityGrade} | ${getGradeDescription('complexity', complexityGrade)} |\n\n`;
   
   // Add SonarQube-style issue section
   suggestions += "## Quality Issues\n\n";
   
-  // Group issues by type (Bugs vs Code Smells) - SonarQube categorization
+  // Group issues by type with SonarQube terminology
   const bugs = issues.filter(i => i.category === 'runtime' || i.category === 'exception');
   const codeSmells = issues.filter(i => i.category === 'structure' || i.category === 'readability');
   
   if (bugs.length > 0) {
     suggestions += "### Bugs\n\n";
     bugs.forEach(bug => {
-      suggestions += `- ${bug.description}${bug.line ? ` (line ${bug.line})` : ''}\n`;
+      const severityLabel = bug.type === 'critical' ? '🚫 Blocker' : 
+                         bug.type === 'major' ? '⚠️ Major' : '📝 Minor';
+      suggestions += `- **${severityLabel}**: ${bug.description}${bug.line ? ` (line ${bug.line})` : ''}\n`;
     });
     suggestions += "\n";
   }
@@ -173,7 +264,8 @@ function generateSonarQubeStyleSuggestions(code: string, violations: any, metric
   if (codeSmells.length > 0) {
     suggestions += "### Code Smells\n\n";
     codeSmells.forEach(smell => {
-      suggestions += `- ${smell.description}${smell.line ? ` (line ${smell.line})` : ''}\n`;
+      const severityLabel = smell.type === 'major' ? '⚠️ Major' : '📝 Minor';
+      suggestions += `- **${severityLabel}**: ${smell.description}${smell.line ? ` (line ${smell.line})` : ''}\n`;
     });
     suggestions += "\n";
   }
@@ -185,7 +277,7 @@ function generateSonarQubeStyleSuggestions(code: string, violations: any, metric
   suggestions += `- Maximum nesting depth: ${metrics.maxNestingDepth}\n`;
   suggestions += `- Comment density: ${Math.round(metrics.commentPercentage)}%\n\n`;
   
-  // Add recommendations based on metrics
+  // Add actionable recommendations based on metrics (SonarQube style)
   suggestions += "## Recommendations\n\n";
   
   if (metrics.averageFunctionLength > 30) {
@@ -207,8 +299,39 @@ function generateSonarQubeStyleSuggestions(code: string, violations: any, metric
   return suggestions;
 }
 
-// Function to compute an overall grade with weighted reliability
-function computeOverallGrade(complexity: 'A' | 'B' | 'C' | 'D', maintainability: 'A' | 'B' | 'C' | 'D', reliability: 'A' | 'B' | 'C' | 'D'): 'A' | 'B' | 'C' | 'D' {
+// Helper function for grade descriptions
+function getGradeDescription(metric: string, grade: 'A' | 'B' | 'C' | 'D'): string {
+  const descriptions = {
+    reliability: {
+      A: 'Highly reliable',
+      B: 'Good reliability',
+      C: 'Moderate reliability issues',
+      D: 'Major reliability concerns'
+    },
+    maintainability: {
+      A: 'Highly maintainable',
+      B: 'Good maintainability',
+      C: 'Moderately maintainable',
+      D: 'Hard to maintain'
+    },
+    complexity: {
+      A: 'Low complexity',
+      B: 'Moderate complexity',
+      C: 'High complexity',
+      D: 'Very high complexity'
+    }
+  };
+  
+  return descriptions[metric as keyof typeof descriptions][grade];
+}
+
+// Function to compute an overall grade with enhanced SonarQube-aligned weighting
+function computeOverallGrade(
+  complexity: 'A' | 'B' | 'C' | 'D', 
+  maintainability: 'A' | 'B' | 'C' | 'D', 
+  reliability: 'A' | 'B' | 'C' | 'D',
+  issues: ReliabilityIssue[]
+): 'A' | 'B' | 'C' | 'D' {
   // Convert letter grades to numbers (A=4, B=3, C=2, D=1)
   const gradeValues = {
     'A': 4,
@@ -217,15 +340,32 @@ function computeOverallGrade(complexity: 'A' | 'B' | 'C' | 'D', maintainability:
     'D': 1
   };
   
-  // Calculate average grade value with reliability weighted more heavily (SonarQube-style emphasis on bugs)
+  // Count critical issues for potential overrides
+  const criticalIssues = issues.filter(i => i.type === 'critical').length;
+  
+  // Calculate average grade value with SonarQube-style weighting:
+  // - Reliability is weighted more heavily (40%)
+  // - Maintainability is weighted at 35%
+  // - Complexity is weighted at 25%
   const complexityValue = gradeValues[complexity];
   const maintainabilityValue = gradeValues[maintainability];
   const reliabilityValue = gradeValues[reliability];
   
-  // Weight reliability more (bugs are critical in SonarQube)
-  const weightedAverage = (complexityValue + maintainabilityValue + (reliabilityValue * 2)) / 4;
+  // Calculate weighted average
+  const weightedAverage = (
+    (complexityValue * 0.25) + 
+    (maintainabilityValue * 0.35) + 
+    (reliabilityValue * 0.40)
+  );
   
-  // Convert back to letter grade
+  // Apply SonarQube-style override rules: critical issues override the final grade
+  if (criticalIssues >= 3) {
+    return 'D'; // Multiple critical issues always result in D grade
+  } else if (criticalIssues > 0 && weightedAverage >= 3.5) {
+    return 'B'; // Critical issues cap the grade at B
+  }
+  
+  // Convert weighted average back to letter grade
   if (weightedAverage >= 3.5) return 'A';
   if (weightedAverage >= 2.5) return 'B';
   if (weightedAverage >= 1.5) return 'C';

@@ -34,6 +34,15 @@ const AnalysisPanel = ({
       : []
     : [];
 
+  // Calculate the aggregated impact per category for better visibility
+  const categoriesWithImpact = issueCategories.map(category => {
+    const totalImpact = category.issues.reduce((sum, issue) => sum + (issue.impact || 1), 0);
+    return {
+      ...category,
+      totalImpact
+    };
+  }).sort((a, b) => b.totalImpact - a.totalImpact); // Sort by total impact descending
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex flex-col space-y-2">
@@ -51,18 +60,32 @@ const AnalysisPanel = ({
           onApplyCorrection={onApplyCorrection}
         />
         
-        {issueCategories.length > 0 && (
+        {categoriesWithImpact.length > 0 && (
           <div className="mt-4 p-4 border rounded-md">
             <h3 className="text-md font-medium mb-2">SonarQube-Style Analysis</h3>
-            {issueCategories.map((category, idx) => (
+            {categoriesWithImpact.map((category, idx) => (
               <div key={idx} className="mb-3">
-                <h4 className="text-sm font-semibold">{category.name} ({category.issues.length})</h4>
+                <h4 className="text-sm font-semibold flex justify-between">
+                  <span>{category.name} ({category.issues.length})</span>
+                  <span className={`text-xs ${
+                    category.totalImpact >= 5 ? 'text-red-500' : 
+                    category.totalImpact >= 3 ? 'text-amber-500' : 
+                    'text-blue-500'
+                  }`}>
+                    Impact: -{category.totalImpact} points
+                  </span>
+                </h4>
                 <ul className="text-sm list-disc pl-5">
                   {category.issues.slice(0, 3).map((issue, i) => (
                     <li key={i} className="text-muted-foreground">
                       {issue.description} {issue.line ? `(line ${issue.line})` : ''} 
-                      <span className={`text-xs ml-2 ${issue.type === 'critical' ? 'text-red-500' : issue.type === 'major' ? 'text-amber-500' : 'text-blue-500'}`}>
-                        Impact: -{issue.impact} points
+                      <span className={`text-xs ml-2 ${
+                        issue.type === 'critical' ? 'text-red-500' : 
+                        issue.type === 'major' ? 'text-amber-500' : 
+                        'text-blue-500'
+                      }`}>
+                        {issue.type === 'critical' ? 'Blocker' : 
+                         issue.type === 'major' ? 'Major' : 'Minor'}
                       </span>
                     </li>
                   ))}
