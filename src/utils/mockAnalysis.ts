@@ -21,9 +21,9 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
   const reliabilityResult = calculateReliability(code, language);
   
   // Get the ratings for each metric using SonarQube-aligned thresholds
-  const cyclomaticComplexity = getRatingFromScore(cyclomaticComplexityScore, 'cyclomaticComplexity');
-  const maintainability = getRatingFromScore(maintainabilityScore, 'maintainability');
-  const reliability = getRatingFromScore(reliabilityResult.score, 'reliability', reliabilityResult.issues);
+  const cyclomaticComplexityRating = getRatingFromScore(cyclomaticComplexityScore, 'cyclomaticComplexity');
+  const maintainabilityRating = getRatingFromScore(maintainabilityScore, 'maintainability');
+  const reliabilityRating = getRatingFromScore(reliabilityResult.score, 'reliability', reliabilityResult.issues);
   
   // Skip analysis for trivial code
   let issuesList: string[] = [];
@@ -50,9 +50,9 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
   
   // Compute overall code quality score with weighted reliability (SonarQube style)
   const overallGrade = computeOverallGrade(
-    cyclomaticComplexity.score, 
-    maintainability.score, 
-    reliability.score,
+    cyclomaticComplexityRating.score, 
+    maintainabilityRating.score, 
+    reliabilityRating.score,
     reliabilityResult.issues || []
   );
   
@@ -66,9 +66,9 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
   }
   
   return {
-    cyclomaticComplexity,
-    maintainability,
-    reliability,
+    cyclomaticComplexity: cyclomaticComplexityRating,
+    maintainability: maintainabilityRating,
+    reliability: reliabilityRating,
     violations,
     testCases,
     aiSuggestions,

@@ -1,5 +1,6 @@
 import { CodeViolations } from '@/types';
 import { TestCase } from '@/types';
+import { ReliabilityIssue } from '@/types';
 
 // Quality Rules Configuration
 export const rules = {
@@ -173,6 +174,14 @@ const extractBoundedVariables = (lines: string[], language: string): string[] =>
         boundedVars.push(enhancedForMatches[1]);
       }
     }
+    
+    // Enhanced detection for array method callbacks
+    const arrayMethodMatches = line.match(/\.(?:forEach|map|filter|reduce|some|every|find)\s*\(\s*(?:function\s*\(\s*(\w+)|\(\s*(\w+)\s*(?:,\s*(\w+))?\s*\)\s*=>)/);
+    if (arrayMethodMatches) {
+      if (arrayMethodMatches[1]) boundedVars.push(arrayMethodMatches[1]);
+      if (arrayMethodMatches[2]) boundedVars.push(arrayMethodMatches[2]);
+      if (arrayMethodMatches[3]) boundedVars.push(arrayMethodMatches[3]);
+    }
   }
   
   return boundedVars;
@@ -211,6 +220,27 @@ const extractNullCheckedVariables = (lines: string[], language: string): string[
       if (optionalMatches && optionalMatches[1]) {
         nullCheckedVars.push(optionalMatches[1]);
       }
+    }
+    
+    // Add detection for optional chaining and nullish coalescing
+    const optionalChainingMatches = line.match(/(\w+)\?\./g);
+    if (optionalChainingMatches) {
+      optionalChainingMatches.forEach(match => {
+        const varMatch = match.match(/(\w+)\?\./);
+        if (varMatch && varMatch[1]) {
+          nullCheckedVars.push(varMatch[1]);
+        }
+      });
+    }
+    
+    const nullishCoalescingMatches = line.match(/(\w+)\s*\?\?\s*/g);
+    if (nullishCoalescingMatches) {
+      nullishCoalescingMatches.forEach(match => {
+        const varMatch = match.match(/(\w+)\s*\?\?\s*/);
+        if (varMatch && varMatch[1]) {
+          nullCheckedVars.push(varMatch[1]);
+        }
+      });
     }
   }
   
@@ -372,18 +402,23 @@ const findNearbyMethodSignature = (lines: string[], currentLineIndex: number, lo
   return null;
 };
 
-// Find try-catch blocks in code
-function findTryCatchBlocks(lines: string[]): {start: number, end: number}[] {
-  const tryCatchBlocks: {start: number, end: number}[] = [];
+// Find try-catch blocks in code with improved scope detection
+function findTryCatchBlocks(lines: string[]): {start: number, end: number, scope: string[]}[] {
+  const tryCatchBlocks: {start: number, end: number, scope: string[]}[] = [];
   let inTryBlock = false;
   let tryStartLine = 0;
   let braceCounter = 0;
+  let scopeVars: string[] = [];
    
   lines.forEach((line, i) => {
     if (line.includes('try')) {
       inTryBlock = true;
       tryStartLine = i;
       braceCounter = 1;
+      
+      // Extract variables in the scope by looking ahead
+      const scopeLines = lines.slice(i, Math.min(i + 10, lines.length));
+      scopeVars = extractVariablesInScope(scopeLines);
     } else if (inTryBlock) {
       // Count braces to find the end of the try-catch block
       const openBraces = (line.match(/{/g) || []).length;
@@ -392,7 +427,7 @@ function findTryCatchBlocks(lines: string[]): {start: number, end: number}[] {
       
       // When we've reached the end of the try-catch block
       if (braceCounter === 0 && line.includes('}')) {
-        tryCatchBlocks.push({ start: tryStartLine, end: i });
+        tryCatchBlocks.push({ start: tryStartLine, end: i, scope: scopeVars });
         inTryBlock = false;
       }
     }
@@ -401,7 +436,60 @@ function findTryCatchBlocks(lines: string[]): {start: number, end: number}[] {
   return tryCatchBlocks;
 }
 
-// Analyze code for issues with line references
+// New helper: Extract variables used within a scope
+function extractVariablesInScope(lines: string[]): string[] {
+  const scopeVars: string[] = [];
+  const variablePattern = /(?:const|let|var)\s+(\w+)\s*=?/g;
+  
+  lines.forEach(line => {
+    let match;
+    while ((match = variablePattern.exec(line)) !== null) {
+      if (match[1]) scopeVars.push(match[1]);
+    }
+    
+    // Also check for parameters in function definitions
+    const functionParamMatch = line.match(/function\s+\w+\s*\(\s*([^)]*)\s*\)/);
+    if (functionParamMatch && functionParamMatch[1]) {
+      const params = functionParamMatch[1].split(',').map(param => param.trim().split(' ')[0].split(':')[0]);
+      scopeVars.push(...params);
+    }
+    
+    // Check for arrow function parameters
+    const arrowFnMatch = line.match(/\(\s*([^)]*)\s*\)\s*=>/);
+    if (arrowFnMatch && arrowFnMatch[1]) {
+      const params = arrowFnMatch[1].split(',').map(param => param.trim().split(' ')[0].split(':')[0]);
+      scopeVars.push(...params);
+    }
+  });
+  
+  return scopeVars.filter(v => v && v !== 'function');
+}
+
+// Enhanced nestingDepth calculator - ignores functional patterns
+function calculateActualNestingDepth(code: string): number {
+  const lines = code.split('\n');
+  let maxDepth = 0;
+  let currentDepth = 0;
+  const exemptPatterns = rules.nestingRules.exemptPatterns;
+  
+  for (const line of lines) {
+    // Skip lines that match exempt patterns (functional programming constructs)
+    if (exemptPatterns.some(pattern => new RegExp(pattern).test(line))) {
+      continue;
+    }
+    
+    // Count opening braces as nesting depth increments
+    const openBraces = (line.match(/{/g) || []).length;
+    const closeBraces = (line.match(/}/g) || []).length;
+    
+    currentDepth += openBraces - closeBraces;
+    maxDepth = Math.max(maxDepth, currentDepth);
+  }
+  
+  return maxDepth;
+}
+
+// Analyze code for issues with line references - enhanced with precise context awareness
 export const analyzeCodeForIssues = (code: string, language: string = 'javascript'): { details: string[], lineReferences: { line: number, issue: string, severity: 'major' | 'minor' }[] } => {
   const issues: string[] = [];
   const lineReferences: { line: number, issue: string, severity: 'major' | 'minor' }[] = [];
@@ -416,7 +504,14 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
   // Find initialization and bounds context to prevent false positives
   const boundedLoopVars = extractBoundedVariables(lines, language);
   const nullProtectedVars = extractNullCheckedVariables(lines, language);
+  const zeroCheckedVars = extractZeroCheckedVariables(lines, language);
   const mainFunctionInputs = extractMainFunctionInputs(lines, language);
+  
+  // Find variables protected by optional chaining or nullish coalescing
+  const safeNullHandling = lines.some(line => line.includes('?.') || line.includes('??'));
+  
+  // Find try-catch blocks with enhanced scope awareness
+  const tryCatchBlocks = findTryCatchBlocks(lines);
   
   // Collect function information for context
   let currentFunction = 0;
@@ -713,20 +808,34 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
           }
 
           if (regex.test(line)) {
+            // Determine if this is a positive pattern (indicating safety) or negative (indicating risk)
+            const isPositivePattern = operation.isPositive === true;
+            
+            // For positive patterns like optional chaining, track the line but don't flag it
+            if (isPositivePattern) {
+              continue;
+            }
+            
             // Check if this line is within a try-catch block
-            const isInTryCatch = tryCatchBlocks.some(block => i >= block.start && i <= block.end);
+            const isInTryCatch = tryCatchBlocks.some(block => {
+              const isInBlock = i >= block.start && i <= block.end;
+              if (!isInBlock) return false;
+              
+              // For more precision, check if variables in this line are in the try-catch scope
+              const variablesInLine = extractVariablesInLine(line);
+              return variablesInLine.some(v => block.scope.includes(v));
+            });
 
             // Enhanced context check for different operation types
-            if (
-              !isInTryCatch &&
-              shouldFlagRiskyOperation(
-                line,
-                operation.id,
-                boundedLoopVars,
-                nullProtectedVars,
-                mainFunctionInputs
-              )
-            ) {
+            if (!isInTryCatch && shouldFlagRiskyOperation(
+              line,
+              operation.id,
+              boundedLoopVars,
+              nullProtectedVars,
+              mainFunctionInputs,
+              zeroCheckedVars,
+              safeNullHandling
+            )) {
               const key = operation.id;
 
               if (!exceptionIssueMap.has(key)) {
@@ -743,9 +852,9 @@ export const analyzeCodeForIssues = (code: string, language: string = 'javascrip
 
     // Push aggregated exception issues
     exceptionIssueMap.forEach((entry, key) => {
-      const operationRule = rules.unhandledExceptions.riskOperations.find(op => op.id === key);
-      if (operationRule) {
-        const description = operationRule.message || `Potential unhandled exception: ${key}`;
+      const operation = rules.unhandledExceptions.riskOperations.find(op => op.id === key);
+      if (operation) {
+        const description = operation.message || `Potential unhandled exception: ${key}`;
         issues.push(description);
 
         // Report first few lines for clarity
@@ -1103,10 +1212,12 @@ function shouldFlagRiskyOperation(
   operationType: string, 
   boundedVars: string[], 
   nullCheckedVars: string[], 
-  mainInputs: string[]
+  mainInputs: string[],
+  zeroCheckedVars: string[] = [],
+  hasSafeNullHandling: boolean = false
 ): boolean {
-  // Skip flagging if optional chaining is used
-  if (line.includes('?.') || line.includes('?.(')) {
+  // Skip flagging if optional chaining is used anywhere in this line
+  if (line.includes('?.') || line.includes('?.(') || line.includes('??')) {
     return false; // Optional chaining already protects access
   }
 
@@ -1124,12 +1235,23 @@ function shouldFlagRiskyOperation(
       // Small literal indices are usually safe
       return false;
     }
+    
+    // Check if there's a .length - 1 pattern
+    if (line.includes('.length - 1') || line.includes('.length-1')) {
+      return false; // Common pattern for accessing last element
+    }
+    
+    // Check if there's a bounds check nearby
+    const hasLengthCheck = line.includes('.length') && (line.includes('<') || line.includes('<='));
+    if (hasLengthCheck) {
+      return false;
+    }
   }
   
   // For null pointer access, don't flag if null-checked
   if (operationType === 'null-unsafe' || operationType === 'java-null-pointer') {
-    // Optional chaining already protects access
-    if (line.includes('?.') || line.includes('?.(')) {
+    // Skip if global safe null handling is used in file
+    if (hasSafeNullHandling) {
       return false;
     }
     
@@ -1138,6 +1260,16 @@ function shouldFlagRiskyOperation(
     if (match && match[1] && 
       (nullCheckedVars.includes(match[1]) || mainInputs.includes(match[1]))) {
       return false; // Don't flag if object has null check or is a main input
+    }
+    
+    // Skip standard objects that are typically not null
+    if (match && ['Math', 'Object', 'Array', 'String', 'Number', 'console', 'JSON'].includes(match[1])) {
+      return false;
+    }
+    
+    // Skip if the code contains defensive programming with ||
+    if (line.includes('||') && line.includes('{')) {
+      return false; // Likely a guard clause
     }
   }
   
@@ -1151,6 +1283,17 @@ function shouldFlagRiskyOperation(
     // Skip division in typical counter/average calculations
     if (line.match(/\/\s*(length|size)\(\)/i)) {
       return false; // Division by array/collection size
+    }
+    
+    // Extract the divisor variable
+    const divMatch = line.match(/\/\s*(\w+)/);
+    if (divMatch && divMatch[1] && zeroCheckedVars.includes(divMatch[1])) {
+      return false; // Don't flag if divisor has zero check
+    }
+    
+    // Check for denominator != 0 pattern in the same line
+    if (line.includes('!= 0') || line.includes('!== 0') || line.includes('> 0')) {
+      return false;
     }
   }
   
@@ -1313,3 +1456,21 @@ export const generateTestCasesFromCode = (code: string, language: string): TestC
   
   return testCases;
 };
+
+// Extract variables used in a line of code
+function extractVariablesInLine(line: string): string[] {
+  const vars: string[] = [];
+  
+  // Match variable names, avoiding keywords, numbers and punctuation
+  const matches = line.match(/\b([a-zA-Z_]\w*)\b/g);
+  if (matches) {
+    // Filter out language keywords
+    const keywords = ['if', 'else', 'for', 'while', 'switch', 'case', 'break', 'continue', 
+                     'return', 'try', 'catch', 'finally', 'throw', 'new', 'delete', 'typeof',
+                     'instanceof', 'void', 'null', 'undefined', 'true', 'false', 'let', 'const',
+                     'var', 'function', 'class', 'this', 'super', 'import', 'export'];
+    return matches.filter(word => !keywords.includes(word));
+  }
+  
+  return vars;
+}

@@ -1,9 +1,10 @@
+
 export interface CodeQualityRating {
   score: 'A' | 'B' | 'C' | 'D';
   description: string;
   reason?: string;
-  issues?: string[]; // Specific issues found
-  improvements?: string[]; // Suggested improvements
+  issues?: string[] | ReliabilityIssue[]; // Updated to allow ReliabilityIssue[] type
+  improvements?: string[];
 }
 
 export interface CodeViolations {
