@@ -85,7 +85,110 @@ export function getContextReductionFactor(issues: ReliabilityIssue[]): number {
   return factor;
 }
 
-// Helper function to determine path sensitivity factor
+// Enhanced helper to evaluate actual risk in detection patterns
+export function evaluatePatternRisk(issuePattern: string, codeContext: string): boolean {
+  // Skip empty inputs
+  if (!issuePattern || !codeContext) {
+    return false;
+  }
+
+  // 1. Null/undefined references - only flag if actual dereferencing
+  if (issuePattern.includes('null-unsafe') || issuePattern.includes('undefined')) {
+    // Don't flag line 1 or imports for null refs
+    if (codeContext.trim().startsWith('import') || codeContext.trim().match(/^(\/\/|\/\*|\*)/)) {
+      return false;
+    }
+    
+    // Only flag actual property/method access without checks
+    const hasNullDereference = codeContext.match(/(\w+)\.\w+/) && 
+                              !codeContext.includes('?.') && 
+                              !codeContext.includes('??') &&
+                              !codeContext.includes('!==') && 
+                              !codeContext.includes('!=');
+                              
+    return Boolean(hasNullDereference);
+  }
+  
+  // 2. Division by zero - only flag if division is present without validation
+  if (issuePattern.includes('division') || issuePattern.includes('divide')) {
+    // Check if division operation exists
+    const hasDivisionOp = codeContext.match(/\/\s*(\w+|\d+)/);
+    if (!hasDivisionOp) return false;
+    
+    // Extract divisor
+    const divisorMatch = codeContext.match(/\/\s*(\w+)/);
+    if (!divisorMatch) return false;
+    
+    const divisor = divisorMatch[1];
+    
+    // Don't flag numeric literals except 0
+    if (divisor.match(/^\d+$/) && divisor !== '0') {
+      return false;
+    }
+    
+    // Don't flag if there's validation for non-zero
+    const hasValidation = codeContext.includes(`${divisor} !== 0`) || 
+                         codeContext.includes(`${divisor} != 0`) || 
+                         codeContext.includes(`${divisor} > 0`);
+                         
+    return !hasValidation;
+  }
+  
+  // 3. Array bounds - only flag if accessing indices without validation
+  if (issuePattern.includes('array') || issuePattern.includes('bounds')) {
+    // Check if array indexing exists
+    const hasArrayAccess = codeContext.match(/(\w+)\s*\[\s*(\w+|\d+)\s*\]/);
+    if (!hasArrayAccess) return false;
+    
+    const array = hasArrayAccess[1];
+    const index = hasArrayAccess[2];
+    
+    // Don't flag numeric literals within reasonable range
+    if (index.match(/^\d+$/) && parseInt(index) < 100) {
+      return false;
+    }
+    
+    // Don't flag if bounds checking exists
+    const hasBoundsCheck = codeContext.includes(`${index} < ${array}.length`) || 
+                          codeContext.includes(`${array}.length > ${index}`) || 
+                          codeContext.includes(`${index} >= 0`) ||
+                          codeContext.match(new RegExp(`for.*${index}.*${array}\\.length`));
+                          
+    // Don't flag if loop control variable
+    const isLoopVariable = codeContext.match(new RegExp(`for.*${index}\\s*=.*${index}\\+\\+`));
+    
+    return !hasBoundsCheck && !isLoopVariable;
+  }
+  
+  // 4. Input validation - only flag if it can lead to runtime exceptions
+  if (issuePattern.includes('input') || issuePattern.includes('validation')) {
+    // Check if there's user input handling
+    const hasUserInput = codeContext.includes('input') || 
+                        codeContext.includes('param') || 
+                        codeContext.includes('arg');
+    
+    if (!hasUserInput) return false;
+    
+    // Check if there are risky operations that need validation
+    const hasRiskyOps = codeContext.includes('.parse') || 
+                       codeContext.includes('JSON') || 
+                       codeContext.match(/\[\s*\w+\s*\]/) ||
+                       codeContext.includes('/');
+                       
+    // Check if there's some validation
+    const hasValidation = codeContext.includes('if') || 
+                         codeContext.includes('typeof') || 
+                         codeContext.includes('instanceof') || 
+                         codeContext.includes('===') || 
+                         codeContext.includes('!==');
+                         
+    return hasRiskyOps && !hasValidation;
+  }
+  
+  return true; // Default case - keep the original flagging
+}
+
+// Helper function to determine path sensitivity factor with improved control flow analysis
 export function determinePathSensitivity(issues: ReliabilityIssue[]): number {
   // Validate input
   if (!Array.isArray(issues) || issues.length === 0) {
@@ -99,31 +202,51 @@ export function determinePathSensitivity(issues: ReliabilityIssue[]): number {
   if (!firstIssue) return pathFactor;
   
   const desc = normalizeString(firstIssue.description);
+  const codeContext = firstIssue.codeContext || '';
   
-  // Reduce penalty for issues in rarely executed exception paths
-  if (desc.includes('exception path') || desc.includes('rare condition')) {
-    pathFactor *= ANALYSIS_CONSTANTS.FACTORS.RARE_PATH; // Reduction for unlikely execution paths
-  }
-  
-  // Reduce penalty for issues that only occur in edge cases
-  if (desc.includes('edge case') || desc.includes('boundary condition')) {
-    pathFactor *= ANALYSIS_CONSTANTS.FACTORS.EDGE_CASE; // Reduction for edge case paths
-  }
-  
-  // Reduce penalty for issues protected by validation logic
-  if (desc.includes('validated') || desc.includes('checked')) {
-    pathFactor *= ANALYSIS_CONSTANTS.FACTORS.VALIDATED_CODE; // Reduced penalty for validated contexts
-  }
-  
-  // Increase factor for issues in main execution paths
-  if (desc.includes('main path') || desc.includes('always executed')) {
-    pathFactor = 1.0; // No reduction for main execution path issues
-  }
-  
-  // Increase factor for unvalidated inputs in critical operations
-  if ((desc.includes('unvalidated') || desc.includes('unchecked')) && 
-      (desc.includes('input') || desc.includes('parameter'))) {
-    pathFactor = ANALYSIS_CONSTANTS.FACTORS.UNVALIDATED_INPUT; // Increased penalty for unvalidated inputs
+  // Use advanced path analysis if context is available
+  if (codeContext) {
+    // Check for branch conditions that would prevent execution
+    const hasBranchingConditions = codeContext.includes('if (') || 
+                                  codeContext.includes('else ') || 
+                                  codeContext.includes('switch(');
+                                  
+    // Check for type guards that would prevent errors
+    const hasTypeGuards = codeContext.includes('typeof ') || 
+                         codeContext.includes('instanceof ') || 
+                         codeContext.match(/!=\s*null/) || 
+                         codeContext.match(/!==\s*null/);
+                         
+    if (hasBranchingConditions || hasTypeGuards) {
+      pathFactor *= ANALYSIS_CONSTANTS.FACTORS.GUARDED_PATH;
+    }
+  } else {
+    // If no context, use description-based heuristics as before
+    // Reduce penalty for issues in rarely executed exception paths
+    if (desc.includes('exception path') || desc.includes('rare condition')) {
+      pathFactor *= ANALYSIS_CONSTANTS.FACTORS.RARE_PATH; 
+    }
+    
+    // Reduce penalty for issues that only occur in edge cases
+    if (desc.includes('edge case') || desc.includes('boundary condition')) {
+      pathFactor *= ANALYSIS_CONSTANTS.FACTORS.EDGE_CASE;
+    }
+    
+    // Reduce penalty for issues protected by validation logic
+    if (desc.includes('validated') || desc.includes('checked')) {
+      pathFactor *= ANALYSIS_CONSTANTS.FACTORS.VALIDATED_CODE;
+    }
+    
+    // Increase factor for issues in main execution paths
+    if (desc.includes('main path') || desc.includes('always executed')) {
+      pathFactor = 1.0; // No reduction for main execution path issues
+    }
+    
+    // Increase factor for unvalidated inputs in critical operations
+    if ((desc.includes('unvalidated') || desc.includes('unchecked')) && 
+        (desc.includes('input') || desc.includes('parameter'))) {
+      pathFactor = ANALYSIS_CONSTANTS.FACTORS.UNVALIDATED_INPUT;
+    }
   }
   
   return pathFactor;

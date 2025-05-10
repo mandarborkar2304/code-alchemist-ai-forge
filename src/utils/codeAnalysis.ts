@@ -1,4 +1,3 @@
-
 import { CodeViolations } from '@/types';
 import { TestCase } from '@/types';
 import { ReliabilityIssue } from '@/types';
@@ -1260,7 +1259,7 @@ function shouldFlagRiskyOperation(
     
     // Check if this is a literal index that is likely safe
     const literalMatch = line.match(/\[(\d+)\]/);
-    if (literalMatch && parseInt(literalMatch[1]) < 100) {
+    if (literalMatch && parseInt(literalMatch[1]) < 1000) { // Increased threshold for safer analysis
       // Small literal indices are usually safe
       return false;
     }
@@ -1270,10 +1269,16 @@ function shouldFlagRiskyOperation(
       return false; // Common pattern for accessing last element
     }
     
-    // Check if there's a bounds check nearby
-    const hasLengthCheck = line.includes('.length') && (line.includes('<') || line.includes('<='));
+    // Enhanced bounds check detection
+    const hasLengthCheck = line.includes('.length') && 
+                          (line.includes('<') || line.includes('<=') || line.includes('>') || line.includes('>='));
     if (hasLengthCheck) {
       return false;
+    }
+    
+    // Skip declaring array literals
+    if (line.match(/\[\s*(['"][^'"]*['"]|\d+\s*)(,\s*(['"][^'"]*['"]|\d+))*\s*\]/)) {
+      return false; // Array literal declaration
     }
   }
   
@@ -1284,8 +1289,18 @@ function shouldFlagRiskyOperation(
       return false;
     }
     
+    // Don't flag line 1 or import statements
+    if (line.trim().startsWith('import') || line.trim().match(/^(\/\/|\/\*|\*)/)) {
+      return false;
+    }
+    
     // Extract the object being accessed
     const match = line.match(/(\w+)\.\w+\(/);
+    if (!match) {
+      // No method call access - less risky
+      return false;
+    }
+    
     if (match && match[1] && 
       (nullCheckedVars.includes(match[1]) || mainInputs.includes(match[1]))) {
       return false; // Don't flag if object has null check or is a main input
@@ -1300,13 +1315,28 @@ function shouldFlagRiskyOperation(
     if (line.includes('||') && line.includes('{')) {
       return false; // Likely a guard clause
     }
+    
+    // Only flag if there's actual dereferencing without checks
+    const hasDereferencing = line.match(/(\w+)\.([\w.]+)/) && 
+                            !line.includes('?') && 
+                            !line.includes('!==') && 
+                            !line.includes('!=') && 
+                            !line.includes('===') && 
+                            !line.includes('==');
+                            
+    return Boolean(hasDereferencing);
   }
   
   // For division, look for explicit non-zero checks
   if (operationType === 'java-arithmetic' && line.includes('/')) {
     // Skip division by constants which are safe
     if (line.match(/\/\s*\d+([^.]|$)/)) {
-      return false; // Division by integer constant
+      // But flag division by zero
+      const divisorMatch = line.match(/\/\s*(\d+)/);
+      if (divisorMatch && divisorMatch[1] === '0') {
+        return true; // Actual division by zero found
+      }
+      return false; // Division by non-zero integer constant is safe
     }
     
     // Skip division in typical counter/average calculations
@@ -1324,9 +1354,26 @@ function shouldFlagRiskyOperation(
     if (line.includes('!= 0') || line.includes('!== 0') || line.includes('> 0')) {
       return false;
     }
+    
+    // Only flag if there's a division operation without obvious validation
+    return Boolean(divMatch);
   }
   
-  return true; // Flag by default
+  // For input validation, only flag if it could lead to runtime exceptions
+  if (operationType.includes('input') || operationType.includes('validation')) {
+    // Skip comment lines
+    if (line.trim().startsWith('//') || line.trim().startsWith('/*') || line.trim().startsWith('*')) {
+      return false;
+    }
+    
+    // Only flag if there's actual input processing with potential exceptions
+    const hasRiskyInput = (line.includes('input') || line.includes('param')) && 
+                         (line.includes('parse') || line.includes('JSON') || line.includes('['));
+                         
+    return hasRiskyInput;
+  }
+  
+  return true; // Flag by default for other issue types
 }
 
 // Generate test cases from code

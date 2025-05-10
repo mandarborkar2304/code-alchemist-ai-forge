@@ -1,4 +1,3 @@
-
 import { ReliabilityIssue } from '@/types';
 import { ScoreGrade } from '@/types';
 import { ScoreData } from './types';
@@ -13,10 +12,11 @@ import {
   groupSimilarIssues, 
   getContextReductionFactor, 
   generateReliabilityImprovements,
-  determinePathSensitivity
+  determinePathSensitivity,
+  evaluatePatternRisk
 } from './reliabilityHelpers';
 
-// Helper function to safely calculate issue weight
+// Helper function to safely calculate issue weight with enhanced type inference
 function getIssueWeight(issue: ReliabilityIssue): number {
   if (!issue) return 0;
   
@@ -30,10 +30,34 @@ function getIssueWeight(issue: ReliabilityIssue): number {
     ? issue.impact / 2 
     : 0;
   
-  return Math.max(typeWeight, impactValue);
+  // Consider code context for more accurate weighting
+  let contextMultiplier = 1.0;
+  
+  // If code context is provided, evaluate based on actual code
+  if (issue.codeContext) {
+    // Reduce weight for issues in comments, imports, or declarations
+    if (
+      issue.codeContext.trim().startsWith('//') ||
+      issue.codeContext.trim().startsWith('/*') ||
+      issue.codeContext.trim().startsWith('*') ||
+      issue.codeContext.trim().startsWith('import') ||
+      issue.codeContext.trim().startsWith('const') ||
+      issue.codeContext.trim().startsWith('let') ||
+      issue.codeContext.trim().startsWith('var')
+    ) {
+      contextMultiplier = 0.5;
+    }
+    
+    // Validate if this is actually a risk based on pattern
+    if (issue.pattern && !evaluatePatternRisk(issue.pattern, issue.codeContext)) {
+      contextMultiplier = 0.1; // Significantly reduce weight for false positives
+    }
+  }
+  
+  return Math.max(typeWeight, impactValue) * contextMultiplier;
 }
 
-// Helper function to calculate group deduction
+// Helper function to calculate group deduction with enhanced control flow awareness
 function calculateGroupDeduction(
   group: { issues: ReliabilityIssue[] }, 
   contextFactor: number,
@@ -47,10 +71,20 @@ function calculateGroupDeduction(
   // Calculate aggregate impact and find highest severity
   let groupImpact = 0;
   let highestSeverityIssue = group.issues[0];
+  let falsePositiveCount = 0;
   
-  // Check each issue safely
+  // Check each issue safely with enhanced detection
   group.issues.forEach(issue => {
     if (!issue) return;
+    
+    // Check if the issue is likely a false positive
+    const isFalsePositive = issue.codeContext && issue.pattern && 
+                           !evaluatePatternRisk(issue.pattern, issue.codeContext);
+    
+    if (isFalsePositive) {
+      falsePositiveCount++;
+      return; // Skip this issue for impact calculation
+    }
     
     const currentWeight = getIssueWeight(issue);
     const highestWeight = getIssueWeight(highestSeverityIssue);
@@ -63,6 +97,12 @@ function calculateGroupDeduction(
     // Add to group impact based on issue type and declared impact
     groupImpact += currentWeight;
   });
+  
+  // Adjust for false positives ratio
+  if (group.issues.length > 0 && falsePositiveCount > 0) {
+    const falsePositiveRatio = falsePositiveCount / group.issues.length;
+    groupImpact *= (1 - falsePositiveRatio * 0.8); // Reduce impact based on false positive ratio
+  }
   
   // Calculate final deduction for this group with enhanced weighting
   let groupDeduction = 0;
@@ -91,19 +131,46 @@ function calculateGroupDeduction(
   return groupDeduction;
 }
 
-// Helper function to check if an issue is confirmed critical
+// Helper function to check if an issue is confirmed critical with enhanced verification
 function isConfirmedCriticalIssue(issue: ReliabilityIssue): boolean {
   if (!issue || !issue.description || issue.type !== 'critical') {
     return false;
   }
   
   const desc = issue.description.toLowerCase();
+  const codeContext = issue.codeContext || '';
   
-  return (
+  // First check description-based criteria
+  const descriptionBasedConfirmation = 
     desc.includes('unchecked exception') || 
     desc.includes('unvalidated input') ||
-    desc.includes('hardcoded fault')
-  );
+    desc.includes('hardcoded fault');
+  
+  // If we have code context, perform more precise analysis
+  if (codeContext) {
+    // Verify it's not a false positive through code analysis
+    if (issue.pattern && !evaluatePatternRisk(issue.pattern, codeContext)) {
+      return false; // Not a confirmed issue if our enhanced detection says it's a false positive
+    }
+    
+    // Check for specific patterns that confirm critical issues
+    const hasUncheckedDivision = codeContext.includes('/') && 
+                                !codeContext.includes('!= 0') && 
+                                !codeContext.includes('!== 0');
+                                
+    const hasUncheckedArrayAccess = codeContext.match(/\[\w+\]/) && 
+                                   !codeContext.includes('.length') &&
+                                   !codeContext.match(/for\s*\(/);
+                                   
+    const hasUncheckedNull = codeContext.match(/\w+\.\w+/) &&
+                            !codeContext.includes('?') && 
+                            !codeContext.includes('if') && 
+                            !codeContext.includes('===');
+                            
+    return descriptionBasedConfirmation || hasUncheckedDivision || hasUncheckedArrayAccess || hasUncheckedNull;
+  }
+  
+  return descriptionBasedConfirmation;
 }
 
 // Helper function to determine appropriate description and reason
@@ -191,7 +258,7 @@ function getDefaultImprovementsList(rating: ScoreGrade): string[] {
   }
 }
 
-// Main function for reliability rating assessment
+// Main function for reliability rating assessment with enhanced control flow and type inference
 export function getReliabilityRating(score: number, issues?: ReliabilityIssue[]): ScoreData {
   // Validate input
   if (score === undefined || score === null || !isFinite(score)) {
@@ -214,8 +281,17 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
   
   // Process issues if provided
   if (issues && Array.isArray(issues) && issues.length > 0) {
+    // Filter out probable false positives before grouping
+    const validatedIssues = issues.filter(issue => {
+      // Skip issues that are likely false positives based on our enhanced detection
+      if (issue && issue.pattern && issue.codeContext) {
+        return evaluatePatternRisk(issue.pattern, issue.codeContext);
+      }
+      return true; // Keep issues without context data
+    });
+    
     // Group similar issues to avoid duplicate penalties
-    const groupedIssues = groupSimilarIssues(issues);
+    const groupedIssues = groupSimilarIssues(validatedIssues);
     
     // Calculate adjusted score using enhanced SonarQube-style severity weighting
     const baseScore = 100; // Start with perfect score
@@ -234,25 +310,19 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
     
     // Ensure deductions scale properly - critical issues should result in at least C rating
     if (deductions > 0) {
-      const hasCriticalIssues = issues.some(i => i?.type === 'critical');
+      // Only check for critical issues that pass our enhanced verification
+      const confirmedCriticalIssues = validatedIssues.filter(isConfirmedCriticalIssue);
       
-      if (hasCriticalIssues) {
-        // Check for confirmed critical issues vs. potential ones
-        const confirmedCriticalIssues = issues.filter(isConfirmedCriticalIssue);
-        
-        if (confirmedCriticalIssues.length > 0) {
-          // Ensure at least 30 points deduction for confirmed critical issues
-          deductions = Math.max(deductions, 30);
-        } else {
-          // Potential but unconfirmed critical issues get reduced penalty
-          deductions = Math.max(deductions, 20);
+      if (confirmedCriticalIssues.length > 0) {
+        // Ensure at least 30 points deduction for confirmed critical issues
+        deductions = Math.max(deductions, 30);
+      } else {
+        // Check for major issues
+        const hasMajorIssues = validatedIssues.some(i => i?.type === 'major');
+        if (hasMajorIssues) {
+          // Ensure at least 15 points deduction for any major issues
+          deductions = Math.max(deductions, 15);
         }
-      }
-      
-      const hasMajorIssues = issues.some(i => i?.type === 'major');
-      if (hasMajorIssues && deductions < 15) {
-        // Ensure at least 15 points deduction for any major issues
-        deductions = Math.max(deductions, 15);
       }
     }
     
@@ -272,9 +342,17 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
     // Calculate final reliability score with minimum value of 1
     calculatedScore = Math.max(1, baseScore - cappedDeductions);
     
-    // Build issues list from grouped issues
+    // Build issues list from grouped issues, focusing on validated issues
     issuesList = groupedIssues
-      .flatMap(group => group.issues.slice(0, 1).map(issue => issue.description))
+      .flatMap(group => {
+        // Get first issue from the group, but ensure it's not a false positive
+        const validIssues = group.issues.filter(issue => 
+          !issue.pattern || !issue.codeContext || 
+          evaluatePatternRisk(issue.pattern, issue.codeContext)
+        );
+        
+        return validIssues.slice(0, 1).map(issue => issue.description);
+      })
       .filter(Boolean);
     
     // Generate improvements from grouped issues
