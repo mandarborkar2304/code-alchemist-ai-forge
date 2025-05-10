@@ -63,17 +63,19 @@ export function getContextReductionFactor(issues: ReliabilityIssue[]): number {
   const desc = normalizeString(firstIssue.description);
   
   // Check for issues in test files
-  if (desc.includes('test')) {
+  if (desc.includes('test') || (firstIssue.codeContext && firstIssue.codeContext.includes('test'))) {
     factor *= ANALYSIS_CONSTANTS.FACTORS.TEST_CODE; // Reduce impact for test code
   }
   
   // Check for issues in error handling blocks
-  if (desc.includes('catch') || desc.includes('try')) {
+  if (desc.includes('catch') || desc.includes('try') || 
+      (firstIssue.codeContext && (firstIssue.codeContext.includes('catch') || firstIssue.codeContext.includes('try')))) {
     factor *= ANALYSIS_CONSTANTS.FACTORS.ERROR_HANDLING; // Reduce impact for error handling code
   }
   
   // Check for issues in helper functions
-  if (desc.includes('helper') || desc.includes('util')) {
+  if (desc.includes('helper') || desc.includes('util') || 
+      (firstIssue.codeContext && (firstIssue.codeContext.includes('helper') || firstIssue.codeContext.includes('util')))) {
     factor *= ANALYSIS_CONSTANTS.FACTORS.UTILITY_CODE; // Reduce impact for utility code
   }
   
@@ -85,7 +87,7 @@ export function getContextReductionFactor(issues: ReliabilityIssue[]): number {
   return factor;
 }
 
-// Enhanced helper to evaluate actual risk in detection patterns
+// Enhanced helper to evaluate actual risk in detection patterns with regex-based matching
 export function evaluatePatternRisk(issuePattern: string, codeContext: string): boolean {
   // Skip empty inputs
   if (!issuePattern || !codeContext) {
@@ -99,12 +101,24 @@ export function evaluatePatternRisk(issuePattern: string, codeContext: string): 
       return false;
     }
     
+    // Don't flag declaration statements without dereferencing
+    if (codeContext.trim().match(/^(const|let|var)\s+\w+\s*=/)) {
+      return false;
+    }
+    
+    // Don't flag parameter declarations
+    if (codeContext.trim().match(/^\s*\w+\s*:/)) {
+      return false;
+    }
+    
     // Only flag actual property/method access without checks
     const hasNullDereference = codeContext.match(/(\w+)\.\w+/) && 
                               !codeContext.includes('?.') && 
                               !codeContext.includes('??') &&
                               !codeContext.includes('!==') && 
-                              !codeContext.includes('!=');
+                              !codeContext.includes('!=') &&
+                              !codeContext.includes('if (') &&
+                              !codeContext.includes('typeof');
                               
     return Boolean(hasNullDereference);
   }
@@ -117,19 +131,24 @@ export function evaluatePatternRisk(issuePattern: string, codeContext: string): 
     
     // Extract divisor
     const divisorMatch = codeContext.match(/\/\s*(\w+)/);
-    if (!divisorMatch) return false;
+    if (!divisorMatch) {
+      // Check if dividing by a literal number
+      const literalMatch = codeContext.match(/\/\s*(\d+)/);
+      if (literalMatch && literalMatch[1] !== '0') {
+        return false; // Not a risk if dividing by non-zero literal
+      }
+      return literalMatch && literalMatch[1] === '0'; // Only flag literal division by zero
+    }
     
     const divisor = divisorMatch[1];
-    
-    // Don't flag numeric literals except 0
-    if (divisor.match(/^\d+$/) && divisor !== '0') {
-      return false;
-    }
     
     // Don't flag if there's validation for non-zero
     const hasValidation = codeContext.includes(`${divisor} !== 0`) || 
                          codeContext.includes(`${divisor} != 0`) || 
-                         codeContext.includes(`${divisor} > 0`);
+                         codeContext.includes(`${divisor} > 0`) ||
+                         codeContext.includes(`if (${divisor})`) ||
+                         codeContext.includes('try') ||
+                         codeContext.includes('catch');
                          
     return !hasValidation;
   }
@@ -144,7 +163,7 @@ export function evaluatePatternRisk(issuePattern: string, codeContext: string): 
     const index = hasArrayAccess[2];
     
     // Don't flag numeric literals within reasonable range
-    if (index.match(/^\d+$/) && parseInt(index) < 100) {
+    if (index.match(/^\d+$/) && parseInt(index) < 1000) {
       return false;
     }
     
@@ -152,7 +171,9 @@ export function evaluatePatternRisk(issuePattern: string, codeContext: string): 
     const hasBoundsCheck = codeContext.includes(`${index} < ${array}.length`) || 
                           codeContext.includes(`${array}.length > ${index}`) || 
                           codeContext.includes(`${index} >= 0`) ||
-                          codeContext.match(new RegExp(`for.*${index}.*${array}\\.length`));
+                          codeContext.match(new RegExp(`for.*${index}.*${array}\\.length`)) ||
+                          codeContext.includes('try') ||
+                          codeContext.includes('catch');
                           
     // Don't flag if loop control variable
     const isLoopVariable = codeContext.match(new RegExp(`for.*${index}\\s*=.*${index}\\+\\+`));
@@ -175,12 +196,16 @@ export function evaluatePatternRisk(issuePattern: string, codeContext: string): 
                        codeContext.match(/\[\s*\w+\s*\]/) ||
                        codeContext.includes('/');
                        
+    // Avoid flagging if there's no risky operation
+    if (!hasRiskyOps) return false;
+                       
     // Check if there's some validation
     const hasValidation = codeContext.includes('if') || 
                          codeContext.includes('typeof') || 
                          codeContext.includes('instanceof') || 
                          codeContext.includes('===') || 
-                         codeContext.includes('!==');
+                         codeContext.includes('!==') ||
+                         codeContext.includes('try');
                          
     return hasRiskyOps && !hasValidation;
   }
@@ -217,7 +242,14 @@ export function determinePathSensitivity(issues: ReliabilityIssue[]): number {
                          codeContext.match(/!=\s*null/) || 
                          codeContext.match(/!==\s*null/);
                          
-    if (hasBranchingConditions || hasTypeGuards) {
+    // Check for other safety mechanisms
+    const hasTryCatch = codeContext.includes('try') && codeContext.includes('catch');
+    
+    // Apply appropriate factor reduction
+    if (hasTryCatch) {
+      pathFactor *= 0.4; // Significant reduction for code in try-catch
+    }
+    else if (hasBranchingConditions || hasTypeGuards) {
       pathFactor *= ANALYSIS_CONSTANTS.FACTORS.GUARDED_PATH;
     }
   } else {
@@ -236,17 +268,6 @@ export function determinePathSensitivity(issues: ReliabilityIssue[]): number {
     if (desc.includes('validated') || desc.includes('checked')) {
       pathFactor *= ANALYSIS_CONSTANTS.FACTORS.VALIDATED_CODE;
     }
-    
-    // Increase factor for issues in main execution paths
-    if (desc.includes('main path') || desc.includes('always executed')) {
-      pathFactor = 1.0; // No reduction for main execution path issues
-    }
-    
-    // Increase factor for unvalidated inputs in critical operations
-    if ((desc.includes('unvalidated') || desc.includes('unchecked')) && 
-        (desc.includes('input') || desc.includes('parameter'))) {
-      pathFactor = ANALYSIS_CONSTANTS.FACTORS.UNVALIDATED_INPUT;
-    }
   }
   
   return pathFactor;
@@ -261,25 +282,28 @@ function generateImprovementsByIssueType(groups: IssueGroup[], category: string)
   
   switch (category) {
     case 'runtime':
-      improvements.push('Fix potential runtime errors by adding proper validation');
-      if (filteredGroups.length > 1) {
-        improvements.push('Implement defensive programming practices to handle edge cases');
+      if (filteredGroups.length === 1) {
+        improvements.push('Add validation for potential runtime issues');
+      } else if (filteredGroups.length > 1) {
+        improvements.push('Implement defensive programming to prevent runtime errors');
       }
       break;
     case 'exception':
-      improvements.push('Add try-catch blocks around risky operations');
-      if (filteredGroups.length > 1) {
-        improvements.push('Create a centralized error handling strategy');
+      if (filteredGroups.length === 1) {
+        improvements.push('Consider adding exception handling');
+      } else if (filteredGroups.length > 1) {
+        improvements.push('Implement a consistent error handling strategy');
       }
       break;
     case 'structure':
-      improvements.push('Improve code structure to reduce complexity');
-      if (filteredGroups.length > 1) {
-        improvements.push('Extract complex logic into smaller, well-named functions');
+      if (filteredGroups.length > 0) {
+        improvements.push('Enhance code structure to improve reliability');
       }
       break;
     case 'readability':
-      improvements.push('Enhance code readability with better naming and comments');
+      if (filteredGroups.length > 0) {
+        improvements.push('Improve code clarity to reduce potential for errors');
+      }
       break;
     default:
       // No specific improvements for unknown categories
@@ -291,8 +315,8 @@ function generateImprovementsByIssueType(groups: IssueGroup[], category: string)
 // Generate improvement recommendations based on grouped issues
 export function generateReliabilityImprovements(groupedIssues: IssueGroup[]): string[] {
   // Validate input
-  if (!Array.isArray(groupedIssues)) {
-    return ['Implement comprehensive error handling and validation'];
+  if (!Array.isArray(groupedIssues) || groupedIssues.length === 0) {
+    return [];
   }
   
   // Start with an empty improvements array
@@ -305,14 +329,7 @@ export function generateReliabilityImprovements(groupedIssues: IssueGroup[]): st
     improvements.push(...categoryImprovements);
   });
   
-  // Add general recommendation if there are multiple issue types
-  const issueTypes = new Set(groupedIssues.map(g => g.issues[0]?.category).filter(Boolean));
-  
-  if (issueTypes.size > 2) {
-    improvements.push('Consider a comprehensive code review to address all reliability concerns');
-  }
-  
-  return improvements;
+  return improvements.length > 0 ? improvements : ['Consider implementing additional validation where appropriate'];
 }
 
 // Helper function to safely determine issue severity
@@ -324,7 +341,7 @@ function getSeverityLevel(issue: ReliabilityIssue): string {
 // Helper function to categorize and group reliability issues
 export function categorizeReliabilityIssues(issues: ReliabilityIssue[]): CategoryWithIssues[] {
   // Validate input
-  if (!Array.isArray(issues)) {
+  if (!Array.isArray(issues) || issues.length === 0) {
     return [];
   }
   

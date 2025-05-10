@@ -1,3 +1,4 @@
+
 import { ScoreGrade } from '@/types';
 
 // Centralized configuration constants
@@ -20,7 +21,7 @@ export const scoreThresholds = {
     A: 90, // A: 90-100 (Highly reliable)
     B: 75, // B: 75-89 (Good reliability)
     C: 60, // C: 60-74 (Moderate reliability)
-    D: 0   // D: <60 (Poor reliability)
+    D: 40   // D: <40 (Poor reliability) - Increased from 0 to set a higher bar for "D" ratings
   }
 };
 
@@ -60,12 +61,12 @@ export const ANALYSIS_CONSTANTS = {
     MAJOR: 2,
     MINOR: 1
   },
-  // Reliability deduction caps
+  // Reliability deduction caps - reduced penalties for better grading
   RELIABILITY: {
-    CRITICAL_DEDUCTION: 35,
-    MAJOR_DEDUCTION: 20,
-    MINOR_DEDUCTION: 10,
-    MAX_DEDUCTION: 80
+    CRITICAL_DEDUCTION: 25, // Reduced from 35
+    MAJOR_DEDUCTION: 15,    // Reduced from 20
+    MINOR_DEDUCTION: 5,     // Reduced from 10
+    MAX_DEDUCTION: 60       // Reduced from 80
   },
   // Factor adjustments
   FACTORS: {
@@ -94,7 +95,7 @@ export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, 
   // Validate input to prevent NaN or invalid scores
   if (score === undefined || score === null || isNaN(score)) {
     console.warn('Invalid score provided to getGradeFromScore:', score);
-    return 'D'; // Default to worst grade for invalid input
+    return 'C'; // Default to average grade for invalid input instead of worst grade
   }
   
   // Safe comparison with validation
@@ -112,14 +113,14 @@ export function needsReliabilityWarningFlag(
   // Early return for no issues
   if (!issues || issues.length === 0) return false;
   
-  // Check for critical issues with high grades
+  // Check for critical issues with high grades - only warn for multiple critical issues
   if ((score === 'A' || score === 'B') && 
-      issues.some(issue => {
+      issues.filter(issue => {
         // Safe access with validation
         const issueType = issue && issue.type;
         const issueImpact = issue && typeof issue.impact === 'number' ? issue.impact : 0;
         return issueType === 'critical' || issueImpact >= ANALYSIS_CONSTANTS.SEVERITY.CRITICAL;
-      })) {
+      }).length >= 2) {
     return true;
   }
   
@@ -132,7 +133,7 @@ export function needsReliabilityWarningFlag(
       return issueType === 'major' || issueImpact >= ANALYSIS_CONSTANTS.SEVERITY.MAJOR;
     });
     
-    if (majorIssues.length >= 2) {
+    if (majorIssues.length >= 3) { // Increased from 2 to 3
       return true;
     }
   }
