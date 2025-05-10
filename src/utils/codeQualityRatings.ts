@@ -1,5 +1,5 @@
 
-// This file now just re-exports from the new modular structure
+// This file now re-exports from the new modular structure
 // for backward compatibility
 
 import { getRatingFromScore, categorizeReliabilityIssues } from './quality';

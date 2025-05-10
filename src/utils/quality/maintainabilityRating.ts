@@ -1,89 +1,275 @@
 
 import { ScoreData } from './types';
-import { scoreThresholds, getGradeFromScore } from './scoreThresholds';
+import { scoreThresholds, getGradeFromScore, ANALYSIS_CONSTANTS } from './scoreThresholds';
 
-// AST-based structural analysis simulation
-// In a real implementation, this would use an actual AST parser
-function detectCodeDuplication(score: number): { duplicationPercent: number, duplicationImpact: number } {
-  // This is a placeholder for actual AST-based duplication detection
-  // In a full implementation, this would analyze the AST to find structural similarities
+// Helper function to detect code duplication
+function detectCodeDuplication(score: number): { 
+  duplicationPercent: number, 
+  duplicationImpact: number 
+} {
+  // Validate input
+  if (score === undefined || score === null || !isFinite(score)) {
+    console.warn('Invalid score for duplication analysis:', score);
+    return { duplicationPercent: 0, duplicationImpact: 0 };
+  }
   
-  // For now, we'll simulate different duplication rates based on the input score
-  // Lower input scores suggest more code issues, so we'll infer higher duplication
+  // Use safe non-negative value with upper bound
+  const safeScore = Math.min(100, Math.max(0, score));
+  
   let duplicationPercent: number;
   
-  if (score >= 90) {
-    duplicationPercent = Math.max(0, Math.min(5, 100 - score)); // 0-5% duplication
-  } else if (score >= 80) {
-    duplicationPercent = 5 + (90 - score) * 0.5; // 5-10% duplication
-  } else if (score >= 70) {
-    duplicationPercent = 10 + (80 - score) * 1.0; // 10-20% duplication
+  if (safeScore >= 90) {
+    duplicationPercent = Math.max(0, Math.min(5, 100 - safeScore)); // 0-5% duplication
+  } else if (safeScore >= 80) {
+    duplicationPercent = 5 + (90 - safeScore) * 0.5; // 5-10% duplication
+  } else if (safeScore >= 70) {
+    duplicationPercent = 10 + (80 - safeScore) * 1.0; // 10-20% duplication
   } else {
-    duplicationPercent = 20 + (70 - Math.min(70, score)) * 1.5; // 20-50% duplication
+    duplicationPercent = 20 + (70 - Math.min(70, safeScore)) * 1.5; // 20-50% duplication
   }
   
   // Calculate impact: higher duplication has exponentially increasing impact
-  const duplicationImpact = Math.pow(duplicationPercent / 10, 1.5);
+  // Protect against NaN with safe division
+  const duplicationImpact = duplicationPercent > 0 ? 
+    Math.pow(duplicationPercent / 10, 1.5) : 0;
   
   return { duplicationPercent, duplicationImpact };
 }
 
-// Function to assess function size issues
-function assessFunctionSizeIssues(score: number): { oversizedFunctions: number, impact: number } {
-  // Simulate function size analysis based on score
-  // In a real implementation, this would analyze actual function sizes
+// Helper function to assess function size issues
+function assessFunctionSizeIssues(score: number): { 
+  oversizedFunctions: number, 
+  impact: number 
+} {
+  // Validate input
+  if (score === undefined || score === null || !isFinite(score)) {
+    console.warn('Invalid score for function size analysis:', score);
+    return { oversizedFunctions: 0, impact: 0 };
+  }
+  
+  // Use safe non-negative value with upper bound
+  const safeScore = Math.min(100, Math.max(0, score));
+  
   let oversizedFunctions: number;
   
-  if (score >= 90) {
-    oversizedFunctions = 0;
-  } else if (score >= 80) {
+  if (safeScore >= 90) {
+    oversizedFunctions = ANALYSIS_CONSTANTS.FUNCTION_SIZE.ACCEPTABLE;
+  } else if (safeScore >= 80) {
     oversizedFunctions = 1;
-  } else if (score >= 70) {
-    oversizedFunctions = Math.floor((80 - score) / 2) + 1;
+  } else if (safeScore >= 70) {
+    oversizedFunctions = Math.floor((80 - safeScore) / 2) + 1;
   } else {
-    oversizedFunctions = Math.floor((70 - Math.max(40, score)) / 5) + 6;
+    oversizedFunctions = Math.floor((70 - Math.max(40, safeScore)) / 5) + 
+      ANALYSIS_CONSTANTS.FUNCTION_SIZE.HIGH;
   }
   
   // Calculate impact: each oversized function has increasing impact
-  const impact = oversizedFunctions === 0 ? 0 : Math.min(25, oversizedFunctions * 3);
+  const impact = oversizedFunctions === 0 ? 0 : 
+    Math.min(ANALYSIS_CONSTANTS.FUNCTION_SIZE.MAX_IMPACT, 
+      oversizedFunctions * ANALYSIS_CONSTANTS.FUNCTION_SIZE.IMPACT_MULTIPLIER);
   
   return { oversizedFunctions, impact };
 }
 
-// Function to assess documentation quality
-function assessDocumentationQuality(score: number): { documentationPercent: number, impact: number } {
-  // Simulate documentation quality based on score
-  // In a real implementation, this would analyze actual documentation coverage
+// Helper function to assess documentation quality
+function assessDocumentationQuality(score: number): { 
+  documentationPercent: number, 
+  impact: number 
+} {
+  // Validate input
+  if (score === undefined || score === null || !isFinite(score)) {
+    console.warn('Invalid score for documentation analysis:', score);
+    return { documentationPercent: 50, impact: 0 };
+  }
+  
+  // Use safe non-negative value with upper bound
+  const safeScore = Math.min(100, Math.max(0, score));
+  
   let documentationPercent: number;
   
-  if (score >= 90) {
-    documentationPercent = Math.min(100, score);
-  } else if (score >= 80) {
-    documentationPercent = 70 + (score - 80) * 2;
-  } else if (score >= 70) {
-    documentationPercent = 50 + (score - 70) * 2;
+  if (safeScore >= 90) {
+    documentationPercent = Math.min(100, safeScore);
+  } else if (safeScore >= 80) {
+    documentationPercent = 70 + (safeScore - 80) * 2;
+  } else if (safeScore >= 70) {
+    documentationPercent = 50 + (safeScore - 70) * 2;
   } else {
-    documentationPercent = Math.max(10, score * 0.7);
+    documentationPercent = Math.max(10, safeScore * 0.7);
   }
   
   // Calculate impact: poor documentation has significant impact on maintainability
-  const impact = documentationPercent < 50 ? (50 - documentationPercent) * 0.4 : 0;
+  const impact = documentationPercent < ANALYSIS_CONSTANTS.DOCUMENTATION.POOR ? 
+    (ANALYSIS_CONSTANTS.DOCUMENTATION.POOR - documentationPercent) * 
+    ANALYSIS_CONSTANTS.DOCUMENTATION.IMPACT_MULTIPLIER : 0;
   
   return { documentationPercent, impact };
 }
 
-// Updated maintainability rating calculation with enhanced analysis
+// Helper function to generate maintainability report based on analysis
+function generateMaintainabilityReport(
+  rating: ScoreGrade,
+  duplication: { duplicationPercent: number },
+  functionSizes: { oversizedFunctions: number },
+  documentation: { documentationPercent: number }
+): {
+  description: string;
+  reason: string;
+  issuesList: string[];
+  improvements: string[];
+} {
+  let description: string;
+  let reason: string;
+  let issuesList: string[] = [];
+  let improvements: string[] = [];
+  
+  switch (rating) {
+    case 'A':
+      description = 'Highly maintainable';
+      reason = 'The code follows clean code principles with appropriate abstractions and organization.';
+      improvements = ['Continue maintaining high code quality standards.'];
+      break;
+    case 'B':
+      description = 'Good maintainability';
+      reason = 'The code is generally well-structured with minor improvement opportunities.';
+      
+      if (duplication.duplicationPercent > 3) {
+        issuesList.push(`${duplication.duplicationPercent.toFixed(1)}% code duplication detected.`);
+      }
+      
+      if (functionSizes.oversizedFunctions > 0) {
+        issuesList.push(`${functionSizes.oversizedFunctions} functions exceed recommended size limits.`);
+      }
+      
+      if (documentation.documentationPercent < ANALYSIS_CONSTANTS.DOCUMENTATION.GOOD) {
+        issuesList.push(
+          `Documentation coverage is at ${documentation.documentationPercent.toFixed(1)}%, below recommended 80%.`
+        );
+      }
+      
+      if (issuesList.length === 0) {
+        issuesList = [
+          'Some areas could benefit from better documentation.',
+          'Minor code duplication may exist.'
+        ];
+      }
+      
+      improvements = [
+        'Enhance documentation for complex logic',
+        'Extract common patterns into reusable functions',
+        'Review variable names for clarity'
+      ];
+      break;
+    case 'C':
+      description = 'Moderate maintainability';
+      reason = 'The code has structural issues that moderately impact future maintenance.';
+      
+      if (duplication.duplicationPercent > ANALYSIS_CONSTANTS.DUPLICATION.MODERATE) {
+        issuesList.push(
+          `Significant code duplication (${duplication.duplicationPercent.toFixed(1)}%) detected.`
+        );
+      }
+      
+      if (functionSizes.oversizedFunctions > 3) {
+        issuesList.push(
+          `${functionSizes.oversizedFunctions} functions substantially exceed size guidelines.`
+        );
+      }
+      
+      if (documentation.documentationPercent < ANALYSIS_CONSTANTS.DOCUMENTATION.ACCEPTABLE) {
+        issuesList.push(
+          `Poor documentation coverage (${documentation.documentationPercent.toFixed(1)}%).`
+        );
+      }
+      
+      if (issuesList.length === 0) {
+        issuesList = [
+          'Inadequate documentation in key areas',
+          'Functions exceeding size guidelines',
+          'Some code duplication without proper abstraction',
+          'Variable naming could be improved'
+        ];
+      }
+      
+      improvements = [
+        'Refactor larger functions into smaller, single-purpose components',
+        'Extract duplicate code into shared utilities',
+        'Improve documentation coverage',
+        'Enhance naming conventions for clarity'
+      ];
+      break;
+    default: // 'D'
+      description = 'Poor maintainability';
+      reason = 'The code has significant maintainability issues requiring remediation.';
+      
+      if (duplication.duplicationPercent > ANALYSIS_CONSTANTS.DUPLICATION.HIGH) {
+        issuesList.push(
+          `Excessive code duplication (${duplication.duplicationPercent.toFixed(1)}%).`
+        );
+      }
+      
+      if (functionSizes.oversizedFunctions > 5) {
+        issuesList.push(
+          `${functionSizes.oversizedFunctions} functions are excessively large.`
+        );
+      }
+      
+      if (documentation.documentationPercent < ANALYSIS_CONSTANTS.DOCUMENTATION.POOR) {
+        issuesList.push(
+          `Critical lack of documentation (${documentation.documentationPercent.toFixed(1)}%).`
+        );
+      }
+      
+      if (issuesList.length === 0) {
+        issuesList = [
+          'Functions exceeding recommended sizes',
+          'Insufficient or missing documentation',
+          'Unclear naming and conventions',
+          'Deep nesting of control structures',
+          'Substantial code duplication',
+          'Magic numbers and hardcoded values'
+        ];
+      }
+      
+      improvements = [
+        'Comprehensive refactoring recommended',
+        'Break down large functions into smaller units',
+        'Add complete documentation',
+        'Simplify nested code structures',
+        'Create reusable abstractions for duplicate code',
+        'Replace magic numbers with named constants'
+      ];
+  }
+  
+  return { description, reason, issuesList, improvements };
+}
+
+// Main function for maintainability rating
 export function getMaintainabilityRating(score: number): ScoreData {
-  // Perform enhanced structural analysis
-  const duplication = detectCodeDuplication(score);
-  const functionSizes = assessFunctionSizeIssues(score);
-  const documentation = assessDocumentationQuality(score);
+  // Validate input
+  if (score === undefined || score === null || !isFinite(score)) {
+    console.warn('Invalid maintainability score:', score);
+    return {
+      score: 'D',
+      description: 'Invalid maintainability',
+      reason: 'Unable to analyze the code maintainability due to invalid input.',
+      issues: ['Invalid maintainability score provided'],
+      improvements: ['Ensure valid metrics are available for analysis']
+    };
+  }
+  
+  // Use safe non-negative value with upper bound
+  const safeScore = Math.min(100, Math.max(0, score));
+  
+  // Perform enhanced structural analysis using helper functions
+  const duplication = detectCodeDuplication(safeScore);
+  const functionSizes = assessFunctionSizeIssues(safeScore);
+  const documentation = assessDocumentationQuality(safeScore);
   
   // Calculate adjusted score based on these enhanced factors
-  let adjustedScore = score;
+  let adjustedScore = safeScore;
   
   // Apply penalties for duplication, function size, and documentation
-  adjustedScore -= duplication.duplicationImpact * 2;
+  adjustedScore -= duplication.duplicationImpact * ANALYSIS_CONSTANTS.DUPLICATION.IMPACT_MULTIPLIER;
   adjustedScore -= functionSizes.impact;
   adjustedScore -= documentation.impact;
   
@@ -93,114 +279,9 @@ export function getMaintainabilityRating(score: number): ScoreData {
   // Get final rating based on adjusted score
   const rating = getGradeFromScore(adjustedScore, scoreThresholds.maintainability);
   
-  // Generate detailed description and issues based on the analysis
-  let description = '';
-  let reason = '';
-  let issuesList: string[] = [];
-  let improvements: string[] = [];
-  
-  if (rating === 'A') {
-    description = 'Highly maintainable';
-    reason = 'The code follows clean code principles with appropriate abstractions and organization.';
-    improvements = ['Continue maintaining high code quality standards.'];
-  } else if (rating === 'B') {
-    description = 'Good maintainability';
-    reason = 'The code is generally well-structured with minor improvement opportunities.';
-    
-    // Generate specific issues based on our analysis
-    if (duplication.duplicationPercent > 3) {
-      issuesList.push(`${duplication.duplicationPercent.toFixed(1)}% code duplication detected.`);
-    }
-    
-    if (functionSizes.oversizedFunctions > 0) {
-      issuesList.push(`${functionSizes.oversizedFunctions} functions exceed recommended size limits.`);
-    }
-    
-    if (documentation.documentationPercent < 80) {
-      issuesList.push(`Documentation coverage is at ${documentation.documentationPercent.toFixed(1)}%, below recommended 80%.`);
-    }
-    
-    if (issuesList.length === 0) {
-      issuesList = [
-        'Some areas could benefit from better documentation.',
-        'Minor code duplication may exist.'
-      ];
-    }
-    
-    improvements = [
-      'Enhance documentation for complex logic',
-      'Extract common patterns into reusable functions',
-      'Review variable names for clarity'
-    ];
-  } else if (rating === 'C') {
-    description = 'Moderate maintainability';
-    reason = 'The code has structural issues that moderately impact future maintenance.';
-    
-    // Generate specific issues based on our analysis
-    if (duplication.duplicationPercent > 10) {
-      issuesList.push(`Significant code duplication (${duplication.duplicationPercent.toFixed(1)}%) detected.`);
-    }
-    
-    if (functionSizes.oversizedFunctions > 3) {
-      issuesList.push(`${functionSizes.oversizedFunctions} functions substantially exceed size guidelines.`);
-    }
-    
-    if (documentation.documentationPercent < 60) {
-      issuesList.push(`Poor documentation coverage (${documentation.documentationPercent.toFixed(1)}%).`);
-    }
-    
-    if (issuesList.length === 0) {
-      issuesList = [
-        'Inadequate documentation in key areas',
-        'Functions exceeding size guidelines',
-        'Some code duplication without proper abstraction',
-        'Variable naming could be improved'
-      ];
-    }
-    
-    improvements = [
-      'Refactor larger functions into smaller, single-purpose components',
-      'Extract duplicate code into shared utilities',
-      'Improve documentation coverage',
-      'Enhance naming conventions for clarity'
-    ];
-  } else {
-    description = 'Poor maintainability';
-    reason = 'The code has significant maintainability issues requiring remediation.';
-    
-    // Generate specific issues based on our analysis
-    if (duplication.duplicationPercent > 20) {
-      issuesList.push(`Excessive code duplication (${duplication.duplicationPercent.toFixed(1)}%).`);
-    }
-    
-    if (functionSizes.oversizedFunctions > 5) {
-      issuesList.push(`${functionSizes.oversizedFunctions} functions are excessively large.`);
-    }
-    
-    if (documentation.documentationPercent < 40) {
-      issuesList.push(`Critical lack of documentation (${documentation.documentationPercent.toFixed(1)}%).`);
-    }
-    
-    if (issuesList.length === 0) {
-      issuesList = [
-        'Functions exceeding recommended sizes',
-        'Insufficient or missing documentation',
-        'Unclear naming and conventions',
-        'Deep nesting of control structures',
-        'Substantial code duplication',
-        'Magic numbers and hardcoded values'
-      ];
-    }
-    
-    improvements = [
-      'Comprehensive refactoring recommended',
-      'Break down large functions into smaller units',
-      'Add complete documentation',
-      'Simplify nested code structures',
-      'Create reusable abstractions for duplicate code',
-      'Replace magic numbers with named constants'
-    ];
-  }
+  // Generate detailed report using helper function
+  const { description, reason, issuesList, improvements } = 
+    generateMaintainabilityReport(rating, duplication, functionSizes, documentation);
   
   return {
     score: rating,
