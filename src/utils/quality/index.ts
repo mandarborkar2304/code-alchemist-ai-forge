@@ -3,6 +3,10 @@
 export * from './scoreThresholds';
 export * from './types';
 
+// Import required types
+import { ScoreData } from './types';
+import { ScoreGrade } from '@/types';
+
 // Import and re-export functions
 import { getReliabilityRating } from './reliabilityRating';
 import { getCyclomaticComplexityRating } from './cyclomaticComplexityRating';
@@ -19,9 +23,6 @@ export {
 
 // Helper function to get rating from numerical score
 export function getRatingFromScore(score: number, category: 'reliability' | 'cyclomaticComplexity' | 'maintainability'): ScoreData {
-  import { ScoreData } from './types';
-  import { ScoreGrade } from '@/types';
-  
   switch (category) {
     case 'reliability':
       return getReliabilityRating(score);
