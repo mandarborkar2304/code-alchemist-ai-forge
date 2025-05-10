@@ -18,15 +18,24 @@ export {
 };
 
 // Helper function to get rating from numerical score
-export function getRatingFromScore(score: number, category: 'reliability' | 'cyclomaticComplexity' | 'maintainability'): string {
+export function getRatingFromScore(score: number, category: 'reliability' | 'cyclomaticComplexity' | 'maintainability'): ScoreData {
+  import { ScoreData } from './types';
+  import { ScoreGrade } from '@/types';
+  
   switch (category) {
     case 'reliability':
-      return getReliabilityRating(score).score;
+      return getReliabilityRating(score);
     case 'cyclomaticComplexity':
-      return getCyclomaticComplexityRating(score).score;
+      return getCyclomaticComplexityRating(score);
     case 'maintainability':
-      return getMaintainabilityRating(score).score;
+      return getMaintainabilityRating(score);
     default:
-      return 'C';
+      return {
+        score: 'C' as ScoreGrade,
+        description: 'Unknown metric',
+        reason: 'No rating available for the requested metric',
+        issues: [],
+        improvements: []
+      };
   }
 }

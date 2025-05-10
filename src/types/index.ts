@@ -61,11 +61,14 @@ export interface MetricsResult {
   cyclomaticComplexity: number;
 }
 
-// New interface for reliability issues
+// Enhanced ReliabilityIssue interface with all required properties
 export interface ReliabilityIssue {
   type: 'critical' | 'major' | 'minor';
   description: string;
   impact: number;
   category: 'runtime' | 'exception' | 'structure' | 'readability';
   line?: number;
+  // Adding the missing properties
+  codeContext?: string;
+  pattern?: string;
 }

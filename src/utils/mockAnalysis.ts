@@ -1,4 +1,3 @@
-
 import { CodeAnalysis, ReliabilityIssue } from "@/types";
 import { 
   calculateCyclomaticComplexity,
@@ -7,7 +6,7 @@ import {
   getCodeMetrics,
   scoreToGrade
 } from "./codeMetrics";
-import { getRatingFromScore } from "./codeQualityRatings";
+import { getRatingFromScore } from "./quality";
 import { 
   analyzeCodeForIssues, 
   generateTestCasesFromCode, 
@@ -23,7 +22,7 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
   // Get the ratings for each metric using SonarQube-aligned thresholds
   const cyclomaticComplexityRating = getRatingFromScore(cyclomaticComplexityScore, 'cyclomaticComplexity');
   const maintainabilityRating = getRatingFromScore(maintainabilityScore, 'maintainability');
-  const reliabilityRating = getRatingFromScore(reliabilityResult.score, 'reliability', reliabilityResult.issues);
+  const reliabilityRating = getRatingFromScore(reliabilityResult.score, 'reliability');
   
   // Skip analysis for trivial code
   let issuesList: string[] = [];
@@ -236,7 +235,7 @@ function generateSonarQubeStyleSuggestions(
   suggestions += "|-----------|-------|-------------|\n";
   
   // Calculate grades based on issues
-  const reliabilityGrade = getRatingFromScore(calculateReliability(code, language).score, 'reliability', issues).score;
+  const reliabilityGrade = getRatingFromScore(calculateReliability(code, language).score, 'reliability').score;
   const maintainabilityGrade = getRatingFromScore(calculateMaintainability(code, language), 'maintainability').score;
   const complexityGrade = getRatingFromScore(calculateCyclomaticComplexity(code, language), 'cyclomaticComplexity').score;
   

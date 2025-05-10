@@ -1,4 +1,3 @@
-
 import { ScoreGrade } from '@/types';
 
 // Centralized configuration constants
@@ -63,22 +62,23 @@ export const ANALYSIS_CONSTANTS = {
   },
   // Reliability deduction caps
   RELIABILITY: {
-    CRITICAL_DEDUCTION: 20,
-    MAJOR_DEDUCTION: 15,
-    MINOR_DEDUCTION: 5,
-    MAX_DEDUCTION: 60
+    CRITICAL_DEDUCTION: 35,
+    MAJOR_DEDUCTION: 20,
+    MINOR_DEDUCTION: 10,
+    MAX_DEDUCTION: 80
   },
   // Factor adjustments
   FACTORS: {
-    TEST_CODE: 0.5,
-    ERROR_HANDLING: 0.7,
-    UTILITY_CODE: 0.8,
-    REPEATED_ISSUES: 0.9,
-    RARE_PATH: 0.6,
-    EDGE_CASE: 0.8,
-    VALIDATED_CODE: 0.7,
-    UNVALIDATED_INPUT: 1.2,
-    CONSERVATIVE_MODE: 0.8
+    TEST_CODE: 0.5,        // Less impact for issues in test code
+    ERROR_HANDLING: 0.7,   // Reduced impact in error handling blocks
+    UTILITY_CODE: 0.8,     // Slight reduction for utility code
+    REPEATED_ISSUES: 0.9,  // Avoid penalizing the same issue repeatedly
+    RARE_PATH: 0.4,        // Significant reduction for rarely executed paths
+    EDGE_CASE: 0.6,        // Moderate reduction for edge cases
+    VALIDATED_CODE: 0.5,   // Reduced penalty for validated code
+    UNVALIDATED_INPUT: 1.2, // Increased penalty for unvalidated inputs
+    CONSERVATIVE_MODE: 0.8, // Reduction factor in conservative scoring mode
+    GUARDED_PATH: 0.6      // Reduction factor for paths with guards
   }
 };
 
