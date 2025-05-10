@@ -1,5 +1,6 @@
 
 import { ReliabilityIssue } from '@/types';
+import { ScoreGrade } from '@/types';
 import { ScoreData } from './types';
 import { 
   scoreThresholds, 

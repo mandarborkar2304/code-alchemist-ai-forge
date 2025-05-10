@@ -1,5 +1,6 @@
 
 import { ScoreData } from './types';
+import { ScoreGrade } from '@/types';
 import { scoreThresholds, getGradeFromScore, ANALYSIS_CONSTANTS } from './scoreThresholds';
 
 // Helper function for estimating nesting depth from complexity score
