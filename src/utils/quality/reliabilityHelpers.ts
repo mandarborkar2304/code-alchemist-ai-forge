@@ -62,6 +62,43 @@ export function getContextReductionFactor(issues: ReliabilityIssue[]): number {
   return factor;
 }
 
+// NEW: Helper function to determine path sensitivity factor
+export function determinePathSensitivity(issues: ReliabilityIssue[]): number {
+  // Default factor - assume all paths are equally likely
+  let pathFactor = 1.0;
+  
+  const firstIssue = issues[0];
+  const desc = firstIssue.description.toLowerCase();
+  
+  // Reduce penalty for issues in rarely executed exception paths
+  if (desc.includes('exception path') || desc.includes('rare condition')) {
+    pathFactor *= 0.6; // Significant reduction for unlikely execution paths
+  }
+  
+  // Reduce penalty for issues that only occur in edge cases
+  if (desc.includes('edge case') || desc.includes('boundary condition')) {
+    pathFactor *= 0.8; // Moderate reduction for edge case paths
+  }
+  
+  // Reduce penalty for issues protected by validation logic
+  if (desc.includes('validated') || desc.includes('checked')) {
+    pathFactor *= 0.7; // Reduced penalty for issues in validated contexts
+  }
+  
+  // Increase factor for issues in main execution paths
+  if (desc.includes('main path') || desc.includes('always executed')) {
+    pathFactor = 1.0; // No reduction for main execution path issues
+  }
+  
+  // Increase factor for unvalidated inputs in critical operations
+  if ((desc.includes('unvalidated') || desc.includes('unchecked')) && 
+      (desc.includes('input') || desc.includes('parameter'))) {
+    pathFactor = 1.2; // Increased penalty for unvalidated inputs
+  }
+  
+  return pathFactor;
+}
+
 // Generate improvement recommendations based on grouped issues
 export function generateReliabilityImprovements(groupedIssues: IssueGroup[]): string[] {
   const improvements: string[] = [];

@@ -10,11 +10,11 @@ export const scoreThresholds = {
     D: 0   // D: <70 (Poor maintainability, maps to both SonarQube D and E)
   },
   cyclomaticComplexity: {
-    // SonarQube-aligned thresholds (McCabe's complexity)
-    A: 10,  // A: ≤10 (Low complexity)
-    B: 20,  // B: 11-20 (Moderate complexity)
-    C: 30,  // C: 21-30 (High complexity)
-    D: 31   // D: >30 (Very high complexity)
+    // Updated thresholds to align with industry standards
+    A: 5,  // A: ≤5 (Very low complexity) - Best practice
+    B: 10, // B: 6-10 (Low complexity) - Good practice
+    C: 20, // C: 11-20 (Moderate complexity) - Acceptable
+    D: 21  // D: >20 (High complexity) - Needs refactoring
   },
   reliability: {
     A: 90, // A: 90-100 (Highly reliable, no critical issues)
@@ -39,7 +39,7 @@ export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, 
   return 'D';
 }
 
-// New function to determine if a reliability score needs a warning flag
+// Enhanced function to determine if a reliability score needs a warning flag
 export function needsReliabilityWarningFlag(
   score: ScoreGrade, 
   issues?: { type: string; impact: number }[]

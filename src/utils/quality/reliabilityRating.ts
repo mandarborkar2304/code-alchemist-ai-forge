@@ -5,7 +5,8 @@ import { scoreThresholds, issueSeverityWeights, getGradeFromScore, needsReliabil
 import { 
   groupSimilarIssues, 
   getContextReductionFactor, 
-  generateReliabilityImprovements
+  generateReliabilityImprovements,
+  determinePathSensitivity
 } from './reliabilityHelpers';
 
 export function getReliabilityRating(score: number, issues?: ReliabilityIssue[]): ScoreData {
@@ -46,19 +47,23 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
       // Apply context-based reduction factors
       const contextFactor = getContextReductionFactor(group.issues);
       
+      // NEW: Apply path-sensitive analysis to determine issue certainty
+      const pathFactor = determinePathSensitivity(group.issues);
+      
       // Calculate final deduction for this group with enhanced weighting
       // Critical issues get higher deductions (up to 20 points for a single critical issue)
       let groupDeduction = 0;
       
       if (highestSeverityIssue.type === 'critical') {
         // Critical issues result in substantial score reduction
-        groupDeduction = Math.min(20, 10 + (groupImpact * 2)) * contextFactor;
+        // Path sensitivity reduces penalty for unlikely execution paths
+        groupDeduction = Math.min(20, 10 + (groupImpact * 2)) * contextFactor * pathFactor;
       } else if (highestSeverityIssue.type === 'major') {
         // Major issues have significant impact
-        groupDeduction = Math.min(15, 5 + groupImpact) * contextFactor;
+        groupDeduction = Math.min(15, 5 + groupImpact) * contextFactor * pathFactor;
       } else {
         // Minor issues have smaller impact
-        groupDeduction = Math.min(5, 2 + (groupImpact / 2)) * contextFactor;
+        groupDeduction = Math.min(5, 2 + (groupImpact / 2)) * contextFactor * pathFactor;
       }
       
       deductions += groupDeduction;
@@ -69,8 +74,21 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
       const hasCriticalIssues = issues.some(i => i.type === 'critical');
       
       if (hasCriticalIssues) {
-        // Ensure at least 30 points deduction for any critical issues
-        deductions = Math.max(deductions, 30);
+        // Only penalize confirmed critical issues that lie on likely execution paths
+        const confirmedCriticalIssues = issues.filter(i => 
+          i.type === 'critical' && 
+          (i.description.includes('unchecked exception') || 
+           i.description.includes('unvalidated input') ||
+           i.description.includes('hardcoded fault'))
+        );
+        
+        if (confirmedCriticalIssues.length > 0) {
+          // Ensure at least 30 points deduction for confirmed critical issues
+          deductions = Math.max(deductions, 30);
+        } else {
+          // Potential but unconfirmed critical issues get reduced penalty
+          deductions = Math.max(deductions, 20);
+        }
       }
       
       const hasMajorIssues = issues.some(i => i.type === 'major');
@@ -78,6 +96,14 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
         // Ensure at least 15 points deduction for any major issues
         deductions = Math.max(deductions, 15);
       }
+    }
+    
+    // NEW: Apply scoring mode configuration - strict vs. conservative
+    const isStrictMode = false; // This would come from a configuration in a real app
+    
+    if (!isStrictMode) {
+      // In conservative mode, cap deductions more generously for well-structured but risky code
+      deductions = deductions * 0.8;
     }
     
     // Ensure deductions don't exceed reasonable limits
