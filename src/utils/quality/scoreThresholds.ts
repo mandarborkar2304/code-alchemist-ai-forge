@@ -11,17 +11,16 @@ export const scoreThresholds = {
     D: 0   // D: <70 (Poor maintainability)
   },
   cyclomaticComplexity: {
-    // Updated thresholds aligned with industry standards
     A: 5,  // A: ≤5 (Very low complexity)
     B: 10, // B: 6-10 (Low complexity)
     C: 20, // C: 11-20 (Moderate complexity)
     D: 21  // D: >20 (High complexity)
   },
   reliability: {
-    A: 90, // A: 90-100 (Highly reliable)
-    B: 75, // B: 75-89 (Good reliability)
-    C: 60, // C: 60-74 (Moderate reliability)
-    D: 40  // D: <40 (Poor reliability) - Minimum D rating threshold
+    A: 5,   // A: ≤5 issues
+    B: 10,  // B: 6-10 issues
+    C: 20,  // C: 11-20 issues
+    D: 21   // D: >20 issues
   }
 };
 
@@ -102,6 +101,14 @@ export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, 
   if (score >= thresholds.A) return 'A';
   if (score >= thresholds.B) return 'B';
   if (score >= thresholds.C) return 'C';
+  return 'D';
+}
+
+// ✅ New: Reliability grade from issue count (SonarQube-style)
+export function getReliabilityGradeFromIssueCount(issueCount: number): ScoreGrade {
+  if (issueCount <= scoreThresholds.reliability.A) return 'A';
+  if (issueCount <= scoreThresholds.reliability.B) return 'B';
+  if (issueCount <= scoreThresholds.reliability.C) return 'C';
   return 'D';
 }
 
