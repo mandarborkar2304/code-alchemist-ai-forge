@@ -1,4 +1,3 @@
-
 import { ScoreData } from './types';
 import { ScoreGrade } from '@/types';
 import { scoreThresholds, getGradeFromScore, ANALYSIS_CONSTANTS } from './scoreThresholds';
@@ -47,6 +46,27 @@ function calculateNestingPenaltyFactor(score: number): number {
   } else {
     return 1.3; // 30% penalty for high complexity
   }
+}
+
+// Helper function to detect critical issues in nested logic
+function detectCriticalIssuesInLoops(code: string): { criticalIssues: number, impact: number } {
+  let criticalIssues = 0;
+  let impact = 0;
+
+  // Check for divide-by-zero in code
+  if (code.includes("/ 0")) {
+    criticalIssues += 1;
+    impact += 15; // High impact for divide-by-zero
+  }
+
+  // Check for nested loop-related problems (excessive complexity)
+  const loopMatches = code.match(/for\s?\(.*\)\s?{.*\}/g);
+  if (loopMatches && loopMatches.length > 2) {
+    criticalIssues += loopMatches.length;
+    impact += Math.min(20, loopMatches.length * 5); // Penalty for high nesting in loops
+  }
+
+  return { criticalIssues, impact };
 }
 
 // Helper to generate description based on rating
@@ -151,7 +171,7 @@ function generateDescriptionForRating(
 }
 
 // Main function for cyclomatic complexity rating
-export function getCyclomaticComplexityRating(score: number): ScoreData {
+export function getCyclomaticComplexityRating(score: number, code: string): ScoreData {
   // Validate input
   if (score === undefined || score === null || !isFinite(score)) {
     console.warn('Invalid complexity score:', score);
@@ -181,6 +201,10 @@ export function getCyclomaticComplexityRating(score: number): ScoreData {
     // Safe multiplication with safeguard against infinity
     adjustedScore = Math.min(100, safeScore * nestingPenaltyFactor);
   }
+  
+  // Detect critical issues like divide-by-zero, nested loops, etc.
+  const { criticalIssues, impact } = detectCriticalIssuesInLoops(code);
+  adjustedScore -= impact;  // Deduct points based on critical issues
   
   // Re-evaluate rating with adjusted score if needed
   let finalRating = adjustedScore !== safeScore ? 
