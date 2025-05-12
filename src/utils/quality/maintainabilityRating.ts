@@ -9,10 +9,15 @@ function detectCodeDuplication(actualDuplication?: number, fallbackScore?: numbe
 } {
   let duplicationPercent: number;
 
+  // Handle actual duplication value
   if (typeof actualDuplication === 'number' && isFinite(actualDuplication)) {
     duplicationPercent = Math.min(100, Math.max(0, actualDuplication));
-  } else if (typeof fallbackScore === 'number' && isFinite(fallbackScore)) {
+  }
+  // Fallback to score-based calculation if no actual duplication value
+  else if (typeof fallbackScore === 'number' && isFinite(fallbackScore)) {
     const safeScore = Math.min(100, Math.max(0, fallbackScore));
+
+    // Adjust duplication percent based on the score
     if (safeScore >= 90) {
       duplicationPercent = Math.max(0, Math.min(5, 100 - safeScore));
     } else if (safeScore >= 80) {
@@ -27,8 +32,9 @@ function detectCodeDuplication(actualDuplication?: number, fallbackScore?: numbe
     duplicationPercent = 0;
   }
 
+  // Adjust impact more gently for smaller duplication percentages
   const duplicationImpact = duplicationPercent > 0
-    ? Math.pow(duplicationPercent / 10, 1.5)
+    ? Math.pow(duplicationPercent / 10, 1.3) // Reduced the exponent for more proportional impact
     : 0;
 
   return { duplicationPercent, duplicationImpact };
@@ -58,6 +64,7 @@ function assessFunctionSizeIssues(score: number): {
       ANALYSIS_CONSTANTS.FUNCTION_SIZE.HIGH;
   }
 
+  // Adjusting impact calculation for more proportional penalties based on oversized functions
   const impact = oversizedFunctions === 0 ? 0 :
     Math.min(
       ANALYSIS_CONSTANTS.FUNCTION_SIZE.MAX_IMPACT,
@@ -90,6 +97,7 @@ function assessDocumentationQuality(score: number): {
     documentationPercent = Math.max(10, safeScore * 0.7);
   }
 
+  // Adjusting the impact for documentation more gently when it's just below thresholds
   const impact = documentationPercent < ANALYSIS_CONSTANTS.DOCUMENTATION.POOR
     ? (ANALYSIS_CONSTANTS.DOCUMENTATION.POOR - documentationPercent) *
       ANALYSIS_CONSTANTS.DOCUMENTATION.IMPACT_MULTIPLIER

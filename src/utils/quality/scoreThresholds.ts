@@ -1,4 +1,3 @@
-
 import { ScoreGrade } from '@/types';
 
 // Centralized configuration constants
@@ -121,7 +120,7 @@ export function getMaintainabilityGradeFromCodeSmells(smellCount: number): Score
 // Function to determine if a reliability score needs a warning flag
 export function needsReliabilityWarningFlag(
   score: ScoreGrade, 
-  issues?: { type: string; impact: number }[]
+  issues?: { type: string; impact: number }[] 
 ): boolean {
   // Early return for no issues
   if (!issues || issues.length === 0) return false;
