@@ -5,10 +5,10 @@ import { ScoreGrade } from '@/types';
 // SonarQube-aligned scoring thresholds
 export const scoreThresholds = {
   maintainability: {
-    A: 5,   // A: ≤5 code smells (Highly maintainable)
-    B: 10,  // B: 6-10 (Good maintainability)
-    C: 20,  // C: 11-20 (Moderate maintainability)
-    D: 21   // D: >20 (Poor maintainability)
+    A: 90,  // A: ≥90 score
+    B: 80,  // B: 80–89
+    C: 70,  // C: 70–79
+    D: 0    // D: <70
   },
   cyclomaticComplexity: {
     A: 5,  // A: ≤5 (Very low complexity)
@@ -98,9 +98,10 @@ export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, 
   }
   
   // Safe comparison with validation
-  if (score >= thresholds.A) return 'A';
-  if (score >= thresholds.B) return 'B';
-  if (score >= thresholds.C) return 'C';
+  const sortedGrades: ScoreGrade[] = ['A', 'B', 'C'];
+  for (const grade of sortedGrades) {
+    if (score >= thresholds[grade]) return grade;
+  }
   return 'D';
 }
 
