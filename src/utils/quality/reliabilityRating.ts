@@ -115,26 +115,26 @@ function calculateGroupDeduction(
     if (isConfirmed) {
       groupDeduction = Math.min(
         ANALYSIS_CONSTANTS.RELIABILITY.CRITICAL_DEDUCTION, 
-        8 + (groupImpact * 2) // Reduced base impact from 10 to 8
+        6 + (groupImpact * 1.5) // Further reduced base impact from 8 to 6 and multiplier from 2 to 1.5
       ) * contextFactor * pathFactor;
     } else {
       // Unconfirmed critical issues are treated more like major issues
       groupDeduction = Math.min(
         ANALYSIS_CONSTANTS.RELIABILITY.MAJOR_DEDUCTION, 
-        4 + groupImpact // Reduced from 5 to 4
+        3 + groupImpact // Further reduced from 4 to 3
       ) * contextFactor * pathFactor;
     }
   } else if (highestSeverityIssue.type === 'major') {
     // Major issues have significant impact
     groupDeduction = Math.min(
       ANALYSIS_CONSTANTS.RELIABILITY.MAJOR_DEDUCTION, 
-      4 + groupImpact // Reduced from 5 to 4
+      3 + groupImpact // Further reduced from 4 to 3
     ) * contextFactor * pathFactor;
   } else {
     // Minor issues have smaller impact
     groupDeduction = Math.min(
       ANALYSIS_CONSTANTS.RELIABILITY.MINOR_DEDUCTION, 
-      1 + (groupImpact / 2) // Reduced from 2 to 1
+      0.8 + (groupImpact / 2.5) // Further reduced from 1 to 0.8 and divisor increased from 2 to 2.5
     ) * contextFactor * pathFactor;
   }
   
@@ -337,27 +337,27 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
       deductions += groupDeduction;
     });
     
-    // Apply logarithmic scaling to deductions to avoid excessive penalties
-    if (deductions > 30) {
-      const logBase = 1.5;
-      const scaledDeduction = 30 + (Math.log(deductions - 29) / Math.log(logBase));
+    // Apply stronger logarithmic scaling to deductions to avoid excessive penalties
+    if (deductions > 20) { // Lowered threshold from 30 to 20
+      const logBase = 2.0; // Increased from 1.5 to 2.0 for more aggressive scaling
+      const scaledDeduction = 20 + (Math.log(deductions - 19) / Math.log(logBase)) * 5;
       deductions = scaledDeduction;
     }
     
     // Ensure deductions scale properly based on confirmed critical issues
     if (confirmedCriticalCount > 0) {
       // Scale deduction based on number of critical issues, but avoid automatic D rating
-      const criticalMultiplier = 1 + (confirmedCriticalCount * 0.2); // +20% per critical issue
+      const criticalMultiplier = 1 + (confirmedCriticalCount * 0.15); // Reduced from 0.2 to 0.15
       deductions = Math.min(deductions * criticalMultiplier, ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION);
       
       // Ensure at least moderate penalty for confirmed critical issues
-      deductions = Math.max(deductions, 15 + (confirmedCriticalCount * 5));
+      deductions = Math.max(deductions, 12 + (confirmedCriticalCount * 4)); // Reduced from 15+5 to 12+4
     } else {
       // Check for major issues
       const majorIssueCount = validatedIssues.filter(i => i?.type === 'major').length;
       if (majorIssueCount > 0) {
         // Ensure some penalty for major issues but don't be too harsh
-        deductions = Math.max(deductions, 8 + (majorIssueCount * 2));
+        deductions = Math.max(deductions, 6 + (majorIssueCount * 1.5)); // Reduced from 8+2 to 6+1.5
       }
     }
     
@@ -374,8 +374,9 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
     // Cap max deductions to prevent unreasonably low scores
     const cappedDeductions = Math.min(deductions, ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION); 
     
-    // Calculate final reliability score with minimum value of 20 (raised from 1)
-    calculatedScore = Math.max(20, baseScore - cappedDeductions);
+    // Calculate final reliability score with minimum value based on threshold
+    // Use the D threshold from scoreThresholds instead of hardcoded value
+    calculatedScore = Math.max(scoreThresholds.reliability.D, baseScore - cappedDeductions);
     
     // Build issues list from grouped issues, focusing on validated issues
     issuesList = groupedIssues
@@ -392,7 +393,13 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
     
     // Generate improvements from grouped issues
     improvements = generateReliabilityImprovements(groupedIssues);
+  } else {
+    // If no issues provided, use a default base score with slight deduction
+    calculatedScore = 95; // Default high score with no issues
   }
+  
+  // Ensure score meets threshold requirements
+  calculatedScore = Math.max(calculatedScore, scoreThresholds.reliability.D);
   
   // Determine the grade based on the calculated score
   const rating = getGradeFromScore(calculatedScore, scoreThresholds.reliability);

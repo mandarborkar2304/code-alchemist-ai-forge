@@ -21,7 +21,7 @@ export const scoreThresholds = {
     A: 90, // A: 90-100 (Highly reliable)
     B: 75, // B: 75-89 (Good reliability)
     C: 60, // C: 60-74 (Moderate reliability)
-    D: 40   // D: <40 (Poor reliability) - Increased from 0 to set a higher bar for "D" ratings
+    D: 40  // D: <40 (Poor reliability) - Minimum D rating threshold
   }
 };
 
@@ -61,12 +61,12 @@ export const ANALYSIS_CONSTANTS = {
     MAJOR: 2,
     MINOR: 1
   },
-  // Reliability deduction caps - reduced penalties for better grading
+  // Reliability deduction caps - further reduced penalties for better grading
   RELIABILITY: {
-    CRITICAL_DEDUCTION: 25, // Reduced from 35
-    MAJOR_DEDUCTION: 15,    // Reduced from 20
-    MINOR_DEDUCTION: 5,     // Reduced from 10
-    MAX_DEDUCTION: 60       // Reduced from 80
+    CRITICAL_DEDUCTION: 20, // Further reduced from 25
+    MAJOR_DEDUCTION: 12,    // Further reduced from 15
+    MINOR_DEDUCTION: 4,     // Further reduced from 5
+    MAX_DEDUCTION: 55       // Further reduced from 60
   },
   // Factor adjustments
   FACTORS: {
@@ -78,7 +78,7 @@ export const ANALYSIS_CONSTANTS = {
     EDGE_CASE: 0.6,        // Moderate reduction for edge cases
     VALIDATED_CODE: 0.5,   // Reduced penalty for validated code
     UNVALIDATED_INPUT: 1.2, // Increased penalty for unvalidated inputs
-    CONSERVATIVE_MODE: 0.8, // Reduction factor in conservative scoring mode
+    CONSERVATIVE_MODE: 0.7, // Increased reduction in conservative scoring mode (from 0.8 to 0.7)
     GUARDED_PATH: 0.6      // Reduction factor for paths with guards
   }
 };
