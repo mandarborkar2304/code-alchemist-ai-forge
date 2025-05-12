@@ -1,3 +1,4 @@
+
 import { ScoreData } from './types';
 import { ScoreGrade } from '@/types';
 import { scoreThresholds, getGradeFromScore, ANALYSIS_CONSTANTS } from './scoreThresholds';
@@ -105,41 +106,12 @@ function assessDocumentationQuality(score: number): {
   return { documentationPercent, impact };
 }
 
-// Helper function to detect critical issues (divide by zero, unsafe .charAt(), unvalidated inputs, etc.)
-function detectCriticalIssues(code: string): { criticalIssues: number, impact: number } {
-  let criticalIssues = 0;
-  let impact = 0;
-
-  // Detect divide-by-zero potential
-  if (code.includes("/ 0")) {
-    criticalIssues += 1;
-    impact += 15; // High impact for divide-by-zero
-  }
-
-  // Detect unchecked .charAt() usage
-  if (code.includes(".charAt(") && !code.includes("if (index >= 0 && index < string.length)")) {
-    criticalIssues += 1;
-    impact += 10; // Moderate impact for unsafe .charAt()
-  }
-
-  // Detect unvalidated inputs (e.g., lack of bounds checking on arrays)
-  if (code.includes("input") && !code.includes("validateInput")) {
-    criticalIssues += 1;
-    impact += 12; // Moderate impact for unvalidated inputs
-  }
-
-  // Add more rules here for other critical issues
-
-  return { criticalIssues, impact };
-}
-
 // Helper function to generate maintainability report based on analysis
 function generateMaintainabilityReport(
   rating: ScoreGrade,
   duplication: { duplicationPercent: number },
   functionSizes: { oversizedFunctions: number },
-  documentation: { documentationPercent: number },
-  criticalIssues: { criticalIssues: number }
+  documentation: { documentationPercent: number }
 ): {
   description: string;
   reason: string;
@@ -175,8 +147,11 @@ function generateMaintainabilityReport(
         );
       }
       
-      if (criticalIssues.criticalIssues > 0) {
-        issuesList.push(`Critical issues detected (${criticalIssues.criticalIssues}): high risk.`);
+      if (issuesList.length === 0) {
+        issuesList = [
+          'Some areas could benefit from better documentation.',
+          'Minor code duplication may exist.'
+        ];
       }
       
       improvements = [
@@ -207,8 +182,13 @@ function generateMaintainabilityReport(
         );
       }
       
-      if (criticalIssues.criticalIssues > 0) {
-        issuesList.push(`Critical issues detected (${criticalIssues.criticalIssues}): high risk.`);
+      if (issuesList.length === 0) {
+        issuesList = [
+          'Inadequate documentation in key areas',
+          'Functions exceeding size guidelines',
+          'Some code duplication without proper abstraction',
+          'Variable naming could be improved'
+        ];
       }
       
       improvements = [
@@ -240,8 +220,15 @@ function generateMaintainabilityReport(
         );
       }
       
-      if (criticalIssues.criticalIssues > 0) {
-        issuesList.push(`Critical issues detected (${criticalIssues.criticalIssues}): high risk.`);
+      if (issuesList.length === 0) {
+        issuesList = [
+          'Functions exceeding recommended sizes',
+          'Insufficient or missing documentation',
+          'Unclear naming and conventions',
+          'Deep nesting of control structures',
+          'Substantial code duplication',
+          'Magic numbers and hardcoded values'
+        ];
       }
       
       improvements = [
@@ -258,7 +245,7 @@ function generateMaintainabilityReport(
 }
 
 // Main function for maintainability rating
-export function getMaintainabilityRating(score: number, code: string): ScoreData {
+export function getMaintainabilityRating(score: number): ScoreData {
   // Validate input
   if (score === undefined || score === null || !isFinite(score)) {
     console.warn('Invalid maintainability score:', score);
@@ -278,16 +265,14 @@ export function getMaintainabilityRating(score: number, code: string): ScoreData
   const duplication = detectCodeDuplication(safeScore);
   const functionSizes = assessFunctionSizeIssues(safeScore);
   const documentation = assessDocumentationQuality(safeScore);
-  const criticalIssues = detectCriticalIssues(code);
   
   // Calculate adjusted score based on these enhanced factors
   let adjustedScore = safeScore;
   
-  // Apply penalties for duplication, function size, documentation, and critical issues
+  // Apply penalties for duplication, function size, and documentation
   adjustedScore -= duplication.duplicationImpact * ANALYSIS_CONSTANTS.DUPLICATION.IMPACT_MULTIPLIER;
   adjustedScore -= functionSizes.impact;
   adjustedScore -= documentation.impact;
-  adjustedScore -= criticalIssues.impact;  // Deduct based on critical issues
   
   // Ensure score stays within bounds
   adjustedScore = Math.max(0, Math.min(100, adjustedScore));
@@ -297,7 +282,7 @@ export function getMaintainabilityRating(score: number, code: string): ScoreData
   
   // Generate detailed report using helper function
   const { description, reason, issuesList, improvements } = 
-    generateMaintainabilityReport(rating, duplication, functionSizes, documentation, criticalIssues);
+    generateMaintainabilityReport(rating, duplication, functionSizes, documentation);
   
   return {
     score: rating,
