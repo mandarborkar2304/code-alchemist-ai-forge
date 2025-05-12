@@ -5,10 +5,10 @@ import { ScoreGrade } from '@/types';
 // SonarQube-aligned scoring thresholds
 export const scoreThresholds = {
   maintainability: {
-    A: 90, // A: 90-100 (Highly maintainable)
-    B: 80, // B: 80-89 (Good maintainability)
-    C: 70, // C: 70-79 (Moderate maintainability)
-    D: 0   // D: <70 (Poor maintainability)
+    A: 5,   // A: ≤5 code smells (Highly maintainable)
+    B: 10,  // B: 6-10 (Good maintainability)
+    C: 20,  // C: 11-20 (Moderate maintainability)
+    D: 21   // D: >20 (Poor maintainability)
   },
   cyclomaticComplexity: {
     A: 5,  // A: ≤5 (Very low complexity)
@@ -110,6 +110,11 @@ export function getReliabilityGradeFromIssueCount(issueCount: number): ScoreGrad
   if (issueCount <= scoreThresholds.reliability.B) return 'B';
   if (issueCount <= scoreThresholds.reliability.C) return 'C';
   return 'D';
+}
+
+// ✅ New: Maintainability grade from code smell count
+export function getMaintainabilityGradeFromCodeSmells(smellCount: number): ScoreGrade {
+  return getGradeFromScore(smellCount, scoreThresholds.maintainability);
 }
 
 // Function to determine if a reliability score needs a warning flag
