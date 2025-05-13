@@ -109,7 +109,7 @@ export function calculateMaintainabilityScore(params: {
 
   let deduction = 0;
 
-  // Duplication penalty using multiplier
+  // Duplication penalty
   if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.HIGH) {
     deduction += 20 * ANALYSIS_CONSTANTS.DUPLICATION.IMPACT_MULTIPLIER;
   } else if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.MODERATE) {
@@ -118,21 +118,21 @@ export function calculateMaintainabilityScore(params: {
     deduction += 5 * ANALYSIS_CONSTANTS.DUPLICATION.IMPACT_MULTIPLIER;
   }
 
-  // Function size penalty using multiplier
+  // Function size penalty
   if (avgFunctionSize >= ANALYSIS_CONSTANTS.FUNCTION_SIZE.HIGH) {
     deduction += ANALYSIS_CONSTANTS.FUNCTION_SIZE.MAX_IMPACT;
   } else if (avgFunctionSize >= ANALYSIS_CONSTANTS.FUNCTION_SIZE.MODERATE) {
     deduction += 5 * ANALYSIS_CONSTANTS.FUNCTION_SIZE.IMPACT_MULTIPLIER;
   }
 
-  // Documentation penalty using multiplier
+  // Documentation penalty
   if (documentationCoverage < ANALYSIS_CONSTANTS.DOCUMENTATION.POOR) {
     deduction += 15 * ANALYSIS_CONSTANTS.DOCUMENTATION.IMPACT_MULTIPLIER;
   } else if (documentationCoverage < ANALYSIS_CONSTANTS.DOCUMENTATION.ACCEPTABLE) {
     deduction += 7 * ANALYSIS_CONSTANTS.DOCUMENTATION.IMPACT_MULTIPLIER;
   }
 
-  // Nesting depth penalty remains direct
+  // Nesting depth penalty
   if (avgNestingDepth >= ANALYSIS_CONSTANTS.NESTING_DEPTH.HIGH) {
     deduction += 15;
   } else if (avgNestingDepth >= ANALYSIS_CONSTANTS.NESTING_DEPTH.MODERATE) {
@@ -140,7 +140,9 @@ export function calculateMaintainabilityScore(params: {
   }
 
   const rawScore = 100 - deduction;
-  return Math.max(0, Math.min(100, rawScore));
+  const finalScore = Math.max(0, Math.min(100, parseFloat(rawScore.toFixed(2))));
+
+  return finalScore;
 }
 
 // ✅ Grade maintainability from the computed score
