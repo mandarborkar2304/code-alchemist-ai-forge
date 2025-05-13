@@ -104,12 +104,59 @@ export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, 
   return 'D';
 }
 
-// ✅ New: Reliability grade from issue count (SonarQube-style)
-export function getReliabilityGradeFromIssueCount(issueCount: number): ScoreGrade {
-  if (issueCount <= scoreThresholds.reliability.A) return 'A';
-  if (issueCount <= scoreThresholds.reliability.B) return 'B';
-  if (issueCount <= scoreThresholds.reliability.C) return 'C';
-  return 'D';
+// ✅ Returns maintainability score (0–100) based on actual impact
+export function calculateMaintainabilityScore(params: {
+  duplicationPercentage: number;
+  avgFunctionSize: number;
+  documentationCoverage: number;
+  avgNestingDepth: number;
+}): number {
+  const {
+    duplicationPercentage,
+    avgFunctionSize,
+    documentationCoverage,
+    avgNestingDepth
+  } = params;
+
+  let deduction = 0;
+
+  // Duplication penalty
+  if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.HIGH) {
+    deduction += 25;
+  } else if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.MODERATE) {
+    deduction += 15;
+  } else if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.LOW) {
+    deduction += 5;
+  }
+
+  // Function size penalty
+  if (avgFunctionSize >= ANALYSIS_CONSTANTS.FUNCTION_SIZE.HIGH) {
+    deduction += 25;
+  } else if (avgFunctionSize >= ANALYSIS_CONSTANTS.FUNCTION_SIZE.MODERATE) {
+    deduction += 10;
+  }
+
+  // Documentation coverage penalty
+  if (documentationCoverage < ANALYSIS_CONSTANTS.DOCUMENTATION.POOR) {
+    deduction += 15;
+  } else if (documentationCoverage < ANALYSIS_CONSTANTS.DOCUMENTATION.ACCEPTABLE) {
+    deduction += 7;
+  }
+
+  // Nesting depth penalty
+  if (avgNestingDepth >= ANALYSIS_CONSTANTS.NESTING_DEPTH.HIGH) {
+    deduction += 15;
+  } else if (avgNestingDepth >= ANALYSIS_CONSTANTS.NESTING_DEPTH.MODERATE) {
+    deduction += 8;
+  }
+
+  const rawScore = 100 - deduction;
+  return Math.max(0, Math.min(100, rawScore));
+}
+
+// ✅ Grade maintainability from the computed score
+export function getMaintainabilityGrade(score: number): ScoreGrade {
+  return getGradeFromScore(score, scoreThresholds.maintainability);
 }
 
 // ✅ New: Maintainability grade from code smell count
