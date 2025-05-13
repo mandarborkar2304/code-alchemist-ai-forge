@@ -1,38 +1,35 @@
 import { ScoreGrade } from '@/types';
 
 // Centralized configuration constants
-// SonarQube-aligned scoring thresholds
 export const scoreThresholds = {
   maintainability: {
-    A: 90,  // A: ≥90 score
-    B: 80,  // B: 80–89
-    C: 70,  // C: 70–79
-    D: 0    // D: <70
+    A: 90,
+    B: 80,
+    C: 70,
+    D: 0
   },
   cyclomaticComplexity: {
-    A: 5,  // A: ≤5 (Very low complexity)
-    B: 10, // B: 6-10 (Low complexity)
-    C: 20, // C: 11-20 (Moderate complexity)
-    D: 21  // D: >20 (High complexity)
+    A: 5,
+    B: 10,
+    C: 20,
+    D: 21
   },
   reliability: {
-    A: 5,   // A: ≤5 issues
-    B: 10,  // B: 6-10 issues
-    C: 20,  // C: 11-20 issues
-    D: 21   // D: >20 issues
+    A: 5,
+    B: 10,
+    C: 20,
+    D: 21
   }
 };
 
 // Analysis constants
 export const ANALYSIS_CONSTANTS = {
-  // Duplication thresholds
   DUPLICATION: {
     LOW: 5,
-    MODERATE: 10, 
+    MODERATE: 10,
     HIGH: 20,
     IMPACT_MULTIPLIER: 0.25
   },
-  // Function size thresholds
   FUNCTION_SIZE: {
     ACCEPTABLE: 0,
     MODERATE: 1,
@@ -40,63 +37,55 @@ export const ANALYSIS_CONSTANTS = {
     IMPACT_MULTIPLIER: 2,
     MAX_IMPACT: 25
   },
-  // Documentation thresholds
   DOCUMENTATION: {
     GOOD: 80,
     ACCEPTABLE: 70,
     POOR: 50,
     IMPACT_MULTIPLIER: 0.3
   },
-  // Nesting depth thresholds
   NESTING_DEPTH: {
     LOW: 3,
     MODERATE: 4,
     HIGH: 5
   },
-  // Issue severity weights with greater penalty for critical issues
   SEVERITY: {
     CRITICAL: 3,
     MAJOR: 2,
     MINOR: 1
   },
-  // Reliability deduction caps - further reduced penalties for better grading
   RELIABILITY: {
-    CRITICAL_DEDUCTION: 20, // Further reduced from 25
-    MAJOR_DEDUCTION: 12,    // Further reduced from 15
-    MINOR_DEDUCTION: 4,     // Further reduced from 5
-    MAX_DEDUCTION: 55       // Further reduced from 60
+    CRITICAL_DEDUCTION: 20,
+    MAJOR_DEDUCTION: 12,
+    MINOR_DEDUCTION: 4,
+    MAX_DEDUCTION: 55
   },
-  // Factor adjustments
   FACTORS: {
-    TEST_CODE: 0.5,        // Less impact for issues in test code
-    ERROR_HANDLING: 0.7,   // Reduced impact in error handling blocks
-    UTILITY_CODE: 0.8,     // Slight reduction for utility code
-    REPEATED_ISSUES: 0.9,  // Avoid penalizing the same issue repeatedly
-    RARE_PATH: 0.4,        // Significant reduction for rarely executed paths
-    EDGE_CASE: 0.6,        // Moderate reduction for edge cases
-    VALIDATED_CODE: 0.5,   // Reduced penalty for validated code
-    UNVALIDATED_INPUT: 1.2, // Increased penalty for unvalidated inputs
-    CONSERVATIVE_MODE: 0.7, // Increased reduction in conservative scoring mode (from 0.8 to 0.7)
-    GUARDED_PATH: 0.6      // Reduction factor for paths with guards
+    TEST_CODE: 0.5,
+    ERROR_HANDLING: 0.7,
+    UTILITY_CODE: 0.8,
+    REPEATED_ISSUES: 0.9,
+    RARE_PATH: 0.4,
+    EDGE_CASE: 0.6,
+    VALIDATED_CODE: 0.5,
+    UNVALIDATED_INPUT: 1.2,
+    CONSERVATIVE_MODE: 0.7,
+    GUARDED_PATH: 0.6
   }
 };
 
-// Severity weights now centralized
 export const issueSeverityWeights = {
   critical: ANALYSIS_CONSTANTS.SEVERITY.CRITICAL,
   major: ANALYSIS_CONSTANTS.SEVERITY.MAJOR,
   minor: ANALYSIS_CONSTANTS.SEVERITY.MINOR
 };
 
-// Obtain the appropriate grade based on a score and thresholds
+// Grade determination helper
 export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, number>): ScoreGrade {
-  // Validate input to prevent NaN or invalid scores
   if (score === undefined || score === null || isNaN(score)) {
     console.warn('Invalid score provided to getGradeFromScore:', score);
-    return 'C'; // Default to average grade for invalid input instead of worst grade
+    return 'C';
   }
-  
-  // Safe comparison with validation
+
   const sortedGrades: ScoreGrade[] = ['A', 'B', 'C'];
   for (const grade of sortedGrades) {
     if (score >= thresholds[grade]) return grade;
@@ -104,7 +93,7 @@ export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, 
   return 'D';
 }
 
-// ✅ Returns maintainability score (0–100) based on actual impact
+// ✅ Refactored: Maintainability Score using ANALYSIS_CONSTANTS multipliers
 export function calculateMaintainabilityScore(params: {
   duplicationPercentage: number;
   avgFunctionSize: number;
@@ -120,30 +109,30 @@ export function calculateMaintainabilityScore(params: {
 
   let deduction = 0;
 
-  // Duplication penalty
+  // Duplication penalty using multiplier
   if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.HIGH) {
-    deduction += 25;
+    deduction += 20 * ANALYSIS_CONSTANTS.DUPLICATION.IMPACT_MULTIPLIER;
   } else if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.MODERATE) {
-    deduction += 15;
+    deduction += 10 * ANALYSIS_CONSTANTS.DUPLICATION.IMPACT_MULTIPLIER;
   } else if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.LOW) {
-    deduction += 5;
+    deduction += 5 * ANALYSIS_CONSTANTS.DUPLICATION.IMPACT_MULTIPLIER;
   }
 
-  // Function size penalty
+  // Function size penalty using multiplier
   if (avgFunctionSize >= ANALYSIS_CONSTANTS.FUNCTION_SIZE.HIGH) {
-    deduction += 25;
+    deduction += ANALYSIS_CONSTANTS.FUNCTION_SIZE.MAX_IMPACT;
   } else if (avgFunctionSize >= ANALYSIS_CONSTANTS.FUNCTION_SIZE.MODERATE) {
-    deduction += 10;
+    deduction += 5 * ANALYSIS_CONSTANTS.FUNCTION_SIZE.IMPACT_MULTIPLIER;
   }
 
-  // Documentation coverage penalty
+  // Documentation penalty using multiplier
   if (documentationCoverage < ANALYSIS_CONSTANTS.DOCUMENTATION.POOR) {
-    deduction += 15;
+    deduction += 15 * ANALYSIS_CONSTANTS.DOCUMENTATION.IMPACT_MULTIPLIER;
   } else if (documentationCoverage < ANALYSIS_CONSTANTS.DOCUMENTATION.ACCEPTABLE) {
-    deduction += 7;
+    deduction += 7 * ANALYSIS_CONSTANTS.DOCUMENTATION.IMPACT_MULTIPLIER;
   }
 
-  // Nesting depth penalty
+  // Nesting depth penalty remains direct
   if (avgNestingDepth >= ANALYSIS_CONSTANTS.NESTING_DEPTH.HIGH) {
     deduction += 15;
   } else if (avgNestingDepth >= ANALYSIS_CONSTANTS.NESTING_DEPTH.MODERATE) {
@@ -159,43 +148,38 @@ export function getMaintainabilityGrade(score: number): ScoreGrade {
   return getGradeFromScore(score, scoreThresholds.maintainability);
 }
 
-// ✅ New: Maintainability grade from code smell count
+// ✅ Grade maintainability from code smell count
 export function getMaintainabilityGradeFromCodeSmells(smellCount: number): ScoreGrade {
   return getGradeFromScore(smellCount, scoreThresholds.maintainability);
 }
 
-// Function to determine if a reliability score needs a warning flag
+// ✅ Determine reliability warning flag
 export function needsReliabilityWarningFlag(
-  score: ScoreGrade, 
-  issues?: { type: string; impact: number }[] 
+  score: ScoreGrade,
+  issues?: { type: string; impact: number }[]
 ): boolean {
-  // Early return for no issues
   if (!issues || issues.length === 0) return false;
-  
-  // Check for critical issues with high grades - only warn for multiple critical issues
-  if ((score === 'A' || score === 'B') && 
-      issues.filter(issue => {
-        // Safe access with validation
-        const issueType = issue && issue.type;
-        const issueImpact = issue && typeof issue.impact === 'number' ? issue.impact : 0;
-        return issueType === 'critical' || issueImpact >= ANALYSIS_CONSTANTS.SEVERITY.CRITICAL;
-      }).length >= 2) {
+
+  if ((score === 'A' || score === 'B') &&
+    issues.filter(issue => {
+      const issueType = issue && issue.type;
+      const issueImpact = issue && typeof issue.impact === 'number' ? issue.impact : 0;
+      return issueType === 'critical' || issueImpact >= ANALYSIS_CONSTANTS.SEVERITY.CRITICAL;
+    }).length >= 2) {
     return true;
   }
-  
-  // Check for multiple major issues with B grade
+
   if (score === 'B') {
     const majorIssues = issues.filter(issue => {
-      // Safe access with validation
       const issueType = issue && issue.type;
       const issueImpact = issue && typeof issue.impact === 'number' ? issue.impact : 0;
       return issueType === 'major' || issueImpact >= ANALYSIS_CONSTANTS.SEVERITY.MAJOR;
     });
-    
-    if (majorIssues.length >= 3) { // Increased from 2 to 3
+
+    if (majorIssues.length >= 3) {
       return true;
     }
   }
-  
+
   return false;
 }
