@@ -30,14 +30,14 @@ export const ANALYSIS_CONSTANTS = {
     LOW: 5,
     MODERATE: 10, 
     HIGH: 20,
-    IMPACT_MULTIPLIER: 2
+    IMPACT_MULTIPLIER: 0.25
   },
   // Function size thresholds
   FUNCTION_SIZE: {
     ACCEPTABLE: 0,
     MODERATE: 1,
     HIGH: 6,
-    IMPACT_MULTIPLIER: 3,
+    IMPACT_MULTIPLIER: 2,
     MAX_IMPACT: 25
   },
   // Documentation thresholds
@@ -45,7 +45,7 @@ export const ANALYSIS_CONSTANTS = {
     GOOD: 80,
     ACCEPTABLE: 70,
     POOR: 50,
-    IMPACT_MULTIPLIER: 0.4
+    IMPACT_MULTIPLIER: 0.3
   },
   // Nesting depth thresholds
   NESTING_DEPTH: {
