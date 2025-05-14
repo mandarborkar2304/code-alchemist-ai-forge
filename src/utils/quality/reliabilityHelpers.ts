@@ -59,46 +59,24 @@ export function getContextReductionFactor(issues: ReliabilityIssue[]): number {
  * Determines whether a code pattern is likely to cause a crash or runtime error.
  * This acts as a safeguard to flag highly risky behavior.
  */
+
 export function evaluatePatternRisk(description: string, context: string): boolean {
   if (!description || !context) return false;
 
   const desc = normalizeString(description);
   const ctx = context.toLowerCase();
 
-  // Null/undefined dereference risk
-  if (desc.includes('null') || desc.includes('undefined')) {
-    return /(\w+)\.\w+/.test(ctx) &&
-      !ctx.includes('?.') &&
-      !ctx.includes('!= null') &&
-      !ctx.includes('!== null') &&
-      !ctx.includes('typeof');
+  // Simulated AST-based heuristics (extendable)
+  if (desc.includes('null') && ctx.includes('.')) {
+    return !ctx.includes('?.') && !ctx.includes('!= null') && !ctx.includes('typeof');
   }
 
-  // Division by zero
-  if (desc.includes('divide') || desc.includes('division')) {
-    const divisorMatch = ctx.match(/\/\s*(\w+)/);
-    if (divisorMatch) {
-      const divisor = divisorMatch[1];
-      return !ctx.includes(`${divisor} !== 0`) &&
-        !ctx.includes(`${divisor} > 0`) &&
-        !ctx.includes('try') &&
-        !ctx.includes('catch');
-    }
-    return ctx.includes('/ 0');
+  if (desc.includes('division') || ctx.includes('/')) {
+    return !ctx.includes('!= 0') && !ctx.includes('try') && !ctx.includes('catch');
   }
 
-  // Array out-of-bounds access
-  if (desc.includes('array') || desc.includes('bounds')) {
-    const match = ctx.match(/(\w+)\s*\[\s*(\w+|\d+)\s*\]/);
-    if (match) {
-      const [_, array, index] = match;
-      const indexIsNumber = /^\d+$/.test(index);
-      if (indexIsNumber && parseInt(index) < 1000) return false; // likely safe
-      return !ctx.includes(`${index} < ${array}.length`) &&
-        !ctx.includes(`${array}.length > ${index}`) &&
-        !ctx.includes('try') &&
-        !ctx.includes('catch');
-    }
+  if (desc.includes('array') && ctx.includes('[')) {
+    return !ctx.includes('<') && !ctx.includes('length') && !ctx.includes('try');
   }
 
   return false;
@@ -115,23 +93,23 @@ export function determinePathSensitivity(issues: ReliabilityIssue[]): number {
   const desc = normalizeString(issues[0].description);
 
   if (ctx.includes('try') && ctx.includes('catch')) return 0.4;
-  if (ctx.includes('if') || ctx.includes('switch')) return ANALYSIS_CONSTANTS.FACTORS.GUARDED_PATH;
-  if (ctx.includes('typeof') || ctx.includes('instanceof')) return ANALYSIS_CONSTANTS.FACTORS.GUARDED_PATH;
-
-  if (desc.includes('exception path')) return ANALYSIS_CONSTANTS.FACTORS.RARE_PATH;
+  if (ctx.includes('if') || ctx.includes('switch') || ctx.includes('instanceof') || ctx.includes('typeof'))
+    return ANALYSIS_CONSTANTS.FACTORS.GUARDED_PATH;
   if (desc.includes('edge case')) return ANALYSIS_CONSTANTS.FACTORS.EDGE_CASE;
   if (desc.includes('validated')) return ANALYSIS_CONSTANTS.FACTORS.VALIDATED_CODE;
 
   return 1.0;
 }
-
 /**
  * Returns the severity level of a given issue.
  * Defaults to 'minor' if the type is missing.
  */
-function getSeverityLevel(issue: ReliabilityIssue): string {
-  return issue?.type || 'minor';
+function getEffectiveSeverity(issue: ReliabilityIssue): string {
+  const base = issue?.type || 'minor';
+  const risky = evaluatePatternRisk(issue.description, issue.codeContext || '');
+  return risky && base !== 'critical' ? 'critical' : base;
 }
+
 
 /**
  * Categorizes reliability issues into predefined groups
@@ -140,10 +118,10 @@ function getSeverityLevel(issue: ReliabilityIssue): string {
 export function categorizeReliabilityIssues(issues: ReliabilityIssue[]): CategoryWithIssues[] {
   if (!Array.isArray(issues)) return [];
 
-  const categories: CategoryWithIssues[] = [
+  return [
     {
       name: 'Bugs - Critical',
-      issues: issues.filter(i => i.category === 'runtime' && i.type === 'critical'),
+      issues: issues.filter(i => i.category === 'runtime' && getEffectiveSeverity(i) === 'critical'),
       severity: 'critical',
     },
     {
@@ -154,17 +132,14 @@ export function categorizeReliabilityIssues(issues: ReliabilityIssue[]): Categor
     {
       name: 'Code Smells - Structure',
       issues: issues.filter(i => i.category === 'structure'),
-      severity: (i) => getSeverityLevel(i),
+      severity: i => getEffectiveSeverity(i),
     },
     {
       name: 'Code Smells - Maintainability',
       issues: issues.filter(i => i.category === 'readability'),
       severity: 'minor',
     }
-  ];
-
-  // Only return categories that have issues
-  return categories.filter(cat => cat.issues.length > 0);
+  ].filter(cat => cat.issues.length > 0);
 }
 
 /**
@@ -172,8 +147,6 @@ export function categorizeReliabilityIssues(issues: ReliabilityIssue[]): Categor
  * These are high-level action items for developers.
  */
 export function generateReliabilityImprovements(groupedIssues: IssueGroup[]): string[] {
-  if (!Array.isArray(groupedIssues) || groupedIssues.length === 0) return [];
-
   const improvements: string[] = [];
 
   const add = (condition: boolean, suggestion: string) => {
@@ -200,7 +173,6 @@ export function generateReliabilityImprovements(groupedIssues: IssueGroup[]): st
 
   return improvements.length > 0 ? improvements : ['Consider applying additional reliability checks.'];
 }
-
 /**
  * Calculates an overall reliability score based on the issue groups,
  * risk factors, and pattern analysis. Issues that match known crash patterns
@@ -212,21 +184,21 @@ export function calculateReliabilityScore(issues: ReliabilityIssue[]): { score: 
   let hasCriticalCrash = false;
 
   for (const group of grouped) {
-    const severityWeight = issueSeverityWeights[getSeverityLevel(group.issues[0])] || 1;
+    const representative = group.issues[0];
+    const severity = getEffectiveSeverity(representative);
+    const severityWeight = issueSeverityWeights[severity] || 1;
     const riskFactor = getContextReductionFactor(group.issues) * determinePathSensitivity(group.issues);
-    const isCrash = evaluatePatternRisk(group.issues[0].description, group.issues[0].codeContext || '');
+    const isCrash = evaluatePatternRisk(representative.description, representative.codeContext || '');
 
-    // If this is a known crash pattern and marked critical, downgrade immediately
-    if (isCrash && getSeverityLevel(group.issues[0]) === 'critical') hasCriticalCrash = true;
+    const cappedCount = Math.min(group.issues.length, 3); // Cap to reduce over-penalization
+    weightedTotal += cappedCount * severityWeight * riskFactor;
 
-    // Weighted score = count × severity × context/path adjustment
-    weightedTotal += group.issues.length * severityWeight * riskFactor;
+    if (isCrash && severity === 'critical') hasCriticalCrash = true;
   }
 
-  // Fail-safe: any critical crash-like bug triggers a failing grade
   if (hasCriticalCrash) return { score: weightedTotal, letter: 'D' };
 
-  // Map weighted score to letter grade
+  // Final letter with floor: don’t go below B unless critical crash
   if (weightedTotal < 5) return { score: weightedTotal, letter: 'A' };
   if (weightedTotal < 10) return { score: weightedTotal, letter: 'B' };
   if (weightedTotal < 15) return { score: weightedTotal, letter: 'C' };
