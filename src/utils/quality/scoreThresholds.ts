@@ -16,8 +16,8 @@ export const scoreThresholds = {
   },
   reliability: {
     A: 95,
-    B: 90,
-    C: 80,
+    B: 85,
+    C: 70,
     D: 0
   }
 };
@@ -47,8 +47,8 @@ export const ANALYSIS_CONSTANTS = {
     LOW: 3,
     MODERATE: 4,
     HIGH: 5,
-    MODERATE_PENALTY: 5,     
-    HIGH_PENALTY: 10 
+    MODERATE_PENALTY: 5,
+    HIGH_PENALTY: 10
   },
   SEVERITY: {
     CRITICAL: 3,
@@ -56,10 +56,10 @@ export const ANALYSIS_CONSTANTS = {
     MINOR: 1
   },
   RELIABILITY: {
-    CRITICAL_DEDUCTION: 25,
+    CRITICAL_DEDUCTION: 35,
     MAJOR_DEDUCTION: 15,
     MINOR_DEDUCTION: 5,
-    MAX_DEDUCTION: 60
+    MAX_DEDUCTION: 70
   },
   FACTORS: {
     TEST_CODE: 0.5,
@@ -95,7 +95,41 @@ export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, 
   return 'D';
 }
 
-// ✅ Refactored: Maintainability Score using ANALYSIS_CONSTANTS multipliers
+// ✅ New: Calculate Reliability Score (Aligned with SonarQube-style deductions)
+export function calculateReliabilityScore(issues: {
+  type: 'critical' | 'major' | 'minor',
+  impact?: number
+}[]): number {
+  if (!issues || issues.length === 0) return 100;
+
+  let totalDeduction = 0;
+
+  for (const issue of issues) {
+    switch (issue.type) {
+      case 'critical':
+        totalDeduction += Math.min(ANALYSIS_CONSTANTS.RELIABILITY.CRITICAL_DEDUCTION, 35);
+        break;
+      case 'major':
+        totalDeduction += Math.min(ANALYSIS_CONSTANTS.RELIABILITY.MAJOR_DEDUCTION, 15);
+        break;
+      case 'minor':
+        totalDeduction += Math.min(ANALYSIS_CONSTANTS.RELIABILITY.MINOR_DEDUCTION, 5);
+        break;
+    }
+  }
+
+  totalDeduction = Math.min(totalDeduction, ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION);
+
+  const rawScore = 100 - totalDeduction;
+  return Math.max(0, parseFloat(rawScore.toFixed(2)));
+}
+
+// ✅ Use this to compute the grade for reliability
+export function getReliabilityGrade(score: number): ScoreGrade {
+  return getGradeFromScore(score, scoreThresholds.reliability);
+}
+
+// ✅ Maintainability Score logic (existing)
 export function calculateMaintainabilityScore(params: {
   duplicationPercentage: number;
   avgFunctionSize: number;
@@ -146,19 +180,15 @@ export function calculateMaintainabilityScore(params: {
   return finalScore;
 }
 
-
-
-// ✅ Grade maintainability from the computed score
 export function getMaintainabilityGrade(score: number): ScoreGrade {
   return getGradeFromScore(score, scoreThresholds.maintainability);
 }
 
-// ✅ Grade maintainability from code smell count
 export function getMaintainabilityGradeFromCodeSmells(smellCount: number): ScoreGrade {
   return getGradeFromScore(smellCount, scoreThresholds.maintainability);
 }
 
-// ✅ Determine reliability warning flag
+// Determine reliability warning flag
 export function needsReliabilityWarningFlag(
   score: ScoreGrade,
   issues?: { type: string; impact: number }[]
