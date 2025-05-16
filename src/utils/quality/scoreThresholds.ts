@@ -22,14 +22,6 @@ export const scoreThresholds = {
   }
 };
 
-// Optional: Specific thresholds for smell count grading (if needed separately)
-export const codeSmellThresholds = {
-  A: 0,
-  B: 5,
-  C: 10,
-  D: 20
-};
-
 // Analysis constants
 export const ANALYSIS_CONSTANTS = {
   DUPLICATION: {
@@ -89,36 +81,24 @@ export const issueSeverityWeights = {
   minor: ANALYSIS_CONSTANTS.SEVERITY.MINOR
 };
 
-// Utility: Clamp score between 0 and 100
-function clampScore(score: number): number {
-  return Math.max(0, Math.min(100, parseFloat(score.toFixed(2))));
-}
-
-// Utility: Grade calculation from score
+// Grade determination helper
 export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, number>): ScoreGrade {
   if (score === undefined || score === null || isNaN(score)) {
     console.warn('Invalid score provided to getGradeFromScore:', score);
     return 'C';
   }
 
-  const sortedGrades = Object.keys(thresholds)
-    .sort((a, b) => thresholds[b as ScoreGrade] - thresholds[a as ScoreGrade]) as ScoreGrade[];
-
+  const sortedGrades: ScoreGrade[] = ['A', 'B', 'C'];
   for (const grade of sortedGrades) {
     if (score >= thresholds[grade]) return grade;
   }
-
   return 'D';
 }
 
-// Utility: Severity check
-function isHighImpact(issue: { type?: string, impact?: number }, severity: number): boolean {
-  return issue?.type === 'critical' || (issue.impact ?? 0) >= severity;
-}
-
-// Reliability Score Calculator
+// ✅ New: Calculate Reliability Score (Aligned with SonarQube-style deductions)
 export function calculateReliabilityScore(issues: {
-  type: 'critical' | 'major' | 'minor';
+  type: 'critical' | 'major' | 'minor',
+  impact?: number
 }[]): number {
   if (!issues || issues.length === 0) return 100;
 
@@ -127,23 +107,29 @@ export function calculateReliabilityScore(issues: {
   for (const issue of issues) {
     switch (issue.type) {
       case 'critical':
-        totalDeduction += ANALYSIS_CONSTANTS.RELIABILITY.CRITICAL_DEDUCTION;
+        totalDeduction += Math.min(ANALYSIS_CONSTANTS.RELIABILITY.CRITICAL_DEDUCTION, 35);
         break;
       case 'major':
-        totalDeduction += ANALYSIS_CONSTANTS.RELIABILITY.MAJOR_DEDUCTION;
+        totalDeduction += Math.min(ANALYSIS_CONSTANTS.RELIABILITY.MAJOR_DEDUCTION, 15);
         break;
       case 'minor':
-        totalDeduction += ANALYSIS_CONSTANTS.RELIABILITY.MINOR_DEDUCTION;
+        totalDeduction += Math.min(ANALYSIS_CONSTANTS.RELIABILITY.MINOR_DEDUCTION, 5);
         break;
     }
   }
 
   totalDeduction = Math.min(totalDeduction, ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION);
 
-  return clampScore(100 - totalDeduction);
+  const rawScore = 100 - totalDeduction;
+  return Math.max(0, parseFloat(rawScore.toFixed(2)));
 }
 
-// Maintainability Score Calculator
+// ✅ Use this to compute the grade for reliability
+export function getReliabilityGrade(score: number): ScoreGrade {
+  return getGradeFromScore(score, scoreThresholds.reliability);
+}
+
+// ✅ Maintainability Score logic (existing)
 export function calculateMaintainabilityScore(params: {
   duplicationPercentage: number;
   avgFunctionSize: number;
@@ -161,40 +147,37 @@ export function calculateMaintainabilityScore(params: {
 
   // Duplication penalty
   if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.HIGH) {
-    deduction += ANALYSIS_CONSTANTS.DUPLICATION.HIGH * ANALYSIS_CONSTANTS.DUPLICATION.IMPACT_MULTIPLIER;
+    deduction += 20 * 0.2;
   } else if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.MODERATE) {
-    deduction += ANALYSIS_CONSTANTS.DUPLICATION.MODERATE * ANALYSIS_CONSTANTS.DUPLICATION.IMPACT_MULTIPLIER;
+    deduction += 10 * 0.2;
   } else if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.LOW) {
-    deduction += ANALYSIS_CONSTANTS.DUPLICATION.LOW * ANALYSIS_CONSTANTS.DUPLICATION.IMPACT_MULTIPLIER;
+    deduction += 5 * 0.2;
   }
 
   // Function size penalty
   if (avgFunctionSize >= ANALYSIS_CONSTANTS.FUNCTION_SIZE.HIGH) {
-    deduction += ANALYSIS_CONSTANTS.FUNCTION_SIZE.MAX_IMPACT;
+    deduction += 20;
   } else if (avgFunctionSize >= ANALYSIS_CONSTANTS.FUNCTION_SIZE.MODERATE) {
-    deduction += ANALYSIS_CONSTANTS.FUNCTION_SIZE.MODERATE * ANALYSIS_CONSTANTS.FUNCTION_SIZE.IMPACT_MULTIPLIER;
+    deduction += 5 * 1.5;
   }
 
   // Documentation penalty
   if (documentationCoverage < ANALYSIS_CONSTANTS.DOCUMENTATION.POOR) {
-    deduction += 15 * ANALYSIS_CONSTANTS.DOCUMENTATION.IMPACT_MULTIPLIER;
+    deduction += 15 * 0.25;
   } else if (documentationCoverage < ANALYSIS_CONSTANTS.DOCUMENTATION.ACCEPTABLE) {
-    deduction += 7 * ANALYSIS_CONSTANTS.DOCUMENTATION.IMPACT_MULTIPLIER;
+    deduction += 7 * 0.25;
   }
 
   // Nesting depth penalty
   if (avgNestingDepth >= ANALYSIS_CONSTANTS.NESTING_DEPTH.HIGH) {
-    deduction += ANALYSIS_CONSTANTS.NESTING_DEPTH.HIGH_PENALTY;
+    deduction += 10;
   } else if (avgNestingDepth >= ANALYSIS_CONSTANTS.NESTING_DEPTH.MODERATE) {
-    deduction += ANALYSIS_CONSTANTS.NESTING_DEPTH.MODERATE_PENALTY;
+    deduction += 5;
   }
 
-  return clampScore(100 - deduction);
-}
-
-// Grade Mappers
-export function getReliabilityGrade(score: number): ScoreGrade {
-  return getGradeFromScore(score, scoreThresholds.reliability);
+  const rawScore = 100 - deduction;
+  const finalScore = Math.max(0, Math.min(100, parseFloat(rawScore.toFixed(2))));
+  return finalScore;
 }
 
 export function getMaintainabilityGrade(score: number): ScoreGrade {
@@ -202,29 +185,35 @@ export function getMaintainabilityGrade(score: number): ScoreGrade {
 }
 
 export function getMaintainabilityGradeFromCodeSmells(smellCount: number): ScoreGrade {
-  return getGradeFromScore(smellCount, codeSmellThresholds);
+  return getGradeFromScore(smellCount, scoreThresholds.maintainability);
 }
 
-// Reliability Warning Flag Checker
+// Determine reliability warning flag
 export function needsReliabilityWarningFlag(
   score: ScoreGrade,
   issues?: { type: string; impact: number }[]
 ): boolean {
   if (!issues || issues.length === 0) return false;
 
-  const criticalCount = issues.filter(issue =>
-    isHighImpact(issue, ANALYSIS_CONSTANTS.SEVERITY.CRITICAL)
-  ).length;
-
-  if ((score === 'A' || score === 'B') && criticalCount >= 2) {
+  if ((score === 'A' || score === 'B') &&
+    issues.filter(issue => {
+      const issueType = issue && issue.type;
+      const issueImpact = issue && typeof issue.impact === 'number' ? issue.impact : 0;
+      return issueType === 'critical' || issueImpact >= ANALYSIS_CONSTANTS.SEVERITY.CRITICAL;
+    }).length >= 2) {
     return true;
   }
 
   if (score === 'B') {
-    const majorCount = issues.filter(issue =>
-      isHighImpact(issue, ANALYSIS_CONSTANTS.SEVERITY.MAJOR)
-    ).length;
-    if (majorCount >= 3) return true;
+    const majorIssues = issues.filter(issue => {
+      const issueType = issue && issue.type;
+      const issueImpact = issue && typeof issue.impact === 'number' ? issue.impact : 0;
+      return issueType === 'major' || issueImpact >= ANALYSIS_CONSTANTS.SEVERITY.MAJOR;
+    });
+
+    if (majorIssues.length >= 3) {
+      return true;
+    }
   }
 
   return false;
