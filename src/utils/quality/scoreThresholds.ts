@@ -9,10 +9,10 @@ export const scoreThresholds = {
     D: 0
   },
   cyclomaticComplexity: {
-    A: 5,
-    B: 10,
-    C: 20,
-    D: 21
+    A: 10,
+    B: 20,
+    C: 35,
+    D: 36
   },
   reliability: {
     A: 95,
