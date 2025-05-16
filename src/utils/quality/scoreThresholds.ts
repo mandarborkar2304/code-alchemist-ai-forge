@@ -107,13 +107,13 @@ export function calculateReliabilityScore(issues: {
   for (const issue of issues) {
     switch (issue.type) {
       case 'critical':
-        totalDeduction += Math.min(ANALYSIS_CONSTANTS.RELIABILITY.CRITICAL_DEDUCTION, 35);
+        totalDeduction += ANALYSIS_CONSTANTS.RELIABILITY.CRITICAL_DEDUCTION;
         break;
       case 'major':
-        totalDeduction += Math.min(ANALYSIS_CONSTANTS.RELIABILITY.MAJOR_DEDUCTION, 15);
+        totalDeduction += ANALYSIS_CONSTANTS.RELIABILITY.MAJOR_DEDUCTION;
         break;
       case 'minor':
-        totalDeduction += Math.min(ANALYSIS_CONSTANTS.RELIABILITY.MINOR_DEDUCTION, 5);
+        totalDeduction += ANALYSIS_CONSTANTS.RELIABILITY.MINOR_DEDUCTION;
         break;
     }
   }
@@ -123,6 +123,7 @@ export function calculateReliabilityScore(issues: {
   const rawScore = 100 - totalDeduction;
   return Math.max(0, parseFloat(rawScore.toFixed(2)));
 }
+
 
 // ✅ Use this to compute the grade for reliability
 export function getReliabilityGrade(score: number): ScoreGrade {
