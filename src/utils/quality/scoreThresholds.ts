@@ -3,9 +3,9 @@ import { ScoreGrade } from '@/types';
 // Centralized configuration constants
 export const scoreThresholds = {
   maintainability: {
-    A: 90,
-    B: 80,
-    C: 70,
+    A: 85,
+    B: 70,
+    C: 55,
     D: 0
   },
   cyclomaticComplexity: {
@@ -15,10 +15,10 @@ export const scoreThresholds = {
     D: 21
   },
   reliability: {
-    A: 5,
-    B: 10,
-    C: 20,
-    D: 21
+    A: 95,
+    B: 90,
+    C: 80,
+    D: 0
   }
 };
 
@@ -28,25 +28,27 @@ export const ANALYSIS_CONSTANTS = {
     LOW: 5,
     MODERATE: 10,
     HIGH: 20,
-    IMPACT_MULTIPLIER: 0.25
+    IMPACT_MULTIPLIER: 0.2
   },
   FUNCTION_SIZE: {
     ACCEPTABLE: 0,
     MODERATE: 1,
     HIGH: 6,
-    IMPACT_MULTIPLIER: 2,
-    MAX_IMPACT: 25
+    IMPACT_MULTIPLIER: 1.5,
+    MAX_IMPACT: 20
   },
   DOCUMENTATION: {
     GOOD: 80,
     ACCEPTABLE: 70,
     POOR: 50,
-    IMPACT_MULTIPLIER: 0.3
+    IMPACT_MULTIPLIER: 0.25
   },
   NESTING_DEPTH: {
     LOW: 3,
     MODERATE: 4,
-    HIGH: 5
+    HIGH: 5,
+    MODERATE_PENALTY: 5,     
+    HIGH_PENALTY: 10 
   },
   SEVERITY: {
     CRITICAL: 3,
@@ -54,10 +56,10 @@ export const ANALYSIS_CONSTANTS = {
     MINOR: 1
   },
   RELIABILITY: {
-    CRITICAL_DEDUCTION: 20,
-    MAJOR_DEDUCTION: 12,
-    MINOR_DEDUCTION: 4,
-    MAX_DEDUCTION: 55
+    CRITICAL_DEDUCTION: 25,
+    MAJOR_DEDUCTION: 15,
+    MINOR_DEDUCTION: 5,
+    MAX_DEDUCTION: 60
   },
   FACTORS: {
     TEST_CODE: 0.5,
@@ -111,39 +113,40 @@ export function calculateMaintainabilityScore(params: {
 
   // Duplication penalty
   if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.HIGH) {
-    deduction += 20 * ANALYSIS_CONSTANTS.DUPLICATION.IMPACT_MULTIPLIER;
+    deduction += 20 * 0.2;
   } else if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.MODERATE) {
-    deduction += 10 * ANALYSIS_CONSTANTS.DUPLICATION.IMPACT_MULTIPLIER;
+    deduction += 10 * 0.2;
   } else if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.LOW) {
-    deduction += 5 * ANALYSIS_CONSTANTS.DUPLICATION.IMPACT_MULTIPLIER;
+    deduction += 5 * 0.2;
   }
 
   // Function size penalty
   if (avgFunctionSize >= ANALYSIS_CONSTANTS.FUNCTION_SIZE.HIGH) {
-    deduction += ANALYSIS_CONSTANTS.FUNCTION_SIZE.MAX_IMPACT;
+    deduction += 20;
   } else if (avgFunctionSize >= ANALYSIS_CONSTANTS.FUNCTION_SIZE.MODERATE) {
-    deduction += 5 * ANALYSIS_CONSTANTS.FUNCTION_SIZE.IMPACT_MULTIPLIER;
+    deduction += 5 * 1.5;
   }
 
   // Documentation penalty
   if (documentationCoverage < ANALYSIS_CONSTANTS.DOCUMENTATION.POOR) {
-    deduction += 15 * ANALYSIS_CONSTANTS.DOCUMENTATION.IMPACT_MULTIPLIER;
+    deduction += 15 * 0.25;
   } else if (documentationCoverage < ANALYSIS_CONSTANTS.DOCUMENTATION.ACCEPTABLE) {
-    deduction += 7 * ANALYSIS_CONSTANTS.DOCUMENTATION.IMPACT_MULTIPLIER;
+    deduction += 7 * 0.25;
   }
 
   // Nesting depth penalty
   if (avgNestingDepth >= ANALYSIS_CONSTANTS.NESTING_DEPTH.HIGH) {
-    deduction += 15;
+    deduction += 10;
   } else if (avgNestingDepth >= ANALYSIS_CONSTANTS.NESTING_DEPTH.MODERATE) {
-    deduction += 8;
+    deduction += 5;
   }
 
   const rawScore = 100 - deduction;
   const finalScore = Math.max(0, Math.min(100, parseFloat(rawScore.toFixed(2))));
-
   return finalScore;
 }
+
+
 
 // ✅ Grade maintainability from the computed score
 export function getMaintainabilityGrade(score: number): ScoreGrade {
