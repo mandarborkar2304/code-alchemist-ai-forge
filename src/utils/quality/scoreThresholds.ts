@@ -59,7 +59,7 @@ export const ANALYSIS_CONSTANTS = {
     CRITICAL_DEDUCTION: 35,
     MAJOR_DEDUCTION: 15,
     MINOR_DEDUCTION: 5,
-    MAX_DEDUCTION: 70
+    MAX_DEDUCTION: 100
   },
   FACTORS: {
     TEST_CODE: 0.5,
@@ -95,7 +95,7 @@ export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, 
   return 'D';
 }
 
-// ✅ New: Calculate Reliability Score (Aligned with SonarQube-style deductions)
+// ✅ Revised: Calculate Reliability Score
 export function calculateReliabilityScore(issues: {
   type: 'critical' | 'major' | 'minor',
   impact?: number
@@ -105,32 +105,41 @@ export function calculateReliabilityScore(issues: {
   let totalDeduction = 0;
 
   for (const issue of issues) {
+    let severityDeduction = 0;
+
     switch (issue.type) {
       case 'critical':
-        totalDeduction += ANALYSIS_CONSTANTS.RELIABILITY.CRITICAL_DEDUCTION;
+        severityDeduction = ANALYSIS_CONSTANTS.RELIABILITY.CRITICAL_DEDUCTION;
+        if (issue.impact && issue.impact >= 3) {
+          severityDeduction += 10;
+        }
         break;
       case 'major':
-        totalDeduction += ANALYSIS_CONSTANTS.RELIABILITY.MAJOR_DEDUCTION;
+        severityDeduction = ANALYSIS_CONSTANTS.RELIABILITY.MAJOR_DEDUCTION;
+        if (issue.impact && issue.impact >= 2) {
+          severityDeduction += 5;
+        }
         break;
       case 'minor':
-        totalDeduction += ANALYSIS_CONSTANTS.RELIABILITY.MINOR_DEDUCTION;
+        severityDeduction = ANALYSIS_CONSTANTS.RELIABILITY.MINOR_DEDUCTION;
         break;
     }
+
+    totalDeduction += severityDeduction;
   }
 
-  totalDeduction = Math.min(totalDeduction, ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION);
-
-  const rawScore = 100 - totalDeduction;
+  // Cap max deduction to 100 (hard fail)
+  const finalDeduction = Math.min(totalDeduction, ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION);
+  const rawScore = 100 - finalDeduction;
   return Math.max(0, parseFloat(rawScore.toFixed(2)));
 }
 
-
-// ✅ Use this to compute the grade for reliability
+// ✅ Compute reliability grade
 export function getReliabilityGrade(score: number): ScoreGrade {
   return getGradeFromScore(score, scoreThresholds.reliability);
 }
 
-// ✅ Maintainability Score logic (existing)
+// ✅ Maintainability Score logic
 export function calculateMaintainabilityScore(params: {
   duplicationPercentage: number;
   avgFunctionSize: number;
@@ -189,7 +198,7 @@ export function getMaintainabilityGradeFromCodeSmells(smellCount: number): Score
   return getGradeFromScore(smellCount, scoreThresholds.maintainability);
 }
 
-// Determine reliability warning flag
+// Determine if reliability needs a warning flag
 export function needsReliabilityWarningFlag(
   score: ScoreGrade,
   issues?: { type: string; impact: number }[]
@@ -197,24 +206,17 @@ export function needsReliabilityWarningFlag(
   if (!issues || issues.length === 0) return false;
 
   if ((score === 'A' || score === 'B') &&
-    issues.filter(issue => {
-      const issueType = issue && issue.type;
-      const issueImpact = issue && typeof issue.impact === 'number' ? issue.impact : 0;
-      return issueType === 'critical' || issueImpact >= ANALYSIS_CONSTANTS.SEVERITY.CRITICAL;
-    }).length >= 2) {
+    issues.filter(issue =>
+      issue.type === 'critical' || (issue.impact ?? 0) >= ANALYSIS_CONSTANTS.SEVERITY.CRITICAL
+    ).length >= 2) {
     return true;
   }
 
   if (score === 'B') {
-    const majorIssues = issues.filter(issue => {
-      const issueType = issue && issue.type;
-      const issueImpact = issue && typeof issue.impact === 'number' ? issue.impact : 0;
-      return issueType === 'major' || issueImpact >= ANALYSIS_CONSTANTS.SEVERITY.MAJOR;
-    });
-
-    if (majorIssues.length >= 3) {
-      return true;
-    }
+    const majorIssues = issues.filter(issue =>
+      issue.type === 'major' || (issue.impact ?? 0) >= ANALYSIS_CONSTANTS.SEVERITY.MAJOR
+    );
+    if (majorIssues.length >= 3) return true;
   }
 
   return false;
