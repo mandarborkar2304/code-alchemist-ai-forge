@@ -104,34 +104,36 @@ export function calculateReliabilityScore(issues: {
 
   let totalDeduction = 0;
 
-  for (const issue of issues) {
-    let severityDeduction = 0;
+  const CRITICAL_MULTIPLIER = 1.5;
+  const MAJOR_MULTIPLIER = 1.2;
+  const MINOR_MULTIPLIER = 1.0;
 
+  for (const issue of issues) {
+    let base = 0;
     switch (issue.type) {
       case 'critical':
-        severityDeduction = ANALYSIS_CONSTANTS.RELIABILITY.CRITICAL_DEDUCTION;
-        if (issue.impact && issue.impact >= 3) {
-          severityDeduction += 10;
-        }
+        base = ANALYSIS_CONSTANTS.RELIABILITY.CRITICAL_DEDUCTION * CRITICAL_MULTIPLIER;
+        if (issue.impact && issue.impact >= 3) base += 15;
         break;
       case 'major':
-        severityDeduction = ANALYSIS_CONSTANTS.RELIABILITY.MAJOR_DEDUCTION;
-        if (issue.impact && issue.impact >= 2) {
-          severityDeduction += 5;
-        }
+        base = ANALYSIS_CONSTANTS.RELIABILITY.MAJOR_DEDUCTION * MAJOR_MULTIPLIER;
+        if (issue.impact && issue.impact >= 2) base += 5;
         break;
       case 'minor':
-        severityDeduction = ANALYSIS_CONSTANTS.RELIABILITY.MINOR_DEDUCTION;
+        base = ANALYSIS_CONSTANTS.RELIABILITY.MINOR_DEDUCTION * MINOR_MULTIPLIER;
         break;
     }
-
-    totalDeduction += severityDeduction;
+    totalDeduction += base;
   }
 
-  // Cap max deduction to 100 (hard fail)
-  const finalDeduction = Math.min(totalDeduction, ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION);
-  const rawScore = 100 - finalDeduction;
-  return Math.max(0, parseFloat(rawScore.toFixed(2)));
+  // If multiple critical issues, increase penalty
+  const criticalCount = issues.filter(i => i.type === 'critical').length;
+  if (criticalCount >= 2) totalDeduction += 20;
+
+  // Cap deduction
+  totalDeduction = Math.min(totalDeduction, 100);
+  const score = Math.max(0, 100 - totalDeduction);
+  return parseFloat(score.toFixed(2));
 }
 
 // ✅ Compute reliability grade
