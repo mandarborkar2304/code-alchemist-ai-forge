@@ -5,7 +5,7 @@ import { issueSeverityWeights, ANALYSIS_CONSTANTS } from './scoreThresholds';
 /** Normalize issue descriptions for consistent grouping. */
 function normalizeString(input: string): string {
   return typeof input === 'string'
-    ? input.toLowerCase().replace(/\s+/g, ' ').replace(/\b(line|at|on)\s+\d+\b/g, '')
+    ? input.toLowerCase().replace(/\s+/g, ' ').replace(/\b(line|at|on)\s+\d+\b/g, '').trim()
     : '';
 }
 
@@ -56,29 +56,34 @@ export function determinePathSensitivity(issues: ReliabilityIssue[]): number {
   return 1.0;
 }
 
-/** Pattern risk heuristic to simulate static analysis for crashes like NPE, divide-by-zero, and out-of-bounds. */
+/** Pattern risk heuristic for null, zero division, and bounds errors. */
 export function evaluatePatternRisk(description: string, context: string): boolean {
   if (!description || !context) return false;
 
   const desc = normalizeString(description);
   const ctx = context.toLowerCase();
 
-  // Null pointer access pattern
-  if (desc.includes('null') && ctx.includes('.')) {
-    return !ctx.includes('?.') && !ctx.includes('!= null') && !ctx.includes('typeof');
-  }
+  const isNullRisk =
+    desc.includes('null') &&
+    ctx.includes('.') &&
+    !ctx.includes('?.') &&
+    !ctx.includes('!= null') &&
+    !ctx.includes('typeof');
 
-  // Division by zero pattern
-  if (desc.includes('division') || ctx.includes('/')) {
-    return !ctx.includes('!= 0') && !ctx.includes('try') && !ctx.includes('catch');
-  }
+  const isDivideByZeroRisk =
+    (desc.includes('division') || ctx.includes('/')) &&
+    !ctx.includes('!= 0') &&
+    !ctx.includes('try') &&
+    !ctx.includes('catch');
 
-  // Array index out of bounds
-  if (desc.includes('array') && ctx.includes('[')) {
-    return !ctx.includes('<') && !ctx.includes('length') && !ctx.includes('try');
-  }
+  const isOutOfBoundsRisk =
+    desc.includes('array') &&
+    ctx.includes('[') &&
+    !ctx.includes('<') &&
+    !ctx.includes('length') &&
+    !ctx.includes('try');
 
-  return false;
+  return isNullRisk || isDivideByZeroRisk || isOutOfBoundsRisk;
 }
 
 /** Computes issue severity dynamically, accounting for risky crash-like patterns. */
@@ -92,28 +97,48 @@ function getEffectiveSeverity(issue: ReliabilityIssue): string {
 export function categorizeReliabilityIssues(issues: ReliabilityIssue[]): CategoryWithIssues[] {
   if (!Array.isArray(issues)) return [];
 
-  return [
-    {
+  const criticalBugs = issues.filter(
+    i => i.category === 'runtime' && getEffectiveSeverity(i) === 'critical'
+  );
+  const exceptionIssues = issues.filter(i => i.category === 'exception');
+  const structuralSmells = issues.filter(i => i.category === 'structure');
+  const maintainabilitySmells = issues.filter(i => i.category === 'readability');
+
+  const result: CategoryWithIssues[] = [];
+
+  if (criticalBugs.length > 0) {
+    result.push({
       name: 'Bugs - Critical',
-      issues: issues.filter(i => i.category === 'runtime' && getEffectiveSeverity(i) === 'critical'),
+      issues: criticalBugs,
       severity: 'critical',
-    },
-    {
+    });
+  }
+
+  if (exceptionIssues.length > 0) {
+    result.push({
       name: 'Bugs - Exception Handling',
-      issues: issues.filter(i => i.category === 'exception'),
+      issues: exceptionIssues,
       severity: 'major',
-    },
-    {
+    });
+  }
+
+  if (structuralSmells.length > 0) {
+    result.push({
       name: 'Code Smells - Structure',
-      issues: issues.filter(i => i.category === 'structure'),
-      severity: i => getEffectiveSeverity(i),
-    },
-    {
+      issues: structuralSmells,
+      severity: 'varies',
+    });
+  }
+
+  if (maintainabilitySmells.length > 0) {
+    result.push({
       name: 'Code Smells - Maintainability',
-      issues: issues.filter(i => i.category === 'readability'),
+      issues: maintainabilitySmells,
       severity: 'minor',
-    }
-  ].filter(cat => cat.issues.length > 0);
+    });
+  }
+
+  return result;
 }
 
 /** Suggests general action items based on detected issue categories. */
@@ -141,11 +166,15 @@ export function generateReliabilityImprovements(groupedIssues: IssueGroup[]): st
     }
   }
 
-  return improvements.length > 0 ? improvements : ['Consider applying additional reliability checks.'];
+  return improvements.length > 0
+    ? improvements
+    : ['Consider applying additional reliability checks.'];
 }
 
 /** Final scoring logic for reliability based on severity, context, and crash flags. */
-export function calculateReliabilityScore(issues: ReliabilityIssue[]): { score: number, letter: string } {
+export function calculateReliabilityScore(
+  issues: ReliabilityIssue[]
+): { score: number; letter: string } {
   const grouped = groupSimilarIssues(issues);
   let weightedTotal = 0;
   let criticalCrashDetected = false;
@@ -164,10 +193,7 @@ export function calculateReliabilityScore(issues: ReliabilityIssue[]): { score: 
     if (isCrash) criticalCrashDetected = true;
   }
 
-  // Immediate fail if crash detected
   if (criticalCrashDetected) return { score: weightedTotal, letter: 'D' };
-
-  // Tiered scoring system
   if (weightedTotal < 5) return { score: weightedTotal, letter: 'A' };
   if (weightedTotal < 15) return { score: weightedTotal, letter: 'B' };
   if (weightedTotal < 25) return { score: weightedTotal, letter: 'C' };
