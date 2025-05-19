@@ -1,4 +1,5 @@
 import { ReliabilityIssue, ScoreGrade } from '@/types';
+import { calculateReliabilityScore } from './reliabilityHelpers';
 import { ScoreData } from './types';
 import {
   scoreThresholds,
@@ -143,6 +144,20 @@ function calculateGroupDeduction(
 
 // Main reliability scoring function
 export function getReliabilityRating(score: number, issues?: ReliabilityIssue[]): ScoreData {
+  const helperScore = calculateReliabilityScore(issues);
+
+  // Early downgrade if helperScore letter is 'D'
+  if (helperScore.letter === 'D') {
+    return {
+      score: 'D',
+      description: 'Reliability concerns (severe issues detected)',
+      reason: 'Critical crash-prone code paths identified',
+      issues: issues.map(i => i.description),
+      improvements: generateReliabilityImprovements(groupSimilarIssues(issues)),
+      warningFlag: true
+    };
+  }
+
   if (!isFinite(score)) {
     return {
       score: 'C',
@@ -173,6 +188,18 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
     const criticals = validated.filter(isConfirmedCriticalIssue);
     const criticalCount = criticals.length;
 
+    // Fix Option 2: Immediate downgrade if criticals exist
+    if (criticalCount > 0) {
+      return {
+        score: 'D',
+        description: 'Reliability concerns (critical issues)',
+        reason: 'One or more critical issues that may cause crashes were detected.',
+        issues: issues.map(i => i.description),
+        improvements: generateReliabilityImprovements(groupSimilarIssues(issues)),
+        warningFlag: true
+      };
+    }
+
     for (const group of grouped) {
       const contextFactor = getContextReductionFactor(group.issues);
       const pathFactor = determinePathSensitivity(group.issues);
@@ -184,20 +211,9 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
       deductions = scaled;
     }
 
-    if (criticalCount > 0) {
-      deductions = Math.min(
-        deductions * (1 + criticalCount * 0.15),
-        ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION
-      );
-      deductions = Math.max(deductions, 12 + criticalCount * 4);
-    } else {
-      const majorCount = validated.filter(i => i?.type === 'major').length;
-      if (majorCount > 0) {
-        deductions = Math.max(deductions, 6 + majorCount * 1.5);
-      }
-    }
+    // Note: Removed conservative scaling per Fix Option 3
+    // deductions *= ANALYSIS_CONSTANTS.FACTORS.CONSERVATIVE_MODE; // now = 1.0
 
-    deductions *= ANALYSIS_CONSTANTS.FACTORS.CONSERVATIVE_MODE;
     const capped = Math.min(deductions, ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION);
 
     // 🧪 Debug log output for sanity check
