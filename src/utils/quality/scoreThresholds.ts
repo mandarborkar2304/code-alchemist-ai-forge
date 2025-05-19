@@ -95,7 +95,7 @@ export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, 
   return 'D';
 }
 
-// ✅ Revised: Calculate Reliability Score
+// Revised: Calculate Reliability Score
 export function calculateReliabilityScore(issues: {
   type: 'critical' | 'major' | 'minor',
   impact?: number
@@ -104,44 +104,50 @@ export function calculateReliabilityScore(issues: {
 
   let totalDeduction = 0;
 
-  const CRITICAL_MULTIPLIER = 1.5;
-  const MAJOR_MULTIPLIER = 1.2;
-  const MINOR_MULTIPLIER = 1.0;
+  let criticalCount = 0;
+  let majorCount = 0;
+  let minorCount = 0;
 
   for (const issue of issues) {
-    let base = 0;
+    const impact = issue.impact ?? 0;
+
     switch (issue.type) {
       case 'critical':
-        base = ANALYSIS_CONSTANTS.RELIABILITY.CRITICAL_DEDUCTION * CRITICAL_MULTIPLIER;
-        if (issue.impact && issue.impact >= 3) base += 15;
+        criticalCount++;
+        totalDeduction += 35 + (impact >= 3 ? 15 : 0); // Amplify if high impact
         break;
       case 'major':
-        base = ANALYSIS_CONSTANTS.RELIABILITY.MAJOR_DEDUCTION * MAJOR_MULTIPLIER;
-        if (issue.impact && issue.impact >= 2) base += 5;
+        majorCount++;
+        totalDeduction += 15 + (impact >= 2 ? 5 : 0);
         break;
       case 'minor':
-        base = ANALYSIS_CONSTANTS.RELIABILITY.MINOR_DEDUCTION * MINOR_MULTIPLIER;
+        minorCount++;
+        totalDeduction += 5;
         break;
     }
-    totalDeduction += base;
   }
 
-  // If multiple critical issues, increase penalty
-  const criticalCount = issues.filter(i => i.type === 'critical').length;
-  if (criticalCount >= 2) totalDeduction += 20;
+  // Context-aware penalties
+  if (criticalCount >= 2) {
+    totalDeduction += 20; // Multiple critical issues penalty
+  }
+  if (majorCount >= 3) {
+    totalDeduction += 10; // Excessive major issue penalty
+  }
 
-  // Cap deduction
+  // Cap total deduction
   totalDeduction = Math.min(totalDeduction, 100);
-  const score = Math.max(0, 100 - totalDeduction);
-  return parseFloat(score.toFixed(2));
+
+  const rawScore = 100 - totalDeduction;
+  return Math.max(0, parseFloat(rawScore.toFixed(2)));
 }
 
-// ✅ Compute reliability grade
+// Compute reliability grade
 export function getReliabilityGrade(score: number): ScoreGrade {
   return getGradeFromScore(score, scoreThresholds.reliability);
 }
 
-// ✅ Maintainability Score logic
+// Maintainability Score logic
 export function calculateMaintainabilityScore(params: {
   duplicationPercentage: number;
   avgFunctionSize: number;

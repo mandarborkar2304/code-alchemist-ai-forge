@@ -107,7 +107,7 @@ export function determinePathSensitivity(issues: ReliabilityIssue[]): number {
 function getEffectiveSeverity(issue: ReliabilityIssue): string {
   const base = issue?.type || 'minor';
   const risky = evaluatePatternRisk(issue.description, issue.codeContext || '');
-  return risky && base !== 'critical' ? 'critical' : base;
+  return risky ? 'critical' : base;
 }
 
 
@@ -181,26 +181,33 @@ export function generateReliabilityImprovements(groupedIssues: IssueGroup[]): st
 export function calculateReliabilityScore(issues: ReliabilityIssue[]): { score: number, letter: string } {
   const grouped = groupSimilarIssues(issues);
   let weightedTotal = 0;
-  let hasCriticalCrash = false;
+  let criticalCrashDetected = false;
 
   for (const group of grouped) {
     const representative = group.issues[0];
     const severity = getEffectiveSeverity(representative);
     const severityWeight = issueSeverityWeights[severity] || 1;
+
     const riskFactor = getContextReductionFactor(group.issues) * determinePathSensitivity(group.issues);
     const isCrash = evaluatePatternRisk(representative.description, representative.codeContext || '');
 
-    const cappedCount = Math.min(group.issues.length, 3); // Cap to reduce over-penalization
-    weightedTotal += cappedCount * severityWeight * riskFactor;
+    const effectiveCount = group.issues.length; // Removed capping — let real weight apply
+    const rawImpact = effectiveCount * severityWeight * riskFactor;
 
-    if (isCrash && severity === 'critical') hasCriticalCrash = true;
+    weightedTotal += rawImpact;
+
+    // Count it as a crash-prone issue even if severity is not yet flagged
+    if (isCrash) {
+      criticalCrashDetected = true;
+    }
   }
 
-  if (hasCriticalCrash) return { score: weightedTotal, letter: 'D' };
+  // Fail hard if risky crash-prone issue exists, regardless of severity
+  if (criticalCrashDetected) return { score: weightedTotal, letter: 'D' };
 
-  // Final letter with floor: don’t go below B unless critical crash
+  // Stricter letter grading
   if (weightedTotal < 5) return { score: weightedTotal, letter: 'A' };
-  if (weightedTotal < 10) return { score: weightedTotal, letter: 'B' };
-  if (weightedTotal < 15) return { score: weightedTotal, letter: 'C' };
+  if (weightedTotal < 15) return { score: weightedTotal, letter: 'B' };
+  if (weightedTotal < 25) return { score: weightedTotal, letter: 'C' };
   return { score: weightedTotal, letter: 'D' };
 }
