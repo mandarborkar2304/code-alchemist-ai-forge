@@ -15,9 +15,9 @@ export const scoreThresholds = {
     D: 36
   },
   reliability: {
-    A: 95,
-    B: 85,
-    C: 70,
+    A: 5,
+    B: 15,
+    C: 25,
     D: 0
   }
 };
@@ -51,9 +51,9 @@ export const ANALYSIS_CONSTANTS = {
     HIGH_PENALTY: 10
   },
   SEVERITY: {
-    CRITICAL: 3,
-    MAJOR: 2,
-    MINOR: 1
+    CRITICAL: 5,
+    MAJOR: 4,
+    MINOR: 2
   },
   RELIABILITY: {
     CRITICAL_DEDUCTION: 35,
@@ -62,7 +62,7 @@ export const ANALYSIS_CONSTANTS = {
     MAX_DEDUCTION: 100
   },
   FACTORS: {
-    TEST_CODE: 0.5,
+    TEST_CODE: 0.8,
     ERROR_HANDLING: 0.7,
     UTILITY_CODE: 0.8,
     REPEATED_ISSUES: 0.9,
