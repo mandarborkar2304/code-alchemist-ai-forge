@@ -143,8 +143,8 @@ function calculateGroupDeduction(
 }
 
 // Main reliability scoring function
-export function getReliabilityRating(score: number, issues?: ReliabilityIssue[]): ScoreData {
-  const helperScore = calculateReliabilityScore(issues);
+export function getReliabilityRating(score: number, code: string, language: string, issues?: ReliabilityIssue[]): ScoreData {
+  const helperScore = calculateReliabilityScore(issues, code, language, );
 
   // Early downgrade if helperScore letter is 'D'
   if (helperScore.letter === 'D') {
