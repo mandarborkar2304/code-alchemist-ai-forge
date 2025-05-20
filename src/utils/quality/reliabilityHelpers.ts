@@ -1,18 +1,20 @@
 import { ReliabilityIssue } from '@/types';
 import { IssueGroup, CategoryWithIssues } from './types';
 import { issueSeverityWeights, ANALYSIS_CONSTANTS } from './scoreThresholds';
-import { getCodeMetrics, scoreToGrade } from '../codeMetrics'; // Import metrics + grade
 
+/** Normalize issue descriptions for consistent grouping. */
 function normalizeString(input: string): string {
   return typeof input === 'string'
     ? input.toLowerCase().replace(/\s+/g, ' ').replace(/\b(line|at|on)\s+\d+\b/g, '').trim()
     : '';
 }
 
+/** Group issues by normalized description and category to reduce redundancy. */
 export function groupSimilarIssues(issues: ReliabilityIssue[]): IssueGroup[] {
   if (!Array.isArray(issues)) return [];
 
   const groups: Record<string, IssueGroup> = {};
+
   for (const issue of issues) {
     if (!issue) continue;
     const key = `${issue.category || 'unknown'}_${normalizeString(issue.description)}`;
@@ -23,6 +25,7 @@ export function groupSimilarIssues(issues: ReliabilityIssue[]): IssueGroup[] {
   return Object.values(groups);
 }
 
+/** Adjusts issue impact score based on contextual hints. */
 export function getContextReductionFactor(issues: ReliabilityIssue[]): number {
   if (!Array.isArray(issues) || issues.length === 0) return 1.0;
 
@@ -37,6 +40,7 @@ export function getContextReductionFactor(issues: ReliabilityIssue[]): number {
   return factor;
 }
 
+/** Estimates path sensitivity to reflect how likely the issue affects production behavior. */
 export function determinePathSensitivity(issues: ReliabilityIssue[]): number {
   if (!Array.isArray(issues) || issues.length === 0) return 1.0;
 
@@ -52,6 +56,7 @@ export function determinePathSensitivity(issues: ReliabilityIssue[]): number {
   return 1.0;
 }
 
+/** Pattern risk heuristic for null, zero division, and bounds errors. */
 export function evaluatePatternRisk(description: string, context: string): boolean {
   if (!description || !context) return false;
 
@@ -81,12 +86,14 @@ export function evaluatePatternRisk(description: string, context: string): boole
   return isNullRisk || isDivideByZeroRisk || isOutOfBoundsRisk;
 }
 
+/** Computes issue severity dynamically, accounting for risky crash-like patterns. */
 function getEffectiveSeverity(issue: ReliabilityIssue): string {
   const base = issue?.type || 'minor';
   const risky = evaluatePatternRisk(issue.description, issue.codeContext || '');
   return risky ? 'critical' : base;
 }
 
+/** Groups reliability issues by category for visualization/reporting. */
 export function categorizeReliabilityIssues(issues: ReliabilityIssue[]): CategoryWithIssues[] {
   if (!Array.isArray(issues)) return [];
 
@@ -134,6 +141,7 @@ export function categorizeReliabilityIssues(issues: ReliabilityIssue[]): Categor
   return result;
 }
 
+/** Suggests general action items based on detected issue categories. */
 export function generateReliabilityImprovements(groupedIssues: IssueGroup[]): string[] {
   const improvements: string[] = [];
   const add = (condition: boolean, suggestion: string) => {
@@ -163,24 +171,13 @@ export function generateReliabilityImprovements(groupedIssues: IssueGroup[]): st
     : ['Consider applying additional reliability checks.'];
 }
 
-/**
- * 🔧 Final scoring logic for reliability based on:
- * - issue severity
- * - frequency
- * - context scaling
- * - actual code metrics (LOC-based normalization)
- */
+/** Final scoring logic for reliability based on severity, context, and crash flags. */
 export function calculateReliabilityScore(
-  issues: ReliabilityIssue[],
-  code: string,
-  language: string
+  issues: ReliabilityIssue[]
 ): { score: number; letter: string } {
   const grouped = groupSimilarIssues(issues);
   let weightedTotal = 0;
   let criticalCrashDetected = false;
-
-  const metrics = getCodeMetrics(code, language);
-  const normalizationFactor = Math.max(1, metrics.linesOfCode / 100); // scale down large files
 
   for (const group of grouped) {
     const rep = group.issues[0];
@@ -196,14 +193,9 @@ export function calculateReliabilityScore(
     if (isCrash) criticalCrashDetected = true;
   }
 
-  const scaledDeduction = weightedTotal / normalizationFactor;
-  let finalScore = Math.max(0, 100 - scaledDeduction);
-
-  if (criticalCrashDetected) {
-    finalScore = Math.min(finalScore, 45); // hard cap for critical crash
-  }
-
-  const letter = scoreToGrade(finalScore);
-
-  return { score: finalScore, letter };
+  if (criticalCrashDetected) return { score: weightedTotal, letter: 'D' };
+  if (weightedTotal < 5) return { score: weightedTotal, letter: 'A' };
+  if (weightedTotal < 15) return { score: weightedTotal, letter: 'B' };
+  if (weightedTotal < 25) return { score: weightedTotal, letter: 'C' };
+  return { score: weightedTotal, letter: 'D' };
 }
