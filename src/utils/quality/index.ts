@@ -2,6 +2,7 @@
 // Export all quality rating functions
 export * from './scoreThresholds';
 export * from './types';
+export * from './scoringUtils'; // New unified utilities
 
 // Import required types
 import { ScoreData } from './types';

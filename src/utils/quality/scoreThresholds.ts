@@ -15,10 +15,10 @@ export const scoreThresholds = {
     D: 36
   },
   reliability: {      
-    A: 80,            // Lowered from 85 to be more achievable
-    B: 65,            // Lowered from 70 
-    C: 45,            // Lowered from 55
-    D: 0              // Anything below 45 or with critical crashes
+    A: 70,            // Lowered to be more achievable
+    B: 55,            // Lowered from 65
+    C: 40,            // Raised minimum threshold
+    D: 0              
   }
 };
 
@@ -51,15 +51,16 @@ export const ANALYSIS_CONSTANTS = {
     HIGH_PENALTY: 10
   },
   SEVERITY: {
-    CRITICAL: 8,      // Increased from 5 to make critical issues more impactful
-    MAJOR: 4,
-    MINOR: 1          // Reduced from 2 to make minor issues less punitive
+    CRITICAL: 12,      // Increased for higher impact
+    MAJOR: 6,          // Increased from 4
+    MINOR: 1           
   },
   RELIABILITY: {
-    CRITICAL_DEDUCTION: 50,    // Increased from 35
-    MAJOR_DEDUCTION: 20,       // Increased from 15
+    CRITICAL_DEDUCTION: 50,
+    MAJOR_DEDUCTION: 20,
     MINOR_DEDUCTION: 5,
     MAX_DEDUCTION: 100,
+    MINIMUM_SCORE: 40,  // New: enforce minimum score
     LOW_RISK_THRESHOLD: 30,
     MODERATE_RISK_THRESHOLD: 60,
     HIGH_RISK_THRESHOLD: 80,
@@ -79,13 +80,14 @@ export const ANALYSIS_CONSTANTS = {
   }
 };
 
+// Legacy compatibility - use the unified scoring utilities instead
 export const issueSeverityWeights = {
   critical: ANALYSIS_CONSTANTS.SEVERITY.CRITICAL,
   major: ANALYSIS_CONSTANTS.SEVERITY.MAJOR,
   minor: ANALYSIS_CONSTANTS.SEVERITY.MINOR
 };
 
-// Grade determination helper
+// Grade determination helper - DEPRECATED: Use scoringUtils.calculateGradeFromScore instead
 export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, number>): ScoreGrade {
   if (score === undefined || score === null || isNaN(score)) {
     console.warn('Invalid score provided to getGradeFromScore:', score);
@@ -97,62 +99,6 @@ export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, 
     if (score >= thresholds[grade]) return grade;
   }
   return 'D';
-}
-
-// Revised: Calculate Reliability Score with enhanced critical detection
-export function calculateReliabilityScore(issues: {
-  type: 'critical' | 'major' | 'minor',
-  impact?: number
-}[]): number {
-  if (!issues || issues.length === 0) return 100;
-
-  console.log('Legacy calculateReliabilityScore called with:', issues);
-
-  let totalDeduction = 0;
-  let criticalCount = 0;
-  let majorCount = 0;
-  let minorCount = 0;
-
-  for (const issue of issues) {
-    const impact = issue.impact ?? 0;
-
-    switch (issue.type) {
-      case 'critical':
-        criticalCount++;
-        // Enhanced critical penalty
-        totalDeduction += 50 + (impact >= 3 ? 20 : 0);
-        break;
-      case 'major':
-        majorCount++;
-        totalDeduction += 20 + (impact >= 2 ? 8 : 0);
-        break;
-      case 'minor':
-        minorCount++;
-        totalDeduction += 3; // Reduced from 5
-        break;
-    }
-  }
-
-  // Enhanced context-aware penalties
-  if (criticalCount >= 1) {
-    totalDeduction += 25; // Immediate significant penalty for any critical issue
-  }
-  if (criticalCount >= 2) {
-    totalDeduction += 30; // Severe penalty for multiple critical issues
-  }
-  if (majorCount >= 3) {
-    totalDeduction += 15; // Penalty for excessive major issues
-  }
-
-  // Cap total deduction
-  totalDeduction = Math.min(totalDeduction, 100);
-
-  const rawScore = 100 - totalDeduction;
-  const finalScore = Math.max(0, parseFloat(rawScore.toFixed(2)));
-  
-  console.log(`Legacy scoring: deduction=${totalDeduction}, final=${finalScore}`);
-  
-  return finalScore;
 }
 
 // Compute reliability grade

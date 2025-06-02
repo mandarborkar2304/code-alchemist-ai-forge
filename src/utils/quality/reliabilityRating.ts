@@ -2,21 +2,22 @@ import { ReliabilityIssue, ScoreGrade } from '@/types';
 import { ScoreData } from './types';
 import {
   scoreThresholds,
-  issueSeverityWeights,
-  getGradeFromScore,
   needsReliabilityWarningFlag,
   ANALYSIS_CONSTANTS
 } from './scoreThresholds';
 import {
   groupSimilarIssues,
-  getContextReductionFactor,
-  determinePathSensitivity,
-  evaluatePatternRisk,
   generateReliabilityImprovements,
-  getEffectiveSeverity
+  getEffectiveSeverity,
+  calculateGroupDeduction
 } from './reliabilityHelpers';
+import {
+  calculateGradeFromScore,
+  detectCriticalPattern,
+  calculateScaledDeduction
+} from './scoringUtils';
 
-/** Enhanced unified helper-based scoring logic with proper critical issue handling */
+/** Main reliability scoring function with unified logic */
 export function calculateReliabilityScore(
   issues?: ReliabilityIssue[]
 ): { score: number; letter: ScoreGrade } {
@@ -48,7 +49,7 @@ export function calculateReliabilityScore(
     }
 
     // Check for confirmed critical crash patterns
-    const hasCrashPattern = evaluatePatternRisk(issue.description ?? '', issue.codeContext ?? '');
+    const hasCrashPattern = detectCriticalPattern(issue.description ?? '', issue.codeContext ?? '');
     const isConfirmedCritical = isConfirmedCriticalIssue(issue);
     
     console.log(`Crash pattern detected: ${hasCrashPattern}, Confirmed critical: ${isConfirmedCritical}`);
@@ -58,11 +59,8 @@ export function calculateReliabilityScore(
       console.log('Critical crash detected - will force D grade');
     }
 
-    const contextFactor = getContextReductionFactor(group.issues);
-    const pathFactor = determinePathSensitivity(group.issues);
-    const deduction = calculateGroupDeduction(group, contextFactor, pathFactor, effectiveSeverity);
-    
-    console.log(`Group deduction: ${deduction} (context: ${contextFactor}, path: ${pathFactor})`);
+    const deduction = calculateGroupDeduction(group, effectiveSeverity);
+    console.log(`Group deduction: ${deduction}`);
     
     totalDeduction += deduction;
   }
@@ -75,19 +73,20 @@ export function calculateReliabilityScore(
     return { score: Math.max(0, 100 - totalDeduction), letter: 'D' };
   }
 
-  const cappedDeduction = Math.min(totalDeduction, ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION);
-  const finalScore = Math.max(0, 100 - cappedDeduction);
+  // Apply logarithmic scaling and enforce minimum score
+  const scaledDeduction = calculateScaledDeduction(totalDeduction, ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION);
+  let finalScore = Math.max(ANALYSIS_CONSTANTS.RELIABILITY.MINIMUM_SCORE, 100 - scaledDeduction);
 
-  console.log(`Final score: ${finalScore}, Capped deduction: ${cappedDeduction}`);
+  console.log(`Final score: ${finalScore}, Scaled deduction: ${scaledDeduction}`);
 
-  const grade = getGradeFromScore(finalScore, scoreThresholds.reliability);
+  const grade = calculateGradeFromScore(finalScore, scoreThresholds.reliability);
   
   console.log(`Calculated grade: ${grade}`);
 
   return { score: finalScore, letter: grade };
 }
 
-/** Enhanced critical issue detection with more aggressive patterns */
+/** Enhanced critical issue detection */
 function isConfirmedCriticalIssue(issue: ReliabilityIssue): boolean {
   if (!issue || issue.type !== 'critical') return false;
 
@@ -96,120 +95,7 @@ function isConfirmedCriticalIssue(issue: ReliabilityIssue): boolean {
 
   console.log(`Checking critical issue: "${message}" with context: "${ctx}"`);
 
-  // Aggressive critical pattern detection
-  const criticalPatterns = [
-    'uncaught exception',
-    'unhandled exception',
-    'runtime exception',
-    'null pointer',
-    'nullpointerexception',
-    'divide by zero',
-    'division by zero',
-    'array index out of bounds',
-    'buffer overflow',
-    'memory leak',
-    'segmentation fault',
-    'access violation',
-    'stack overflow',
-    'infinite recursion',
-    'deadlock',
-    'race condition',
-    'sql injection',
-    'xss',
-    'csrf',
-    'hardcoded credential',
-    'password in plain text',
-    'security vulnerability',
-    'crash',
-    'fatal error',
-    'critical error',
-    'system failure'
-  ];
-
-  const descConfirmed = criticalPatterns.some(pattern => message.includes(pattern));
-
-  // Enhanced code context analysis
-  const hasUncheckedDivision = 
-    ctx.includes('/') && 
-    !ctx.includes('!= 0') && 
-    !ctx.includes('!== 0') && 
-    !ctx.includes('> 0') && 
-    !ctx.includes('< 0') && 
-    !ctx.match(/\/\s*[1-9]\d*/) && // not dividing by literal non-zero
-    !ctx.includes('try') &&
-    !ctx.includes('if');
-
-  const hasUncheckedArrayAccess = 
-    /\w+\[\w+\]/.test(ctx) && 
-    !ctx.includes('.length') && 
-    !ctx.includes('?.') &&
-    !/for\s*\(/.test(ctx) && 
-    !ctx.includes('try') && 
-    !/\[\d+\]/.test(ctx) &&
-    !ctx.includes('if');
-
-  const hasUncheckedNull = 
-    /\w+\.\w+/.test(ctx) && 
-    !ctx.includes('?.') && 
-    !ctx.includes('??') &&
-    !ctx.includes('if') && 
-    !ctx.includes('===') && 
-    !ctx.includes('!==') &&
-    !ctx.includes('try') &&
-    !ctx.includes('typeof');
-
-  const isConfirmed = descConfirmed || hasUncheckedDivision || hasUncheckedArrayAccess || hasUncheckedNull;
-  
-  console.log(`Critical issue confirmed: ${isConfirmed} (desc: ${descConfirmed}, div: ${hasUncheckedDivision}, array: ${hasUncheckedArrayAccess}, null: ${hasUncheckedNull})`);
-  
-  return isConfirmed;
-}
-
-/** Enhanced group deduction calculation with severity-aware penalties */
-function calculateGroupDeduction(
-  group: { issues: ReliabilityIssue[] },
-  contextFactor: number,
-  pathFactor: number,
-  effectiveSeverity: string
-): number {
-  if (!group || !Array.isArray(group.issues) || group.issues.length === 0) return 0;
-
-  const issueCount = group.issues.length;
-  const severityWeight = issueSeverityWeights[effectiveSeverity] ?? 1;
-  
-  console.log(`Group deduction calc: count=${issueCount}, severity=${effectiveSeverity}, weight=${severityWeight}`);
-
-  let baseDeduction = 0;
-
-  // Enhanced severity-based deductions
-  switch (effectiveSeverity) {
-    case 'critical':
-      // Critical issues should have significant impact
-      baseDeduction = Math.min(50, 25 + (issueCount * 10));
-      break;
-    case 'major':
-      baseDeduction = Math.min(25, 10 + (issueCount * 5));
-      break;
-    case 'minor':
-      baseDeduction = Math.min(10, 2 + (issueCount * 1.5));
-      break;
-    default:
-      baseDeduction = issueCount * 2;
-  }
-
-  // Apply context and path factors (but don't let them reduce critical issues too much)
-  let adjustedDeduction = baseDeduction;
-  
-  if (effectiveSeverity === 'critical') {
-    // For critical issues, apply reduced context/path factors to maintain impact
-    adjustedDeduction *= Math.max(0.5, contextFactor * pathFactor);
-  } else {
-    adjustedDeduction *= contextFactor * pathFactor;
-  }
-
-  console.log(`Base deduction: ${baseDeduction}, Adjusted: ${adjustedDeduction}`);
-  
-  return Math.max(0, adjustedDeduction);
+  return detectCriticalPattern(message, ctx);
 }
 
 /** Final reliability rating generator */
@@ -238,59 +124,11 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
     };
   }
 
-  let calculatedScore = Math.max(0, Math.min(score, 100));
-  let issuesList: string[] = [];
-  let improvements: string[] = [];
-  let warningFlag = false;
+  // Use the helper score instead of the input score for more accurate assessment
+  const calculatedScore = helperScore.score;
+  const rating = helperScore.letter;
 
-  if (issues && issues.length > 0) {
-    const validated = issues.filter(issue =>
-      issue.pattern && issue.codeContext
-        ? Number(evaluatePatternRisk(issue.pattern, issue.codeContext)) >= ANALYSIS_CONSTANTS.RELIABILITY.LOW_RISK_THRESHOLD
-        : true
-    );
-
-    const grouped = groupSimilarIssues(validated);
-    const baseScore = 100;
-    let deductions = 0;
-
-    const criticals = validated.filter(isConfirmedCriticalIssue);
-    if (criticals.length > 0) {
-      return {
-        score: 'D',
-        description: 'Reliability concerns (critical issues)',
-        reason: 'One or more critical issues that may cause crashes were detected.',
-        issues: issues.map(i => i.description),
-        improvements: generateReliabilityImprovements(grouped),
-        warningFlag: true
-      };
-    }
-
-    for (const group of grouped) {
-      const contextFactor = getContextReductionFactor(group.issues);
-      const pathFactor = determinePathSensitivity(group.issues);
-      deductions += calculateGroupDeduction(group, contextFactor, pathFactor, getEffectiveSeverity(group.issues[0]));
-    }
-
-    if (deductions > 20) {
-      deductions = 20 + (Math.log(deductions - 19) / Math.log(2)) * 5;
-    }
-
-    const capped = Math.min(deductions, ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION);
-    calculatedScore = baseScore - capped;
-
-    issuesList = grouped
-      .flatMap(group => group.issues.slice(0, 1).map(issue => issue.description))
-      .filter(Boolean);
-
-    improvements = generateReliabilityImprovements(grouped);
-  } else {
-    calculatedScore = 95;
-  }
-
-  const rating = getGradeFromScore(calculatedScore, scoreThresholds.reliability);
-
-  warningFlag = needsReliabilityWarningFlag(
+  const warningFlag = needsReliabilityWarningFlag(
     rating,
     issues?.map(issue => ({
       type: issue?.type || 'minor',
@@ -299,9 +137,16 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
   );
 
   const { description, reason } = generateReliabilityDescription(rating, warningFlag, calculatedScore);
+  
+  const issuesList = issues?.length ? 
+    groupSimilarIssues(issues)
+      .flatMap(group => group.issues.slice(0, 1).map(issue => issue.description))
+      .filter(Boolean) :
+    getDefaultIssuesList(rating);
 
-  if (issuesList.length === 0) issuesList = getDefaultIssuesList(rating);
-  if (improvements.length === 0) improvements = getDefaultImprovementsList(rating);
+  const improvements = issues?.length ?
+    generateReliabilityImprovements(groupSimilarIssues(issues)) :
+    getDefaultImprovementsList(rating);
 
   return {
     score: rating,
