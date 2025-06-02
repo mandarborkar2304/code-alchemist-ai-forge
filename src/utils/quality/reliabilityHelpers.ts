@@ -1,4 +1,3 @@
-
 import { ReliabilityIssue } from '@/types';
 import { IssueGroup, CategoryWithIssues } from './types';
 import { 
@@ -217,21 +216,32 @@ export function calculateGroupDeduction(
 
   let baseDeduction = 0;
 
-  // Enhanced severity-based deductions with much stronger critical impact
+  // Use constants from ANALYSIS_CONSTANTS for deductions
   switch (effectiveSeverity) {
     case 'critical':
-      // Aggressive deduction for critical issues
-      baseDeduction = Math.min(80, 40 + (issueCount * 20)); // Start at 40, add 20 per additional issue
-      console.log(`🔥 Critical deduction: base=40, count_bonus=${issueCount * 20}, total=${baseDeduction}`);
+      baseDeduction = Math.min(
+        ANALYSIS_CONSTANTS.MAX_CRITICAL_DEDUCTION,
+        ANALYSIS_CONSTANTS.BASE_CRITICAL_DEDUCTION + (issueCount * ANALYSIS_CONSTANTS.ISSUE_DEDUCTION_PER_CRITICAL)
+      );
+      console.log(`🔥 Critical deduction: base=${ANALYSIS_CONSTANTS.BASE_CRITICAL_DEDUCTION}, count_bonus=${issueCount * ANALYSIS_CONSTANTS.ISSUE_DEDUCTION_PER_CRITICAL}, total=${baseDeduction}`);
       break;
+
     case 'major':
-      baseDeduction = Math.min(35, 15 + (issueCount * 8));
-      console.log(`⚠️ Major deduction: base=15, count_bonus=${issueCount * 8}, total=${baseDeduction}`);
+      baseDeduction = Math.min(
+        ANALYSIS_CONSTANTS.MAX_MAJOR_DEDUCTION,
+        ANALYSIS_CONSTANTS.BASE_MAJOR_DEDUCTION + (issueCount * ANALYSIS_CONSTANTS.ISSUE_DEDUCTION_PER_MAJOR)
+      );
+      console.log(`⚠️ Major deduction: base=${ANALYSIS_CONSTANTS.BASE_MAJOR_DEDUCTION}, count_bonus=${issueCount * ANALYSIS_CONSTANTS.ISSUE_DEDUCTION_PER_MAJOR}, total=${baseDeduction}`);
       break;
+
     case 'minor':
-      baseDeduction = Math.min(20, 5 + (issueCount * 3));
-      console.log(`ℹ️ Minor deduction: base=5, count_bonus=${issueCount * 3}, total=${baseDeduction}`);
+      baseDeduction = Math.min(
+        ANALYSIS_CONSTANTS.MAX_MINOR_DEDUCTION,
+        ANALYSIS_CONSTANTS.BASE_MINOR_DEDUCTION + (issueCount * ANALYSIS_CONSTANTS.ISSUE_DEDUCTION_PER_MINOR)
+      );
+      console.log(`ℹ️ Minor deduction: base=${ANALYSIS_CONSTANTS.BASE_MINOR_DEDUCTION}, count_bonus=${issueCount * ANALYSIS_CONSTANTS.ISSUE_DEDUCTION_PER_MINOR}, total=${baseDeduction}`);
       break;
+
     default:
       baseDeduction = issueCount * 4;
       console.log(`❓ Default deduction: ${baseDeduction}`);
@@ -239,20 +249,19 @@ export function calculateGroupDeduction(
 
   // Enhanced context factor calculation
   let contextFactor = 1.0;
+  const context = (firstIssue.codeContext || '').toLowerCase();
   
   if (effectiveSeverity === 'critical') {
     // Minimal context reduction for critical issues
-    const context = firstIssue.codeContext?.toLowerCase() || '';
-    if (context.includes('test')) contextFactor *= 0.95; // Only 5% reduction for tests
-    if (context.includes('helper') || context.includes('util')) contextFactor *= 0.95;
-    // Never apply error handling reduction for critical issues
+    if (context.includes('test')) contextFactor *= ANALYSIS_CONSTANTS.CONTEXT_REDUCTION_CRITICAL_TEST;
+    if (context.includes('helper') || context.includes('util')) contextFactor *= ANALYSIS_CONSTANTS.CONTEXT_REDUCTION_CRITICAL_HELPER;
+    // Never reduce for error handling in critical
     console.log(`🔥 Critical issue context factor: ${contextFactor} (minimal reduction)`);
   } else {
-    // Normal context factors for non-critical issues
-    const context = firstIssue.codeContext?.toLowerCase() || '';
-    if (context.includes('test')) contextFactor *= 0.8;
-    if (context.includes('try') || context.includes('catch')) contextFactor *= 0.7;
-    if (context.includes('helper') || context.includes('util')) contextFactor *= 0.8;
+    // Normal context reduction for non-critical issues
+    if (context.includes('test')) contextFactor *= ANALYSIS_CONSTANTS.CONTEXT_REDUCTION_TEST;
+    if (context.includes('try') || context.includes('catch')) contextFactor *= ANALYSIS_CONSTANTS.CONTEXT_REDUCTION_TRY_CATCH;
+    if (context.includes('helper') || context.includes('util')) contextFactor *= ANALYSIS_CONSTANTS.CONTEXT_REDUCTION_HELPER;
     console.log(`Context factor for ${effectiveSeverity}: ${contextFactor}`);
   }
 

@@ -95,30 +95,29 @@ export function calculateReliabilityScore(
   // Aggressive forced degradation for critical issues
   if (crashRiskCount >= 2) {
     forcedGrade = 'D';
-    finalScore = Math.min(finalScore, 25); // Very low score for multiple crashes
+    finalScore = Math.min(finalScore, 20);
     forceReason = `Multiple crash risks detected (${crashRiskCount})`;
-  } else if (crashRiskCount >= 1) {
+  } else if (crashRiskCount === 1) {
     forcedGrade = 'D';
-    finalScore = Math.min(finalScore, 35); // Low score for single crash risk
+    finalScore = Math.min(finalScore, 30);
     forceReason = `Crash risk detected (${crashRiskCount})`;
   } else if (criticalIssueCount >= 3) {
     forcedGrade = 'D';
     finalScore = Math.min(finalScore, 30);
     forceReason = `Multiple critical issues (${criticalIssueCount})`;
-  } else if (criticalIssueCount >= 2) {
+  } else if (criticalIssueCount === 2) {
     forcedGrade = 'C';
-    finalScore = Math.min(finalScore, 45);
+    finalScore = Math.min(finalScore, 40);
     forceReason = `Multiple critical issues (${criticalIssueCount})`;
-  } else if (criticalIssueCount >= 1) {
+  } else if (criticalIssueCount === 1) {
     forcedGrade = 'C';
-    finalScore = Math.min(finalScore, 55);
+    finalScore = Math.min(finalScore, 50);
     forceReason = `Critical issue detected (${criticalIssueCount})`;
   } else if (majorIssueCount >= 5) {
     forcedGrade = 'C';
-    finalScore = Math.min(finalScore, 60);
+    finalScore = Math.min(finalScore, 55);
     forceReason = `Many major issues (${majorIssueCount})`;
   }
-
   // Apply absolute minimum score
   finalScore = Math.max(ANALYSIS_CONSTANTS.RELIABILITY.MINIMUM_SCORE, finalScore);
 

@@ -15,8 +15,8 @@ export const scoreThresholds = {
     D: 21
   },
   reliability: {      
-    A: 80,            // Raised from 75 to make A grade much harder
-    B: 65,            // Raised from 60 to make B grade harder
+    A: 90,            // Raised from 75 to make A grade much harder
+    B: 75,            // Raised from 60 to make B grade harder
     C: 50,            // Raised from 45 to ensure C captures moderate issues
     D: 0              
   }
@@ -60,7 +60,7 @@ export const ANALYSIS_CONSTANTS = {
     MAJOR_DEDUCTION: 30,       // Increased from 25
     MINOR_DEDUCTION: 10,       // Increased from 8
     MAX_DEDUCTION: 100,
-    MINIMUM_SCORE: 35,  // Increased from 40 for stricter floor
+    MINIMUM_SCORE: 10,  // Increased from 40 for stricter floor
     LOW_RISK_THRESHOLD: 25,      // Lowered for more sensitive detection
     MODERATE_RISK_THRESHOLD: 50, // Lowered
     HIGH_RISK_THRESHOLD: 70,     // Lowered
