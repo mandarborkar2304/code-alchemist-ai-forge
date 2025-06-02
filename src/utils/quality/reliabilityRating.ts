@@ -13,26 +13,27 @@ import {
 } from './reliabilityHelpers';
 import {
   calculateGradeFromScore,
-  detectCriticalPattern,
-  calculateScaledDeduction
+  detectCriticalPattern
 } from './scoringUtils';
 
-/** Main reliability scoring function with unified logic */
+/** Main reliability scoring function with enhanced critical issue handling */
 export function calculateReliabilityScore(
   issues?: ReliabilityIssue[]
 ): { score: number; letter: ScoreGrade } {
   if (!issues || issues.length === 0) {
+    console.log('No issues found, returning perfect score');
     return { score: 100, letter: 'A' };
   }
 
-  console.log('Calculating reliability score for issues:', issues);
+  console.log('=== Starting Reliability Score Calculation ===');
+  console.log('Input issues:', issues.map(i => ({ desc: i.description, type: i.type, category: i.category })));
 
   const groups = groupSimilarIssues(issues);
   let totalDeduction = 0;
-  let criticalCrashDetected = false;
   let criticalIssueCount = 0;
+  let hasCrashRisk = false;
 
-  console.log('Grouped issues:', groups);
+  console.log('Grouped into', groups.length, 'groups');
 
   for (const group of groups) {
     if (!group.issues || group.issues.length === 0) continue;
@@ -41,49 +42,64 @@ export function calculateReliabilityScore(
     const originalSeverity = issue.type;
     const effectiveSeverity = getEffectiveSeverity(issue);
     
-    console.log(`Processing issue: ${issue.description}, original: ${originalSeverity}, effective: ${effectiveSeverity}`);
+    console.log(`\n--- Processing Group ---`);
+    console.log(`Issue: "${issue.description}"`);
+    console.log(`Original severity: ${originalSeverity} -> Effective: ${effectiveSeverity}`);
+    console.log(`Group size: ${group.issues.length}`);
 
-    // Count critical issues
+    // Count critical issues and detect crash risks
     if (effectiveSeverity === 'critical') {
       criticalIssueCount++;
-    }
-
-    // Check for confirmed critical crash patterns
-    const hasCrashPattern = detectCriticalPattern(issue.description ?? '', issue.codeContext ?? '');
-    const isConfirmedCritical = isConfirmedCriticalIssue(issue);
-    
-    console.log(`Crash pattern detected: ${hasCrashPattern}, Confirmed critical: ${isConfirmedCritical}`);
-
-    if ((effectiveSeverity === 'critical' && hasCrashPattern) || isConfirmedCritical) {
-      criticalCrashDetected = true;
-      console.log('Critical crash detected - will force D grade');
+      
+      // Check for confirmed crash patterns
+      const hasCrashPattern = detectCriticalPattern(issue.description ?? '', issue.codeContext ?? '');
+      if (hasCrashPattern) {
+        hasCrashRisk = true;
+        console.log('🔥 CRASH RISK DETECTED');
+      }
     }
 
     const deduction = calculateGroupDeduction(group, effectiveSeverity);
-    console.log(`Group deduction: ${deduction}`);
+    console.log(`Deduction for this group: ${deduction}`);
     
     totalDeduction += deduction;
   }
 
-  console.log(`Total deduction: ${totalDeduction}, Critical crashes: ${criticalCrashDetected}, Critical count: ${criticalIssueCount}`);
+  console.log(`\n=== Scoring Summary ===`);
+  console.log(`Total base deduction: ${totalDeduction}`);
+  console.log(`Critical issues count: ${criticalIssueCount}`);
+  console.log(`Has crash risk: ${hasCrashRisk}`);
 
-  // Force D grade for critical crashes or multiple critical issues
-  if (criticalCrashDetected || criticalIssueCount >= 2) {
-    console.log('Forcing D grade due to critical issues');
-    return { score: Math.max(0, 100 - totalDeduction), letter: 'D' };
+  // Enhanced critical issue handling - force lower grades for serious problems
+  let finalScore = 100 - totalDeduction;
+  let forcedGrade: ScoreGrade | null = null;
+
+  // Force D grade for confirmed crash risks or multiple critical issues
+  if (hasCrashRisk || criticalIssueCount >= 2) {
+    forcedGrade = 'D';
+    finalScore = Math.min(finalScore, 35); // Cap at 35 for D grade
+    console.log('🚨 Forcing D grade due to critical risks');
+  }
+  // Force C grade for single critical issue
+  else if (criticalIssueCount >= 1) {
+    forcedGrade = 'C';
+    finalScore = Math.min(finalScore, 50); // Cap at 50 for C grade
+    console.log('⚠️ Forcing C grade due to critical issue');
   }
 
-  // Apply logarithmic scaling and enforce minimum score
-  const scaledDeduction = calculateScaledDeduction(totalDeduction, ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION);
-  let finalScore = Math.max(ANALYSIS_CONSTANTS.RELIABILITY.MINIMUM_SCORE, 100 - scaledDeduction);
+  // Apply minimum score constraint
+  finalScore = Math.max(ANALYSIS_CONSTANTS.RELIABILITY.MINIMUM_SCORE, finalScore);
 
-  console.log(`Final score: ${finalScore}, Scaled deduction: ${scaledDeduction}`);
+  console.log(`Final score after constraints: ${finalScore}`);
 
-  const grade = calculateGradeFromScore(finalScore, scoreThresholds.reliability);
-  
-  console.log(`Calculated grade: ${grade}`);
+  // Determine grade
+  const calculatedGrade = calculateGradeFromScore(finalScore, scoreThresholds.reliability);
+  const finalGrade = forcedGrade || calculatedGrade;
 
-  return { score: finalScore, letter: grade };
+  console.log(`Calculated grade: ${calculatedGrade}, Final grade: ${finalGrade}`);
+  console.log('=== End Reliability Calculation ===\n');
+
+  return { score: finalScore, letter: finalGrade };
 }
 
 /** Enhanced critical issue detection */
@@ -93,21 +109,37 @@ function isConfirmedCriticalIssue(issue: ReliabilityIssue): boolean {
   const message = (issue.description ?? '').toLowerCase();
   const ctx = (issue.codeContext ?? '').toLowerCase();
 
-  console.log(`Checking critical issue: "${message}" with context: "${ctx}"`);
-
   return detectCriticalPattern(message, ctx);
 }
 
-/** Final reliability rating generator */
+/** Final reliability rating generator with enhanced critical handling */
 export function getReliabilityRating(score: number, issues?: ReliabilityIssue[]): ScoreData {
   const helperScore = calculateReliabilityScore(issues);
 
-  if (helperScore.letter === 'D') {
+  // Always use the calculated score for more accurate assessment
+  const finalScore = helperScore.score;
+  const rating = helperScore.letter;
+
+  console.log(`Final rating: ${rating} (${finalScore})`);
+
+  // Force specific messaging for critical issues
+  if (rating === 'D') {
     return {
       score: 'D',
-      description: 'Reliability concerns (severe issues detected)',
-      reason: 'Critical crash-prone code paths identified',
-      issues: issues?.map(i => i.description) ?? [],
+      description: 'Critical reliability issues detected',
+      reason: 'Code contains crash-prone patterns or multiple critical issues that pose significant reliability risks.',
+      issues: issues?.map(i => i.description).filter(Boolean) ?? [],
+      improvements: generateReliabilityImprovements(groupSimilarIssues(issues ?? [])),
+      warningFlag: true
+    };
+  }
+
+  if (rating === 'C') {
+    return {
+      score: 'C',
+      description: 'Reliability concerns require attention',
+      reason: 'Critical issues detected that could impact system stability and require immediate attention.',
+      issues: issues?.map(i => i.description).filter(Boolean) ?? [],
       improvements: generateReliabilityImprovements(groupSimilarIssues(issues ?? [])),
       warningFlag: true
     };
@@ -124,10 +156,6 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
     };
   }
 
-  // Use the helper score instead of the input score for more accurate assessment
-  const calculatedScore = helperScore.score;
-  const rating = helperScore.letter;
-
   const warningFlag = needsReliabilityWarningFlag(
     rating,
     issues?.map(issue => ({
@@ -136,7 +164,7 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
     })) ?? []
   );
 
-  const { description, reason } = generateReliabilityDescription(rating, warningFlag, calculatedScore);
+  const { description, reason } = generateReliabilityDescription(rating, warningFlag, finalScore);
   
   const issuesList = issues?.length ? 
     groupSimilarIssues(issues)

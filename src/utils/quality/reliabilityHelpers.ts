@@ -1,12 +1,10 @@
-
 import { ReliabilityIssue } from '@/types';
 import { IssueGroup, CategoryWithIssues } from './types';
 import { 
-  calculateContextFactor, 
-  calculatePathSensitivity, 
   detectCriticalPattern,
   SEVERITY_WEIGHTS 
 } from './scoringUtils';
+import { ANALYSIS_CONSTANTS } from './scoreThresholds';
 
 /** Cache for string normalization. */
 const normalizeCache = new Map<string, string>();
@@ -42,18 +40,21 @@ export function groupSimilarIssues(issues: ReliabilityIssue[]): IssueGroup[] {
   return Object.values(groups);
 }
 
-/** Enhanced effective severity with unified pattern detection */
+/** Enhanced effective severity with stricter critical escalation */
 export function getEffectiveSeverity(issue: ReliabilityIssue): string {
   const base = issue?.type || 'minor';
   const risky = detectCriticalPattern(issue.description, issue.codeContext || '');
 
-  console.log(`Effective severity calc: base=${base}, risky=${risky}`);
+  console.log(`Effective severity: "${issue.description}" -> base=${base}, risky=${risky}`);
 
-  if (!risky) return base;
+  // Don't escalate if already critical
+  if (base === 'critical') return base;
   
-  // Escalate severity for risky patterns
-  if (base === 'minor') return 'major';
-  if (base === 'major') return 'critical';
+  // Only escalate if we detect genuine crash patterns
+  if (risky) {
+    console.log(`⚠️ Escalating ${base} to critical due to risky pattern`);
+    return 'critical';
+  }
   
   return base;
 }
@@ -136,7 +137,7 @@ export function generateReliabilityImprovements(groupedIssues: IssueGroup[]): st
     : ['Consider applying additional reliability checks.'];
 }
 
-/** Enhanced group deduction calculation using unified utilities */
+/** Enhanced group deduction calculation with stronger critical impact */
 export function calculateGroupDeduction(
   group: { issues: ReliabilityIssue[] },
   effectiveSeverity: string
@@ -145,39 +146,49 @@ export function calculateGroupDeduction(
 
   const issueCount = group.issues.length;
   const severityWeight = SEVERITY_WEIGHTS[effectiveSeverity] ?? 1;
-  const contextFactor = calculateContextFactor(group.issues);
-  const pathFactor = calculatePathSensitivity(group.issues);
 
-  console.log(`Group deduction calc: count=${issueCount}, severity=${effectiveSeverity}, weight=${severityWeight}`);
+  console.log(`Calculating deduction: count=${issueCount}, severity=${effectiveSeverity}, weight=${severityWeight}`);
 
   let baseDeduction = 0;
 
-  // Enhanced severity-based deductions
+  // Enhanced severity-based deductions with stronger critical impact
   switch (effectiveSeverity) {
     case 'critical':
-      baseDeduction = Math.min(50, 25 + (issueCount * 10));
+      // Much stronger impact for critical issues
+      baseDeduction = Math.min(60, 30 + (issueCount * 15));
+      console.log(`Critical deduction: base=${30}, count_bonus=${issueCount * 15}, total=${baseDeduction}`);
       break;
     case 'major':
-      baseDeduction = Math.min(25, 10 + (issueCount * 5));
+      baseDeduction = Math.min(30, 12 + (issueCount * 6));
+      console.log(`Major deduction: base=${12}, count_bonus=${issueCount * 6}, total=${baseDeduction}`);
       break;
     case 'minor':
-      baseDeduction = Math.min(10, 2 + (issueCount * 1.5));
+      baseDeduction = Math.min(15, 3 + (issueCount * 2));
+      console.log(`Minor deduction: base=${3}, count_bonus=${issueCount * 2}, total=${baseDeduction}`);
       break;
     default:
-      baseDeduction = issueCount * 2;
+      baseDeduction = issueCount * 3;
+      console.log(`Default deduction: ${baseDeduction}`);
   }
 
-  // Apply context and path factors
-  let adjustedDeduction = baseDeduction;
-  
+  // Reduced context factors for critical issues to maintain impact
+  let contextFactor = 1.0;
   if (effectiveSeverity === 'critical') {
-    // For critical issues, apply reduced context/path factors to maintain impact
-    adjustedDeduction *= Math.max(0.5, contextFactor * pathFactor);
+    // For critical issues, apply minimal context reduction
+    contextFactor = 0.9; // Only 10% reduction max
+    console.log('Applied minimal context factor for critical issue');
   } else {
-    adjustedDeduction *= contextFactor * pathFactor;
+    // Apply normal context factors for non-critical issues
+    const context = group.issues[0]?.codeContext?.toLowerCase() || '';
+    if (context.includes('test')) contextFactor *= 0.8;
+    if (context.includes('try') || context.includes('catch')) contextFactor *= 0.7;
+    if (context.includes('helper') || context.includes('util')) contextFactor *= 0.8;
+    console.log(`Applied context factor: ${contextFactor}`);
   }
 
-  console.log(`Base deduction: ${baseDeduction}, Adjusted: ${adjustedDeduction}`);
+  const finalDeduction = Math.max(0, baseDeduction * contextFactor);
+
+  console.log(`Final deduction: ${baseDeduction} * ${contextFactor} = ${finalDeduction}`);
   
-  return Math.max(0, adjustedDeduction);
+  return finalDeduction;
 }

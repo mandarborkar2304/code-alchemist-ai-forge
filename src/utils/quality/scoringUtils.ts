@@ -1,4 +1,3 @@
-
 import { ScoreGrade, ReliabilityIssue } from '@/types';
 import { ANALYSIS_CONSTANTS } from './scoreThresholds';
 
@@ -26,13 +25,14 @@ export const SEVERITY_WEIGHTS = {
   minor: ANALYSIS_CONSTANTS.SEVERITY.MINOR
 } as const;
 
-/** Common pattern matching for critical issues */
+/** Enhanced critical pattern detection with more comprehensive patterns */
 export const CRITICAL_PATTERNS = [
   'uncaught exception', 'unhandled exception', 'runtime exception',
   'null pointer', 'nullpointerexception', 'divide by zero', 'division by zero',
   'array index out of bounds', 'buffer overflow', 'memory leak',
   'segmentation fault', 'access violation', 'stack overflow',
-  'infinite recursion', 'deadlock', 'race condition', 'crash', 'fatal error'
+  'infinite recursion', 'deadlock', 'race condition', 'crash', 'fatal error',
+  'arithmetic exception', 'out of memory', 'thread abort', 'access denied'
 ] as const;
 
 /** Enhanced critical pattern detection */
@@ -42,12 +42,16 @@ export function detectCriticalPattern(description: string, context: string): boo
   const desc = description.toLowerCase();
   const ctx = context.toLowerCase();
 
-  // Check for known critical patterns
-  const hasKeyword = CRITICAL_PATTERNS.some(pattern => 
-    desc.includes(pattern) || ctx.includes(pattern)
-  );
+  console.log(`Pattern detection for: "${desc}" in context: "${ctx}"`);
 
-  // Enhanced code analysis
+  // Check for known critical patterns
+  const hasKeyword = CRITICAL_PATTERNS.some(pattern => {
+    const found = desc.includes(pattern) || ctx.includes(pattern);
+    if (found) console.log(`🔍 Found critical pattern: "${pattern}"`);
+    return found;
+  });
+
+  // Enhanced code analysis with more aggressive detection
   const hasUncheckedDivision = 
     ctx.includes('/') && 
     !ctx.includes('!= 0') && 
@@ -70,7 +74,27 @@ export function detectCriticalPattern(description: string, context: string): boo
     !ctx.includes('if') && 
     !ctx.includes('try');
 
-  return hasKeyword || hasUncheckedDivision || hasUncheckedArrayAccess || hasUncheckedNull;
+  // Additional risky patterns
+  const hasUnhandledException = desc.includes('exception') && !ctx.includes('try');
+  const hasMemoryIssue = desc.includes('memory') || desc.includes('overflow');
+  const hasRuntimeError = desc.includes('runtime') && desc.includes('error');
+
+  const isRisky = hasKeyword || hasUncheckedDivision || hasUncheckedArrayAccess || 
+                  hasUncheckedNull || hasUnhandledException || hasMemoryIssue || hasRuntimeError;
+
+  if (isRisky) {
+    console.log(`🚨 Critical pattern detected! Reasons:`, {
+      hasKeyword,
+      hasUncheckedDivision,
+      hasUncheckedArrayAccess,
+      hasUncheckedNull,
+      hasUnhandledException,
+      hasMemoryIssue,
+      hasRuntimeError
+    });
+  }
+
+  return isRisky;
 }
 
 /** Unified context factor calculation */

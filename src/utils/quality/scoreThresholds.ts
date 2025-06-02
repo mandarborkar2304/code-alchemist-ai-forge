@@ -15,9 +15,9 @@ export const scoreThresholds = {
     D: 36
   },
   reliability: {      
-    A: 70,            // Lowered to be more achievable
-    B: 55,            // Lowered from 65
-    C: 40,            // Raised minimum threshold
+    A: 75,            // Raised to make A grade harder to achieve
+    B: 60,            // Raised to make B grade harder
+    C: 45,            // Raised minimum for C
     D: 0              
   }
 };
@@ -51,14 +51,14 @@ export const ANALYSIS_CONSTANTS = {
     HIGH_PENALTY: 10
   },
   SEVERITY: {
-    CRITICAL: 12,      // Increased for higher impact
-    MAJOR: 6,          // Increased from 4
-    MINOR: 1           
+    CRITICAL: 20,      // Significantly increased from 12
+    MAJOR: 8,          // Increased from 6
+    MINOR: 2           // Increased from 1
   },
   RELIABILITY: {
-    CRITICAL_DEDUCTION: 50,
-    MAJOR_DEDUCTION: 20,
-    MINOR_DEDUCTION: 5,
+    CRITICAL_DEDUCTION: 60,    // Increased from 50
+    MAJOR_DEDUCTION: 25,       // Increased from 20
+    MINOR_DEDUCTION: 8,        // Increased from 5
     MAX_DEDUCTION: 100,
     MINIMUM_SCORE: 40,  // New: enforce minimum score
     LOW_RISK_THRESHOLD: 30,
