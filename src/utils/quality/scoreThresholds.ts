@@ -3,10 +3,10 @@ import { ScoreGrade } from '@/types';
 
 export const scoreThresholds = {
   maintainability: {
-    A: 85,
-    B: 70,
-    C: 55,
-    D: 0
+    A: 0,
+    B: 55,
+    C: 70,
+    D: 85
   },
   cyclomaticComplexity: {
     A: 10,   // ≤10 → A
@@ -85,7 +85,7 @@ export const issueSeverityWeights = {
   minor: ANALYSIS_CONSTANTS.SEVERITY.MINOR
 };
 
-// 🚨 PATCHED: flipped comparison to use upper bounds
+// PATCHED: flipped comparison to use upper bounds
 export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, number>): ScoreGrade {
   if (score === undefined || score === null || isNaN(score)) {
     console.warn('Invalid score provided to getGradeFromScore:', score);
