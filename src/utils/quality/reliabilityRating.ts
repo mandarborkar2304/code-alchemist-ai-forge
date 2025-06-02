@@ -1,3 +1,4 @@
+
 import { ReliabilityIssue, ScoreGrade } from '@/types';
 import { ScoreData } from './types';
 import {
@@ -16,118 +17,152 @@ import {
   detectCriticalPattern
 } from './scoringUtils';
 
-/** Main reliability scoring function with enhanced critical issue handling */
+/** Enhanced reliability scoring function with aggressive critical issue handling */
 export function calculateReliabilityScore(
   issues?: ReliabilityIssue[]
 ): { score: number; letter: ScoreGrade } {
   if (!issues || issues.length === 0) {
-    console.log('No issues found, returning perfect score');
+    console.log('✅ No issues found, returning perfect score');
     return { score: 100, letter: 'A' };
   }
 
-  console.log('=== Starting Reliability Score Calculation ===');
-  console.log('Input issues:', issues.map(i => ({ desc: i.description, type: i.type, category: i.category })));
+  console.log('\n🔍 === RELIABILITY SCORE AUDIT STARTED ===');
+  console.log(`Input: ${issues.length} issues`);
+  issues.forEach((issue, i) => {
+    console.log(`  ${i + 1}. [${issue.type}] ${issue.description.substring(0, 60)}...`);
+  });
 
+  // Enhanced issue grouping
   const groups = groupSimilarIssues(issues);
+  console.log(`\n📊 Grouped into ${groups.length} groups`);
+
   let totalDeduction = 0;
   let criticalIssueCount = 0;
-  let hasCrashRisk = false;
+  let majorIssueCount = 0;
+  let crashRiskCount = 0;
+  let highestSeverityFound = 'minor';
 
-  console.log('Grouped into', groups.length, 'groups');
-
-  for (const group of groups) {
+  // Process each group with detailed tracking
+  for (let i = 0; i < groups.length; i++) {
+    const group = groups[i];
     if (!group.issues || group.issues.length === 0) continue;
 
     const issue = group.issues[0];
     const originalSeverity = issue.type;
     const effectiveSeverity = getEffectiveSeverity(issue);
     
-    console.log(`\n--- Processing Group ---`);
-    console.log(`Issue: "${issue.description}"`);
-    console.log(`Original severity: ${originalSeverity} -> Effective: ${effectiveSeverity}`);
-    console.log(`Group size: ${group.issues.length}`);
+    console.log(`\n🔍 Group ${i + 1}/${groups.length}:`);
+    console.log(`  Issue: "${issue.description.substring(0, 80)}..."`);
+    console.log(`  Original: ${originalSeverity} -> Effective: ${effectiveSeverity}`);
+    console.log(`  Group size: ${group.issues.length}`);
 
-    // Count critical issues and detect crash risks
+    // Track severity statistics
     if (effectiveSeverity === 'critical') {
       criticalIssueCount++;
+      highestSeverityFound = 'critical';
       
-      // Check for confirmed crash patterns
-      const hasCrashPattern = detectCriticalPattern(issue.description ?? '', issue.codeContext ?? '');
+      // Enhanced crash risk detection
+      const hasCrashPattern = detectCriticalPattern(issue.description, issue.codeContext || '');
       if (hasCrashPattern) {
-        hasCrashRisk = true;
-        console.log('🔥 CRASH RISK DETECTED');
+        crashRiskCount++;
+        console.log('💥 CRASH RISK PATTERN CONFIRMED');
       }
+    } else if (effectiveSeverity === 'major') {
+      majorIssueCount++;
+      if (highestSeverityFound !== 'critical') highestSeverityFound = 'major';
     }
 
+    // Calculate deduction for this group
     const deduction = calculateGroupDeduction(group, effectiveSeverity);
-    console.log(`Deduction for this group: ${deduction}`);
+    console.log(`  Deduction: ${deduction.toFixed(2)} points`);
     
     totalDeduction += deduction;
   }
 
-  console.log(`\n=== Scoring Summary ===`);
-  console.log(`Total base deduction: ${totalDeduction}`);
-  console.log(`Critical issues count: ${criticalIssueCount}`);
-  console.log(`Has crash risk: ${hasCrashRisk}`);
+  console.log(`\n📈 SCORING SUMMARY:`);
+  console.log(`  Total base deduction: ${totalDeduction.toFixed(2)}`);
+  console.log(`  Critical issues: ${criticalIssueCount}`);
+  console.log(`  Major issues: ${majorIssueCount}`);
+  console.log(`  Crash risks: ${crashRiskCount}`);
+  console.log(`  Highest severity: ${highestSeverityFound}`);
 
-  // Enhanced critical issue handling - force lower grades for serious problems
-  let finalScore = 100 - totalDeduction;
+  // Enhanced score calculation with aggressive critical handling
+  let rawScore = 100 - totalDeduction;
+  let finalScore = rawScore;
   let forcedGrade: ScoreGrade | null = null;
+  let forceReason = '';
 
-  // Force D grade for confirmed crash risks or multiple critical issues
-  if (hasCrashRisk || criticalIssueCount >= 2) {
+  // Aggressive forced degradation for critical issues
+  if (crashRiskCount >= 2) {
     forcedGrade = 'D';
-    finalScore = Math.min(finalScore, 35); // Cap at 35 for D grade
-    console.log('🚨 Forcing D grade due to critical risks');
-  }
-  // Force C grade for single critical issue
-  else if (criticalIssueCount >= 1) {
+    finalScore = Math.min(finalScore, 25); // Very low score for multiple crashes
+    forceReason = `Multiple crash risks detected (${crashRiskCount})`;
+  } else if (crashRiskCount >= 1) {
+    forcedGrade = 'D';
+    finalScore = Math.min(finalScore, 35); // Low score for single crash risk
+    forceReason = `Crash risk detected (${crashRiskCount})`;
+  } else if (criticalIssueCount >= 3) {
+    forcedGrade = 'D';
+    finalScore = Math.min(finalScore, 30);
+    forceReason = `Multiple critical issues (${criticalIssueCount})`;
+  } else if (criticalIssueCount >= 2) {
     forcedGrade = 'C';
-    finalScore = Math.min(finalScore, 50); // Cap at 50 for C grade
-    console.log('⚠️ Forcing C grade due to critical issue');
+    finalScore = Math.min(finalScore, 45);
+    forceReason = `Multiple critical issues (${criticalIssueCount})`;
+  } else if (criticalIssueCount >= 1) {
+    forcedGrade = 'C';
+    finalScore = Math.min(finalScore, 55);
+    forceReason = `Critical issue detected (${criticalIssueCount})`;
+  } else if (majorIssueCount >= 5) {
+    forcedGrade = 'C';
+    finalScore = Math.min(finalScore, 60);
+    forceReason = `Many major issues (${majorIssueCount})`;
   }
 
-  // Apply minimum score constraint
+  // Apply absolute minimum score
   finalScore = Math.max(ANALYSIS_CONSTANTS.RELIABILITY.MINIMUM_SCORE, finalScore);
 
-  console.log(`Final score after constraints: ${finalScore}`);
-
-  // Determine grade
+  // Calculate final grade
   const calculatedGrade = calculateGradeFromScore(finalScore, scoreThresholds.reliability);
   const finalGrade = forcedGrade || calculatedGrade;
 
-  console.log(`Calculated grade: ${calculatedGrade}, Final grade: ${finalGrade}`);
-  console.log('=== End Reliability Calculation ===\n');
+  console.log(`\n🎯 FINAL RESULTS:`);
+  console.log(`  Raw score: ${rawScore.toFixed(2)}`);
+  console.log(`  Final score: ${finalScore.toFixed(2)}`);
+  console.log(`  Calculated grade: ${calculatedGrade}`);
+  console.log(`  Final grade: ${finalGrade}`);
+  if (forcedGrade) {
+    console.log(`  🚨 FORCED DEGRADATION: ${forceReason}`);
+  }
+  console.log('=== RELIABILITY SCORE AUDIT COMPLETED ===\n');
 
   return { score: finalScore, letter: finalGrade };
 }
 
-/** Enhanced critical issue detection */
-function isConfirmedCriticalIssue(issue: ReliabilityIssue): boolean {
-  if (!issue || issue.type !== 'critical') return false;
-
-  const message = (issue.description ?? '').toLowerCase();
-  const ctx = (issue.codeContext ?? '').toLowerCase();
-
-  return detectCriticalPattern(message, ctx);
-}
-
-/** Final reliability rating generator with enhanced critical handling */
+/** Enhanced reliability rating generator with comprehensive critical handling */
 export function getReliabilityRating(score: number, issues?: ReliabilityIssue[]): ScoreData {
-  const helperScore = calculateReliabilityScore(issues);
+  console.log(`\n🎯 Getting reliability rating for score: ${score}`);
+  
+  // Always use calculated score for accuracy
+  const calculated = calculateReliabilityScore(issues);
+  const finalScore = calculated.score;
+  const rating = calculated.letter;
 
-  // Always use the calculated score for more accurate assessment
-  const finalScore = helperScore.score;
-  const rating = helperScore.letter;
+  console.log(`📊 Using calculated values: ${rating} (${finalScore.toFixed(1)})`);
 
-  console.log(`Final rating: ${rating} (${finalScore})`);
-
-  // Force specific messaging for critical issues
+  // Enhanced messaging for critical cases
   if (rating === 'D') {
+    const criticalCount = issues?.filter(i => getEffectiveSeverity(i) === 'critical').length || 0;
+    const crashRisks = issues?.filter(i => 
+      detectCriticalPattern(i.description, i.codeContext || '')
+    ).length || 0;
+
     return {
       score: 'D',
-      description: 'Critical reliability issues detected',
-      reason: 'Code contains crash-prone patterns or multiple critical issues that pose significant reliability risks.',
+      description: '🚨 Critical reliability failure',
+      reason: crashRisks > 0 
+        ? `Code contains ${crashRisks} crash-prone pattern(s) and ${criticalCount} critical issue(s) that pose immediate reliability risks.`
+        : `Code contains ${criticalCount} critical issue(s) that significantly compromise system reliability and stability.`,
       issues: issues?.map(i => i.description).filter(Boolean) ?? [],
       improvements: generateReliabilityImprovements(groupSimilarIssues(issues ?? [])),
       warningFlag: true
@@ -135,27 +170,30 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
   }
 
   if (rating === 'C') {
+    const criticalCount = issues?.filter(i => getEffectiveSeverity(i) === 'critical').length || 0;
     return {
       score: 'C',
-      description: 'Reliability concerns require attention',
-      reason: 'Critical issues detected that could impact system stability and require immediate attention.',
+      description: '⚠️ Serious reliability concerns',
+      reason: `Code contains ${criticalCount} critical issue(s) and other reliability problems that require immediate attention to prevent potential failures.`,
       issues: issues?.map(i => i.description).filter(Boolean) ?? [],
       improvements: generateReliabilityImprovements(groupSimilarIssues(issues ?? [])),
       warningFlag: true
     };
   }
 
-  if (!isFinite(score)) {
+  // Handle edge cases
+  if (!isFinite(finalScore)) {
     return {
       score: 'C',
-      description: 'Reliability could not be determined',
-      reason: 'Unable to analyze the code reliability due to invalid input.',
-      issues: ['Invalid reliability score provided'],
-      improvements: ['Ensure valid metrics are available for analysis'],
+      description: 'Unable to determine reliability',
+      reason: 'Reliability analysis failed due to invalid data.',
+      issues: ['Invalid reliability score calculated'],
+      improvements: ['Review code analysis inputs and try again'],
       warningFlag: false
     };
   }
 
+  // Standard grading for A and B scores
   const warningFlag = needsReliabilityWarningFlag(
     rating,
     issues?.map(issue => ({
@@ -168,6 +206,7 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
   
   const issuesList = issues?.length ? 
     groupSimilarIssues(issues)
+      .slice(0, 5) // Limit to top 5 issue groups
       .flatMap(group => group.issues.slice(0, 1).map(issue => issue.description))
       .filter(Boolean) :
     getDefaultIssuesList(rating);

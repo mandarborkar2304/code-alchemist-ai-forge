@@ -1,6 +1,6 @@
 import { ScoreGrade } from '@/types';
 
-// Centralized configuration constants
+// Enhanced configuration constants with stricter grading
 export const scoreThresholds = {
   maintainability: {
     A: 85,
@@ -15,14 +15,14 @@ export const scoreThresholds = {
     D: 36
   },
   reliability: {      
-    A: 75,            // Raised to make A grade harder to achieve
-    B: 60,            // Raised to make B grade harder
-    C: 45,            // Raised minimum for C
+    A: 80,            // Raised from 75 to make A grade much harder
+    B: 65,            // Raised from 60 to make B grade harder
+    C: 50,            // Raised from 45 to ensure C captures moderate issues
     D: 0              
   }
 };
 
-// Analysis constants
+// Enhanced analysis constants with stronger critical impact
 export const ANALYSIS_CONSTANTS = {
   DUPLICATION: {
     LOW: 5,
@@ -51,32 +51,32 @@ export const ANALYSIS_CONSTANTS = {
     HIGH_PENALTY: 10
   },
   SEVERITY: {
-    CRITICAL: 20,      // Significantly increased from 12
-    MAJOR: 8,          // Increased from 6
-    MINOR: 2           // Increased from 1
+    CRITICAL: 25,      // Increased from 20 for stronger impact
+    MAJOR: 10,         // Increased from 8
+    MINOR: 3           // Increased from 2
   },
   RELIABILITY: {
-    CRITICAL_DEDUCTION: 60,    // Increased from 50
-    MAJOR_DEDUCTION: 25,       // Increased from 20
-    MINOR_DEDUCTION: 8,        // Increased from 5
+    CRITICAL_DEDUCTION: 70,    // Increased from 60
+    MAJOR_DEDUCTION: 30,       // Increased from 25
+    MINOR_DEDUCTION: 10,       // Increased from 8
     MAX_DEDUCTION: 100,
-    MINIMUM_SCORE: 40,  // New: enforce minimum score
-    LOW_RISK_THRESHOLD: 30,
-    MODERATE_RISK_THRESHOLD: 60,
-    HIGH_RISK_THRESHOLD: 80,
-    CRASH_RISK_THRESHOLD: 90
+    MINIMUM_SCORE: 35,  // Increased from 40 for stricter floor
+    LOW_RISK_THRESHOLD: 25,      // Lowered for more sensitive detection
+    MODERATE_RISK_THRESHOLD: 50, // Lowered
+    HIGH_RISK_THRESHOLD: 70,     // Lowered
+    CRASH_RISK_THRESHOLD: 85     // Lowered for earlier detection
   },
   FACTORS: {
-    TEST_CODE: 0.8,
-    ERROR_HANDLING: 0.7,
-    UTILITY_CODE: 0.8,
-    REPEATED_ISSUES: 0.9,
-    RARE_PATH: 0.4,
-    EDGE_CASE: 0.6,
-    VALIDATED_CODE: 0.5,
-    UNVALIDATED_INPUT: 1.2,
+    TEST_CODE: 0.9,        // Reduced impact reduction for tests
+    ERROR_HANDLING: 0.8,   // Reduced impact reduction for error handling
+    UTILITY_CODE: 0.9,     // Reduced impact reduction for utilities
+    REPEATED_ISSUES: 0.95, // Reduced impact reduction for repeated issues
+    RARE_PATH: 0.5,
+    EDGE_CASE: 0.7,
+    VALIDATED_CODE: 0.6,
+    UNVALIDATED_INPUT: 1.3,
     CONSERVATIVE_MODE: 1,
-    GUARDED_PATH: 0.6
+    GUARDED_PATH: 0.7      // Reduced impact reduction for guarded paths
   }
 };
 
