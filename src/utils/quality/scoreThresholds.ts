@@ -14,10 +14,10 @@ export const scoreThresholds = {
     C: 35,
     D: 36
   },
-  reliability: {
-    A: 5,
-    B: 15,
-    C: 25,
+  reliability: {      
+    A: 85,            // Previously 5
+    B: 70,            // Previously 15
+    C: 55,            // Previously 25
     D: 0
   }
 };
@@ -59,7 +59,11 @@ export const ANALYSIS_CONSTANTS = {
     CRITICAL_DEDUCTION: 35,
     MAJOR_DEDUCTION: 15,
     MINOR_DEDUCTION: 5,
-    MAX_DEDUCTION: 100
+    MAX_DEDUCTION: 100,
+    LOW_RISK_THRESHOLD: 30,
+    MODERATE_RISK_THRESHOLD: 60,
+    HIGH_RISK_THRESHOLD: 80,
+    CRASH_RISK_THRESHOLD: 90
   },
   FACTORS: {
     TEST_CODE: 0.8,

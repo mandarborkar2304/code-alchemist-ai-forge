@@ -2,11 +2,22 @@ import { ReliabilityIssue } from '@/types';
 import { IssueGroup, CategoryWithIssues } from './types';
 import { issueSeverityWeights, ANALYSIS_CONSTANTS } from './scoreThresholds';
 
+/** Cache for string normalization. */
+const normalizeCache = new Map<string, string>();
+
 /** Normalize issue descriptions for consistent grouping. */
 function normalizeString(input: string): string {
-  return typeof input === 'string'
-    ? input.toLowerCase().replace(/\s+/g, ' ').replace(/\b(line|at|on)\s+\d+\b/g, '').trim()
-    : '';
+  if (!input) return '';
+  if (normalizeCache.has(input)) return normalizeCache.get(input)!;
+
+  const norm = input
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/\b(line|at|on)\s+\d+\b/g, '')
+    .trim();
+
+  normalizeCache.set(input, norm);
+  return norm;
 }
 
 /** Group issues by normalized description and category to reduce redundancy. */
@@ -65,7 +76,7 @@ export function evaluatePatternRisk(description: string, context: string): boole
 
   const isNullRisk =
     desc.includes('null') &&
-    ctx.includes('.') &&
+    /\w+\s*\.\s*\w+/.test(ctx) &&
     !ctx.includes('?.') &&
     !ctx.includes('!= null') &&
     !ctx.includes('typeof');
@@ -90,7 +101,11 @@ export function evaluatePatternRisk(description: string, context: string): boole
 export function getEffectiveSeverity(issue: ReliabilityIssue): string {
   const base = issue?.type || 'minor';
   const risky = evaluatePatternRisk(issue.description, issue.codeContext || '');
-  return risky ? 'critical' : base;
+
+  if (!risky) return base;
+  if (base === 'minor') return 'major';
+  if (base === 'major') return 'critical';
+  return base;
 }
 
 /** Groups reliability issues by category for visualization/reporting. */
@@ -185,12 +200,15 @@ export function calculateReliabilityScore(
     const severityWeight = issueSeverityWeights[severity] || 1;
     const contextFactor = getContextReductionFactor(group.issues);
     const pathFactor = determinePathSensitivity(group.issues);
-    const isCrash = evaluatePatternRisk(rep.description, rep.codeContext || '');
+    const groupHasCrash = group.issues.some(i =>
+      evaluatePatternRisk(i.description, i.codeContext || '')
+    );
 
-    const impact = group.issues.length * severityWeight * contextFactor * pathFactor;
+    const rawImpact = group.issues.length * severityWeight * contextFactor * pathFactor;
+    const impact = Math.min(rawImpact, 10); // capped to avoid score explosion
     weightedTotal += impact;
 
-    if (isCrash) criticalCrashDetected = true;
+    if (groupHasCrash) criticalCrashDetected = true;
   }
 
   if (criticalCrashDetected) return { score: weightedTotal, letter: 'D' };

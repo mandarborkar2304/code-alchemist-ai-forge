@@ -25,28 +25,37 @@ export function calculateReliabilityScore(
   }
 
   const groups = groupSimilarIssues(issues);
-  let weightedTotal = 0;
+  let totalDeduction = 0;
   let criticalCrashDetected = false;
 
   for (const group of groups) {
+    if (!group.issues || group.issues.length === 0) continue;
+
     const issue = group.issues[0];
     const severity = getEffectiveSeverity(issue);
-    const severityWeight = issueSeverityWeights[severity] || 1;
+    const severityWeight = issueSeverityWeights[severity] ?? 1;
 
     const contextFactor = getContextReductionFactor(group.issues);
     const pathFactor = determinePathSensitivity(group.issues);
-    const isCrash = evaluatePatternRisk(issue.description, issue.codeContext || '');
+    const riskScore = Number(evaluatePatternRisk(issue.description ?? '', issue.codeContext ?? ''));
+    const isCrash = riskScore >= ANALYSIS_CONSTANTS.RELIABILITY.CRASH_RISK_THRESHOLD;
 
-    const impact = group.issues.length * severityWeight * contextFactor * pathFactor;
-    weightedTotal += impact;
+    const deduction = calculateGroupDeduction(group, contextFactor, pathFactor);
+    totalDeduction += deduction;
 
-    if (isCrash && severity === 'critical') {
+    if ((isCrash && severity === 'critical') || isConfirmedCriticalIssue(issue)) {
       criticalCrashDetected = true;
     }
   }
 
-  const grade = criticalCrashDetected ? 'D' : getGradeFromScore(weightedTotal, scoreThresholds.reliability);
-  return { score: weightedTotal, letter: grade };
+  const cappedDeduction = Math.min(totalDeduction, ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION);
+  const finalScore = Math.max(0, 100 - cappedDeduction);
+
+  const grade = criticalCrashDetected || finalScore < 60
+    ? 'D'
+    : getGradeFromScore(finalScore, scoreThresholds.reliability);
+
+  return { score: finalScore, letter: grade };
 }
 
 /** Score weight logic for a single issue */
@@ -71,8 +80,11 @@ function getIssueWeight(issue: ReliabilityIssue): number {
     contextMultiplier = 0.3;
   }
 
-  if (issue.pattern && !evaluatePatternRisk(issue.pattern, ctx)) {
-    contextMultiplier = 0.05;
+  if (issue.pattern) {
+    const risk = Number(evaluatePatternRisk(issue.pattern, ctx));
+    if (risk < ANALYSIS_CONSTANTS.RELIABILITY.LOW_RISK_THRESHOLD) {
+      contextMultiplier = 0.05;
+    }
   }
 
   return Math.max(typeWeight, impactValue) * contextMultiplier;
@@ -82,8 +94,8 @@ function getIssueWeight(issue: ReliabilityIssue): number {
 function isConfirmedCriticalIssue(issue: ReliabilityIssue): boolean {
   if (!issue || issue.type !== 'critical') return false;
 
-  const message = issue.description?.toLowerCase() || '';
-  const ctx = issue.codeContext?.toLowerCase() || '';
+  const message = (issue.description ?? '').toLowerCase();
+  const ctx = (issue.codeContext ?? '').toLowerCase();
 
   const descConfirmed =
     message.includes('uncaught exception') ||
@@ -108,14 +120,14 @@ function isConfirmedCriticalIssue(issue: ReliabilityIssue): boolean {
     !ctx.includes('try');
 
   const hasUncheckedArrayAccess =
-    ctx.match(/\[\w+\]/) &&
+    /\[\w+\]/.test(ctx) &&
     !ctx.includes('.length') &&
-    !ctx.match(/for\s*\(/) &&
+    !/for\s*\(/.test(ctx) &&
     !ctx.includes('try') &&
-    !ctx.match(/\[\d+\]/);
+    !/\[\d+\]/.test(ctx);
 
   const hasUncheckedNull =
-    ctx.match(/\w+\.\w+/) &&
+    /\w+\.\w+/.test(ctx) &&
     !ctx.includes('?') &&
     !ctx.includes('if') &&
     !ctx.includes('===') &&
@@ -139,8 +151,11 @@ function calculateGroupDeduction(
   for (const issue of group.issues) {
     if (!issue) continue;
 
+    const risk = Number(evaluatePatternRisk(issue.pattern ?? '', issue.codeContext ?? ''));
     const isFalsePositive =
-      issue.pattern && issue.codeContext && !evaluatePatternRisk(issue.pattern, issue.codeContext);
+      issue.pattern &&
+      issue.codeContext &&
+      risk < ANALYSIS_CONSTANTS.RELIABILITY.LOW_RISK_THRESHOLD;
 
     if (isFalsePositive) {
       falsePositives++;
@@ -200,7 +215,7 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
     };
   }
 
-  let calculatedScore = Math.max(0, score);
+  let calculatedScore = Math.max(0, Math.min(score, 100));
   let issuesList: string[] = [];
   let improvements: string[] = [];
   let warningFlag = false;
@@ -208,7 +223,7 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
   if (issues && issues.length > 0) {
     const validated = issues.filter(issue =>
       issue.pattern && issue.codeContext
-        ? evaluatePatternRisk(issue.pattern, issue.codeContext)
+        ? Number(evaluatePatternRisk(issue.pattern, issue.codeContext)) >= ANALYSIS_CONSTANTS.RELIABILITY.LOW_RISK_THRESHOLD
         : true
     );
 
@@ -257,7 +272,7 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
     issues?.map(issue => ({
       type: issue?.type || 'minor',
       impact: issue?.impact || 1
-    }))
+    })) ?? []
   );
 
   const { description, reason } = generateReliabilityDescription(rating, warningFlag, calculatedScore);
@@ -341,14 +356,14 @@ function getDefaultImprovementsList(rating: ScoreGrade): string[] {
     case 'C':
       return [
         'Add try-catch blocks for risky operations',
-        'Implement input validation',
-        'Add guards for potential edge cases'
+        'Improve input validation',
+        'Add unit tests to cover error scenarios'
       ];
     default:
       return [
-        'Implement error handling for critical operations',
-        'Add validation for inputs and parameters',
-        'Consider a defensive programming approach'
+        'Refactor critical code paths to ensure exception safety',
+        'Add comprehensive logging for failures',
+        'Review code for null pointer and division risks'
       ];
   }
 }
