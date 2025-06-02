@@ -9,10 +9,10 @@ export const scoreThresholds = {
     D: 0
   },
   cyclomaticComplexity: {
-    A: 10,
-    B: 20,
-    C: 35,
-    D: 36
+    A: 0,
+    B: 11,
+    C: 16,
+    D: 21
   },
   reliability: {      
     A: 80,            // Raised from 75 to make A grade much harder
