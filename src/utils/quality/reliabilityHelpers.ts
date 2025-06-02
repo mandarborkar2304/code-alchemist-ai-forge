@@ -87,7 +87,7 @@ export function evaluatePatternRisk(description: string, context: string): boole
 }
 
 /** Computes issue severity dynamically, accounting for risky crash-like patterns. */
-function getEffectiveSeverity(issue: ReliabilityIssue): string {
+export function getEffectiveSeverity(issue: ReliabilityIssue): string {
   const base = issue?.type || 'minor';
   const risky = evaluatePatternRisk(issue.description, issue.codeContext || '');
   return risky ? 'critical' : base;
