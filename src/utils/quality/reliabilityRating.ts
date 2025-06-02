@@ -16,7 +16,7 @@ import {
   getEffectiveSeverity
 } from './reliabilityHelpers';
 
-/** Unified helper-based scoring logic */
+/** Enhanced unified helper-based scoring logic with proper critical issue handling */
 export function calculateReliabilityScore(
   issues?: ReliabilityIssue[]
 ): { score: number; letter: ScoreGrade } {
@@ -24,169 +24,192 @@ export function calculateReliabilityScore(
     return { score: 100, letter: 'A' };
   }
 
+  console.log('Calculating reliability score for issues:', issues);
+
   const groups = groupSimilarIssues(issues);
   let totalDeduction = 0;
   let criticalCrashDetected = false;
+  let criticalIssueCount = 0;
+
+  console.log('Grouped issues:', groups);
 
   for (const group of groups) {
     if (!group.issues || group.issues.length === 0) continue;
 
     const issue = group.issues[0];
-    const severity = getEffectiveSeverity(issue);
-    const severityWeight = issueSeverityWeights[severity] ?? 1;
+    const originalSeverity = issue.type;
+    const effectiveSeverity = getEffectiveSeverity(issue);
+    
+    console.log(`Processing issue: ${issue.description}, original: ${originalSeverity}, effective: ${effectiveSeverity}`);
+
+    // Count critical issues
+    if (effectiveSeverity === 'critical') {
+      criticalIssueCount++;
+    }
+
+    // Check for confirmed critical crash patterns
+    const hasCrashPattern = evaluatePatternRisk(issue.description ?? '', issue.codeContext ?? '');
+    const isConfirmedCritical = isConfirmedCriticalIssue(issue);
+    
+    console.log(`Crash pattern detected: ${hasCrashPattern}, Confirmed critical: ${isConfirmedCritical}`);
+
+    if ((effectiveSeverity === 'critical' && hasCrashPattern) || isConfirmedCritical) {
+      criticalCrashDetected = true;
+      console.log('Critical crash detected - will force D grade');
+    }
 
     const contextFactor = getContextReductionFactor(group.issues);
     const pathFactor = determinePathSensitivity(group.issues);
-    const riskScore = Number(evaluatePatternRisk(issue.description ?? '', issue.codeContext ?? ''));
-    const isCrash = riskScore >= ANALYSIS_CONSTANTS.RELIABILITY.CRASH_RISK_THRESHOLD;
-
-    const deduction = calculateGroupDeduction(group, contextFactor, pathFactor);
+    const deduction = calculateGroupDeduction(group, contextFactor, pathFactor, effectiveSeverity);
+    
+    console.log(`Group deduction: ${deduction} (context: ${contextFactor}, path: ${pathFactor})`);
+    
     totalDeduction += deduction;
+  }
 
-    if ((isCrash && severity === 'critical') || isConfirmedCriticalIssue(issue)) {
-      criticalCrashDetected = true;
-    }
+  console.log(`Total deduction: ${totalDeduction}, Critical crashes: ${criticalCrashDetected}, Critical count: ${criticalIssueCount}`);
+
+  // Force D grade for critical crashes or multiple critical issues
+  if (criticalCrashDetected || criticalIssueCount >= 2) {
+    console.log('Forcing D grade due to critical issues');
+    return { score: Math.max(0, 100 - totalDeduction), letter: 'D' };
   }
 
   const cappedDeduction = Math.min(totalDeduction, ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION);
   const finalScore = Math.max(0, 100 - cappedDeduction);
 
-  const grade = criticalCrashDetected || finalScore < 60
-    ? 'D'
-    : getGradeFromScore(finalScore, scoreThresholds.reliability);
+  console.log(`Final score: ${finalScore}, Capped deduction: ${cappedDeduction}`);
+
+  const grade = getGradeFromScore(finalScore, scoreThresholds.reliability);
+  
+  console.log(`Calculated grade: ${grade}`);
 
   return { score: finalScore, letter: grade };
 }
 
-/** Score weight logic for a single issue */
-function getIssueWeight(issue: ReliabilityIssue): number {
-  if (!issue) return 0;
-
-  const typeWeight = issueSeverityWeights[issue.type] ?? 1;
-  const impactValue = typeof issue.impact === 'number' ? issue.impact / 3 : 0;
-
-  let contextMultiplier = 1.0;
-  const ctx = issue.codeContext?.trim() ?? '';
-
-  if (
-    ctx.startsWith('//') ||
-    ctx.startsWith('/*') ||
-    ctx.startsWith('*') ||
-    ctx.startsWith('import') ||
-    ctx.startsWith('const') ||
-    ctx.startsWith('let') ||
-    ctx.startsWith('var')
-  ) {
-    contextMultiplier = 0.3;
-  }
-
-  if (issue.pattern) {
-    const risk = Number(evaluatePatternRisk(issue.pattern, ctx));
-    if (risk < ANALYSIS_CONSTANTS.RELIABILITY.LOW_RISK_THRESHOLD) {
-      contextMultiplier = 0.05;
-    }
-  }
-
-  return Math.max(typeWeight, impactValue) * contextMultiplier;
-}
-
-/** Detects aggressively risky issues */
+/** Enhanced critical issue detection with more aggressive patterns */
 function isConfirmedCriticalIssue(issue: ReliabilityIssue): boolean {
   if (!issue || issue.type !== 'critical') return false;
 
   const message = (issue.description ?? '').toLowerCase();
   const ctx = (issue.codeContext ?? '').toLowerCase();
 
-  const descConfirmed =
-    message.includes('uncaught exception') ||
-    message.includes('unvalidated user input') ||
-    message.includes('hardcoded credential') ||
-    message.includes('sql injection') ||
-    message.includes('resource leak') ||
-    message.includes('divide by zero') ||
-    message.includes('/ 0') ||
-    message.includes('null pointer') ||
-    message.includes('array index out of bounds') ||
-    message.includes('crash') ||
-    message.includes('runtime exception') ||
-    message.includes('unhandled');
+  console.log(`Checking critical issue: "${message}" with context: "${ctx}"`);
 
-  const hasUncheckedDivision =
-    ctx.includes('/') &&
-    !ctx.includes('!= 0') &&
-    !ctx.includes('!== 0') &&
-    !ctx.includes('> 0') &&
-    !ctx.match(/\/\s*\d+/) &&
-    !ctx.includes('try');
+  // Aggressive critical pattern detection
+  const criticalPatterns = [
+    'uncaught exception',
+    'unhandled exception',
+    'runtime exception',
+    'null pointer',
+    'nullpointerexception',
+    'divide by zero',
+    'division by zero',
+    'array index out of bounds',
+    'buffer overflow',
+    'memory leak',
+    'segmentation fault',
+    'access violation',
+    'stack overflow',
+    'infinite recursion',
+    'deadlock',
+    'race condition',
+    'sql injection',
+    'xss',
+    'csrf',
+    'hardcoded credential',
+    'password in plain text',
+    'security vulnerability',
+    'crash',
+    'fatal error',
+    'critical error',
+    'system failure'
+  ];
 
-  const hasUncheckedArrayAccess =
-    /\[\w+\]/.test(ctx) &&
-    !ctx.includes('.length') &&
-    !/for\s*\(/.test(ctx) &&
+  const descConfirmed = criticalPatterns.some(pattern => message.includes(pattern));
+
+  // Enhanced code context analysis
+  const hasUncheckedDivision = 
+    ctx.includes('/') && 
+    !ctx.includes('!= 0') && 
+    !ctx.includes('!== 0') && 
+    !ctx.includes('> 0') && 
+    !ctx.includes('< 0') && 
+    !ctx.match(/\/\s*[1-9]\d*/) && // not dividing by literal non-zero
     !ctx.includes('try') &&
-    !/\[\d+\]/.test(ctx);
+    !ctx.includes('if');
 
-  const hasUncheckedNull =
-    /\w+\.\w+/.test(ctx) &&
-    !ctx.includes('?') &&
-    !ctx.includes('if') &&
-    !ctx.includes('===') &&
-    !ctx.includes('try');
+  const hasUncheckedArrayAccess = 
+    /\w+\[\w+\]/.test(ctx) && 
+    !ctx.includes('.length') && 
+    !ctx.includes('?.') &&
+    !/for\s*\(/.test(ctx) && 
+    !ctx.includes('try') && 
+    !/\[\d+\]/.test(ctx) &&
+    !ctx.includes('if');
 
-  return descConfirmed || hasUncheckedDivision || hasUncheckedArrayAccess || hasUncheckedNull;
+  const hasUncheckedNull = 
+    /\w+\.\w+/.test(ctx) && 
+    !ctx.includes('?.') && 
+    !ctx.includes('??') &&
+    !ctx.includes('if') && 
+    !ctx.includes('===') && 
+    !ctx.includes('!==') &&
+    !ctx.includes('try') &&
+    !ctx.includes('typeof');
+
+  const isConfirmed = descConfirmed || hasUncheckedDivision || hasUncheckedArrayAccess || hasUncheckedNull;
+  
+  console.log(`Critical issue confirmed: ${isConfirmed} (desc: ${descConfirmed}, div: ${hasUncheckedDivision}, array: ${hasUncheckedArrayAccess}, null: ${hasUncheckedNull})`);
+  
+  return isConfirmed;
 }
 
-/** Calculates deduction for a group of issues */
+/** Enhanced group deduction calculation with severity-aware penalties */
 function calculateGroupDeduction(
   group: { issues: ReliabilityIssue[] },
   contextFactor: number,
-  pathFactor: number
+  pathFactor: number,
+  effectiveSeverity: string
 ): number {
   if (!group || !Array.isArray(group.issues) || group.issues.length === 0) return 0;
 
-  let groupImpact = 0;
-  let highestSeverityIssue = group.issues[0];
-  let falsePositives = 0;
+  const issueCount = group.issues.length;
+  const severityWeight = issueSeverityWeights[effectiveSeverity] ?? 1;
+  
+  console.log(`Group deduction calc: count=${issueCount}, severity=${effectiveSeverity}, weight=${severityWeight}`);
 
-  for (const issue of group.issues) {
-    if (!issue) continue;
+  let baseDeduction = 0;
 
-    const risk = Number(evaluatePatternRisk(issue.pattern ?? '', issue.codeContext ?? ''));
-    const isFalsePositive =
-      issue.pattern &&
-      issue.codeContext &&
-      risk < ANALYSIS_CONSTANTS.RELIABILITY.LOW_RISK_THRESHOLD;
-
-    if (isFalsePositive) {
-      falsePositives++;
-      continue;
-    }
-
-    const weight = getIssueWeight(issue);
-    const highestWeight = getIssueWeight(highestSeverityIssue);
-    if (weight > highestWeight) highestSeverityIssue = issue;
-
-    groupImpact += weight;
+  // Enhanced severity-based deductions
+  switch (effectiveSeverity) {
+    case 'critical':
+      // Critical issues should have significant impact
+      baseDeduction = Math.min(50, 25 + (issueCount * 10));
+      break;
+    case 'major':
+      baseDeduction = Math.min(25, 10 + (issueCount * 5));
+      break;
+    case 'minor':
+      baseDeduction = Math.min(10, 2 + (issueCount * 1.5));
+      break;
+    default:
+      baseDeduction = issueCount * 2;
   }
 
-  if (falsePositives > 0) {
-    const ratio = falsePositives / group.issues.length;
-    groupImpact *= 1 - ratio * 0.9;
-  }
-
-  let deduction = 0;
-
-  if (highestSeverityIssue.type === 'critical') {
-    deduction = isConfirmedCriticalIssue(highestSeverityIssue)
-      ? Math.min(40, 10 + groupImpact * 2.5)
-      : Math.min(ANALYSIS_CONSTANTS.RELIABILITY.MAJOR_DEDUCTION, 3 + groupImpact);
-  } else if (highestSeverityIssue.type === 'major') {
-    deduction = Math.min(ANALYSIS_CONSTANTS.RELIABILITY.MAJOR_DEDUCTION, 3 + groupImpact);
+  // Apply context and path factors (but don't let them reduce critical issues too much)
+  let adjustedDeduction = baseDeduction;
+  
+  if (effectiveSeverity === 'critical') {
+    // For critical issues, apply reduced context/path factors to maintain impact
+    adjustedDeduction *= Math.max(0.5, contextFactor * pathFactor);
   } else {
-    deduction = Math.min(ANALYSIS_CONSTANTS.RELIABILITY.MINOR_DEDUCTION, 0.8 + groupImpact / 2.5);
+    adjustedDeduction *= contextFactor * pathFactor;
   }
 
-  return deduction * contextFactor * pathFactor;
+  console.log(`Base deduction: ${baseDeduction}, Adjusted: ${adjustedDeduction}`);
+  
+  return Math.max(0, adjustedDeduction);
 }
 
 /** Final reliability rating generator */
@@ -246,7 +269,7 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
     for (const group of grouped) {
       const contextFactor = getContextReductionFactor(group.issues);
       const pathFactor = determinePathSensitivity(group.issues);
-      deductions += calculateGroupDeduction(group, contextFactor, pathFactor);
+      deductions += calculateGroupDeduction(group, contextFactor, pathFactor, getEffectiveSeverity(group.issues[0]));
     }
 
     if (deductions > 20) {

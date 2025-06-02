@@ -36,75 +36,150 @@ export function groupSimilarIssues(issues: ReliabilityIssue[]): IssueGroup[] {
   return Object.values(groups);
 }
 
-/** Adjusts issue impact score based on contextual hints. */
+/** Adjusts issue impact score based on contextual hints with enhanced logging */
 export function getContextReductionFactor(issues: ReliabilityIssue[]): number {
   if (!Array.isArray(issues) || issues.length === 0) return 1.0;
 
   const context = issues[0].codeContext?.toLowerCase() || '';
   let factor = 1.0;
 
-  if (context.includes('test')) factor *= ANALYSIS_CONSTANTS.FACTORS.TEST_CODE;
-  if (context.includes('try') || context.includes('catch')) factor *= ANALYSIS_CONSTANTS.FACTORS.ERROR_HANDLING;
-  if (context.includes('helper') || context.includes('util')) factor *= ANALYSIS_CONSTANTS.FACTORS.UTILITY_CODE;
-  if (issues.length > 1) factor *= ANALYSIS_CONSTANTS.FACTORS.REPEATED_ISSUES;
+  console.log(`Context analysis for: "${context}"`);
 
+  if (context.includes('test')) {
+    factor *= ANALYSIS_CONSTANTS.FACTORS.TEST_CODE;
+    console.log('Applied test code factor');
+  }
+  if (context.includes('try') || context.includes('catch')) {
+    factor *= ANALYSIS_CONSTANTS.FACTORS.ERROR_HANDLING;
+    console.log('Applied error handling factor');
+  }
+  if (context.includes('helper') || context.includes('util')) {
+    factor *= ANALYSIS_CONSTANTS.FACTORS.UTILITY_CODE;
+    console.log('Applied utility code factor');
+  }
+  if (issues.length > 1) {
+    factor *= ANALYSIS_CONSTANTS.FACTORS.REPEATED_ISSUES;
+    console.log('Applied repeated issues factor');
+  }
+
+  console.log(`Final context factor: ${factor}`);
   return factor;
 }
 
-/** Estimates path sensitivity to reflect how likely the issue affects production behavior. */
+/** Enhanced path sensitivity with better crash detection */
 export function determinePathSensitivity(issues: ReliabilityIssue[]): number {
   if (!Array.isArray(issues) || issues.length === 0) return 1.0;
 
   const ctx = issues[0].codeContext || '';
   const desc = normalizeString(issues[0].description);
 
-  if (ctx.includes('try') && ctx.includes('catch')) return 0.4;
-  if (ctx.includes('if') || ctx.includes('switch') || ctx.includes('instanceof') || ctx.includes('typeof'))
-    return ANALYSIS_CONSTANTS.FACTORS.GUARDED_PATH;
-  if (desc.includes('edge case')) return ANALYSIS_CONSTANTS.FACTORS.EDGE_CASE;
-  if (desc.includes('validated')) return ANALYSIS_CONSTANTS.FACTORS.VALIDATED_CODE;
+  console.log(`Path sensitivity analysis for: "${desc}" in context: "${ctx}"`);
 
+  // For critical issues, don't reduce sensitivity too much
+  if (issues[0].type === 'critical') {
+    console.log('Critical issue - maintaining high path sensitivity');
+    return Math.max(0.7, 1.0); // Don't reduce critical issues below 70%
+  }
+
+  if (ctx.includes('try') && ctx.includes('catch')) {
+    console.log('Try-catch block detected');
+    return 0.4;
+  }
+  if (ctx.includes('if') || ctx.includes('switch') || ctx.includes('instanceof') || ctx.includes('typeof')) {
+    console.log('Conditional logic detected');
+    return ANALYSIS_CONSTANTS.FACTORS.GUARDED_PATH;
+  }
+  if (desc.includes('edge case')) {
+    console.log('Edge case detected');
+    return ANALYSIS_CONSTANTS.FACTORS.EDGE_CASE;
+  }
+  if (desc.includes('validated')) {
+    console.log('Validated code detected');
+    return ANALYSIS_CONSTANTS.FACTORS.VALIDATED_CODE;
+  }
+
+  console.log('No special path conditions detected');
   return 1.0;
 }
 
-/** Pattern risk heuristic for null, zero division, and bounds errors. */
+/** Enhanced pattern risk evaluation with more aggressive detection */
 export function evaluatePatternRisk(description: string, context: string): boolean {
   if (!description || !context) return false;
 
   const desc = normalizeString(description);
   const ctx = context.toLowerCase();
 
+  console.log(`Pattern risk evaluation for: "${desc}" in context: "${ctx}"`);
+
+  // Enhanced critical pattern detection
+  const criticalKeywords = [
+    'null pointer', 'nullpointer', 'segfault', 'segmentation fault',
+    'divide by zero', 'division by zero', '/ 0',
+    'buffer overflow', 'stack overflow', 'heap overflow',
+    'unhandled exception', 'uncaught exception',
+    'array index out of bounds', 'index out of bounds',
+    'memory leak', 'resource leak',
+    'deadlock', 'race condition',
+    'infinite loop', 'infinite recursion',
+    'access violation', 'illegal access'
+  ];
+
+  const hasKeyword = criticalKeywords.some(keyword => 
+    desc.includes(keyword) || ctx.includes(keyword)
+  );
+
   const isNullRisk =
-    desc.includes('null') &&
+    (desc.includes('null') || desc.includes('undefined')) &&
     /\w+\s*\.\s*\w+/.test(ctx) &&
     !ctx.includes('?.') &&
     !ctx.includes('!= null') &&
-    !ctx.includes('typeof');
+    !ctx.includes('!== null') &&
+    !ctx.includes('typeof') &&
+    !ctx.includes('if');
 
   const isDivideByZeroRisk =
-    (desc.includes('division') || ctx.includes('/')) &&
+    (desc.includes('division') || desc.includes('divide') || ctx.includes('/')) &&
     !ctx.includes('!= 0') &&
+    !ctx.includes('!== 0') &&
+    !ctx.match(/\/\s*[1-9]/) && // not dividing by literal non-zero
     !ctx.includes('try') &&
-    !ctx.includes('catch');
+    !ctx.includes('catch') &&
+    !ctx.includes('if');
 
   const isOutOfBoundsRisk =
-    desc.includes('array') &&
+    (desc.includes('array') || desc.includes('index')) &&
     ctx.includes('[') &&
-    !ctx.includes('<') &&
     !ctx.includes('length') &&
-    !ctx.includes('try');
+    !ctx.includes('size') &&
+    !ctx.includes('try') &&
+    !ctx.includes('if');
 
-  return isNullRisk || isDivideByZeroRisk || isOutOfBoundsRisk;
+  const isRisky = hasKeyword || isNullRisk || isDivideByZeroRisk || isOutOfBoundsRisk;
+  
+  console.log(`Risk assessment: ${isRisky} (keyword: ${hasKeyword}, null: ${isNullRisk}, division: ${isDivideByZeroRisk}, bounds: ${isOutOfBoundsRisk})`);
+  
+  return isRisky;
 }
 
-/** Computes issue severity dynamically, accounting for risky crash-like patterns. */
+/** Enhanced effective severity with more aggressive escalation */
 export function getEffectiveSeverity(issue: ReliabilityIssue): string {
   const base = issue?.type || 'minor';
   const risky = evaluatePatternRisk(issue.description, issue.codeContext || '');
 
+  console.log(`Effective severity calc: base=${base}, risky=${risky}`);
+
   if (!risky) return base;
-  if (base === 'minor') return 'major';
-  if (base === 'major') return 'critical';
+  
+  // More aggressive severity escalation for risky patterns
+  if (base === 'minor') {
+    console.log('Escalating minor to major due to risk');
+    return 'major';
+  }
+  if (base === 'major') {
+    console.log('Escalating major to critical due to risk');
+    return 'critical';
+  }
+  
   return base;
 }
 

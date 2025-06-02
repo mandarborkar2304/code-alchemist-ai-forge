@@ -15,10 +15,10 @@ export const scoreThresholds = {
     D: 36
   },
   reliability: {      
-    A: 85,            // Previously 5
-    B: 70,            // Previously 15
-    C: 55,            // Previously 25
-    D: 0
+    A: 80,            // Lowered from 85 to be more achievable
+    B: 65,            // Lowered from 70 
+    C: 45,            // Lowered from 55
+    D: 0              // Anything below 45 or with critical crashes
   }
 };
 
@@ -51,13 +51,13 @@ export const ANALYSIS_CONSTANTS = {
     HIGH_PENALTY: 10
   },
   SEVERITY: {
-    CRITICAL: 5,
+    CRITICAL: 8,      // Increased from 5 to make critical issues more impactful
     MAJOR: 4,
-    MINOR: 2
+    MINOR: 1          // Reduced from 2 to make minor issues less punitive
   },
   RELIABILITY: {
-    CRITICAL_DEDUCTION: 35,
-    MAJOR_DEDUCTION: 15,
+    CRITICAL_DEDUCTION: 50,    // Increased from 35
+    MAJOR_DEDUCTION: 20,       // Increased from 15
     MINOR_DEDUCTION: 5,
     MAX_DEDUCTION: 100,
     LOW_RISK_THRESHOLD: 30,
@@ -99,15 +99,16 @@ export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, 
   return 'D';
 }
 
-// Revised: Calculate Reliability Score
+// Revised: Calculate Reliability Score with enhanced critical detection
 export function calculateReliabilityScore(issues: {
   type: 'critical' | 'major' | 'minor',
   impact?: number
 }[]): number {
   if (!issues || issues.length === 0) return 100;
 
-  let totalDeduction = 0;
+  console.log('Legacy calculateReliabilityScore called with:', issues);
 
+  let totalDeduction = 0;
   let criticalCount = 0;
   let majorCount = 0;
   let minorCount = 0;
@@ -118,32 +119,40 @@ export function calculateReliabilityScore(issues: {
     switch (issue.type) {
       case 'critical':
         criticalCount++;
-        totalDeduction += 35 + (impact >= 3 ? 15 : 0); // Amplify if high impact
+        // Enhanced critical penalty
+        totalDeduction += 50 + (impact >= 3 ? 20 : 0);
         break;
       case 'major':
         majorCount++;
-        totalDeduction += 15 + (impact >= 2 ? 5 : 0);
+        totalDeduction += 20 + (impact >= 2 ? 8 : 0);
         break;
       case 'minor':
         minorCount++;
-        totalDeduction += 5;
+        totalDeduction += 3; // Reduced from 5
         break;
     }
   }
 
-  // Context-aware penalties
+  // Enhanced context-aware penalties
+  if (criticalCount >= 1) {
+    totalDeduction += 25; // Immediate significant penalty for any critical issue
+  }
   if (criticalCount >= 2) {
-    totalDeduction += 20; // Multiple critical issues penalty
+    totalDeduction += 30; // Severe penalty for multiple critical issues
   }
   if (majorCount >= 3) {
-    totalDeduction += 10; // Excessive major issue penalty
+    totalDeduction += 15; // Penalty for excessive major issues
   }
 
   // Cap total deduction
   totalDeduction = Math.min(totalDeduction, 100);
 
   const rawScore = 100 - totalDeduction;
-  return Math.max(0, parseFloat(rawScore.toFixed(2)));
+  const finalScore = Math.max(0, parseFloat(rawScore.toFixed(2)));
+  
+  console.log(`Legacy scoring: deduction=${totalDeduction}, final=${finalScore}`);
+  
+  return finalScore;
 }
 
 // Compute reliability grade
