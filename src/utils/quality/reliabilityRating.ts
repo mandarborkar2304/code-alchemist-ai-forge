@@ -1,5 +1,4 @@
 import { ReliabilityIssue, ScoreGrade } from '@/types';
-import { calculateReliabilityScore } from './reliabilityHelpers';
 import { ScoreData } from './types';
 import {
   scoreThresholds,
@@ -11,12 +10,46 @@ import {
 import {
   groupSimilarIssues,
   getContextReductionFactor,
-  generateReliabilityImprovements,
   determinePathSensitivity,
-  evaluatePatternRisk
+  evaluatePatternRisk,
+  generateReliabilityImprovements,
+  getEffectiveSeverity
 } from './reliabilityHelpers';
 
-// Calculates weight for an issue
+/** Unified helper-based scoring logic */
+export function calculateReliabilityScore(
+  issues?: ReliabilityIssue[]
+): { score: number; letter: ScoreGrade } {
+  if (!issues || issues.length === 0) {
+    return { score: 100, letter: 'A' };
+  }
+
+  const groups = groupSimilarIssues(issues);
+  let weightedTotal = 0;
+  let criticalCrashDetected = false;
+
+  for (const group of groups) {
+    const issue = group.issues[0];
+    const severity = getEffectiveSeverity(issue);
+    const severityWeight = issueSeverityWeights[severity] || 1;
+
+    const contextFactor = getContextReductionFactor(group.issues);
+    const pathFactor = determinePathSensitivity(group.issues);
+    const isCrash = evaluatePatternRisk(issue.description, issue.codeContext || '');
+
+    const impact = group.issues.length * severityWeight * contextFactor * pathFactor;
+    weightedTotal += impact;
+
+    if (isCrash && severity === 'critical') {
+      criticalCrashDetected = true;
+    }
+  }
+
+  const grade = criticalCrashDetected ? 'D' : getGradeFromScore(weightedTotal, scoreThresholds.reliability);
+  return { score: weightedTotal, letter: grade };
+}
+
+/** Score weight logic for a single issue */
 function getIssueWeight(issue: ReliabilityIssue): number {
   if (!issue) return 0;
 
@@ -45,7 +78,7 @@ function getIssueWeight(issue: ReliabilityIssue): number {
   return Math.max(typeWeight, impactValue) * contextMultiplier;
 }
 
-// Detects confirmed critical issues with aggressive heuristics
+/** Detects aggressively risky issues */
 function isConfirmedCriticalIssue(issue: ReliabilityIssue): boolean {
   if (!issue || issue.type !== 'critical') return false;
 
@@ -91,7 +124,7 @@ function isConfirmedCriticalIssue(issue: ReliabilityIssue): boolean {
   return descConfirmed || hasUncheckedDivision || hasUncheckedArrayAccess || hasUncheckedNull;
 }
 
-// Deduction logic based on group impact and criticality
+/** Calculates deduction for a group of issues */
 function calculateGroupDeduction(
   group: { issues: ReliabilityIssue[] },
   contextFactor: number,
@@ -116,7 +149,6 @@ function calculateGroupDeduction(
 
     const weight = getIssueWeight(issue);
     const highestWeight = getIssueWeight(highestSeverityIssue);
-
     if (weight > highestWeight) highestSeverityIssue = issue;
 
     groupImpact += weight;
@@ -142,18 +174,17 @@ function calculateGroupDeduction(
   return deduction * contextFactor * pathFactor;
 }
 
-// Main reliability scoring function
+/** Final reliability rating generator */
 export function getReliabilityRating(score: number, issues?: ReliabilityIssue[]): ScoreData {
   const helperScore = calculateReliabilityScore(issues);
 
-  // Early downgrade if helperScore letter is 'D'
   if (helperScore.letter === 'D') {
     return {
       score: 'D',
       description: 'Reliability concerns (severe issues detected)',
       reason: 'Critical crash-prone code paths identified',
-      issues: issues.map(i => i.description),
-      improvements: generateReliabilityImprovements(groupSimilarIssues(issues)),
+      issues: issues?.map(i => i.description) ?? [],
+      improvements: generateReliabilityImprovements(groupSimilarIssues(issues ?? [])),
       warningFlag: true
     };
   }
@@ -186,16 +217,13 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
     let deductions = 0;
 
     const criticals = validated.filter(isConfirmedCriticalIssue);
-    const criticalCount = criticals.length;
-
-    // Fix Option 2: Immediate downgrade if criticals exist
-    if (criticalCount > 0) {
+    if (criticals.length > 0) {
       return {
         score: 'D',
         description: 'Reliability concerns (critical issues)',
         reason: 'One or more critical issues that may cause crashes were detected.',
         issues: issues.map(i => i.description),
-        improvements: generateReliabilityImprovements(groupSimilarIssues(issues)),
+        improvements: generateReliabilityImprovements(grouped),
         warningFlag: true
       };
     }
@@ -207,25 +235,10 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
     }
 
     if (deductions > 20) {
-      const scaled = 20 + (Math.log(deductions - 19) / Math.log(2)) * 5;
-      deductions = scaled;
+      deductions = 20 + (Math.log(deductions - 19) / Math.log(2)) * 5;
     }
 
-    // Note: Removed conservative scaling per Fix Option 3
-    // deductions *= ANALYSIS_CONSTANTS.FACTORS.CONSERVATIVE_MODE; // now = 1.0
-
     const capped = Math.min(deductions, ANALYSIS_CONSTANTS.RELIABILITY.MAX_DEDUCTION);
-
-    // 🧪 Debug log output for sanity check
-    console.log({
-      baseScore,
-      deductions,
-      criticalCount,
-      capped,
-      finalScore: baseScore - capped
-    });
-
-    // ❗️Removed score floor override to allow falling below D
     calculatedScore = baseScore - capped;
 
     issuesList = grouped
@@ -262,7 +275,7 @@ export function getReliabilityRating(score: number, issues?: ReliabilityIssue[])
   };
 }
 
-// Helpers for descriptions and recommendations
+// Description generator based on final grade
 function generateReliabilityDescription(
   rating: ScoreGrade,
   warningFlag: boolean,
