@@ -106,9 +106,25 @@
     display: none;
   }
 
+  .overflow-y-hidden {
+    overflow-y: hidden;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+  }
+  
+  .overflow-y-hidden::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+
   .code-editor-container {
     @apply resize-none w-full h-full;
     font-family: 'Fira Code', 'Consolas', monospace;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+  }
+  
+  .code-editor-container::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
   }
   
   /* Enhanced resizable panel styling */
