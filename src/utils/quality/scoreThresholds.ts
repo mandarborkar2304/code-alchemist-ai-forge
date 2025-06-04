@@ -61,10 +61,61 @@ export const scoreThresholds = {
   reliability: { A: 90, B: 75, C: 50, D: 0 }
 };
 
+// Restored missing constants that other files depend on
 export const ANALYSIS_CONSTANTS = {
   SEVERITY: {
     CRITICAL: 25,
     MAJOR: 10,
     MINOR: 3
+  },
+  NESTING_DEPTH: {
+    LOW: 2,
+    MODERATE: 4,
+    HIGH: 6
+  },
+  FUNCTION_SIZE: {
+    ACCEPTABLE: 0,
+    HIGH: 5,
+    MAX_IMPACT: 15,
+    IMPACT_MULTIPLIER: 2
+  },
+  DOCUMENTATION: {
+    POOR: 30,
+    ACCEPTABLE: 50,
+    GOOD: 80,
+    IMPACT_MULTIPLIER: 0.3
+  },
+  DUPLICATION: {
+    MODERATE: 10,
+    HIGH: 20,
+    IMPACT_MULTIPLIER: 1.5
+  },
+  FACTORS: {
+    TEST_CODE: 0.5,
+    ERROR_HANDLING: 0.7,
+    UTILITY_CODE: 0.8,
+    REPEATED_ISSUES: 0.9,
+    GUARDED_PATH: 0.6,
+    EDGE_CASE: 0.7,
+    VALIDATED_CODE: 0.8
   }
 };
+
+// Restored missing helper function
+export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, number>): ScoreGrade {
+  if (score === undefined || score === null || isNaN(score)) {
+    console.warn('Invalid score provided to getGradeFromScore:', score);
+    return 'C';
+  }
+
+  const sortedGrades: ScoreGrade[] = ['A', 'B', 'C'];
+  for (const grade of sortedGrades) {
+    if (score >= thresholds[grade]) return grade;
+  }
+  return 'D';
+}
+
+// Restored missing warning flag function
+export function needsReliabilityWarningFlag(grade: ScoreGrade): boolean {
+  return grade === 'C' || grade === 'D';
+}
