@@ -1,190 +1,70 @@
+
 import { ScoreGrade } from '@/types';
 
-// Enhanced configuration constants with stricter grading
+// SonarQube-style severity levels
+export type SonarQubeSeverity = 'blocker' | 'critical' | 'major' | 'minor';
+
+// SonarQube-style grading thresholds based on issue counts
+export const SONARQUBE_GRADE_THRESHOLDS = {
+  A: {
+    blocker: 0,
+    critical: 0,
+    major: 0,
+    minor: 5  // Allow up to 5 minor issues for Grade A
+  },
+  B: {
+    blocker: 0,
+    critical: 0,
+    major: 2,     // Allow up to 2 major issues for Grade B
+    minor: 10     // Allow up to 10 minor issues for Grade B
+  },
+  C: {
+    blocker: 0,
+    critical: 1,  // 1 critical issue = Grade C
+    major: 5,     // Multiple major issues = Grade C
+    minor: 20     // Higher minor threshold for Grade C
+  },
+  D: {
+    blocker: 1,   // Any blocker = Grade D
+    critical: 2,  // 2+ critical = Grade D
+    major: 10,    // 10+ major = Grade D
+    minor: 50     // Very high minor threshold
+  }
+} as const;
+
+// Critical patterns that immediately escalate to Critical or Blocker severity
+export const CRASH_PRONE_PATTERNS = [
+  // Immediate crash risks - Blocker level
+  'null pointer', 'nullpointerexception', 'segmentation fault', 'access violation',
+  'stack overflow', 'out of memory', 'memory access violation', 'buffer overflow',
+  'divide by zero', 'division by zero', 'arithmetic exception',
+  'infinite recursion', 'infinite loop', 'deadlock', 'crash',
+  
+  // High crash potential - Critical level
+  'unhandled exception', 'uncaught exception', 'runtime exception',
+  'array index out of bounds', 'index out of bounds', 'null reference',
+  'undefined reference', 'use after free', 'double free', 'memory leak',
+  'race condition', 'thread abort', 'fatal error', 'system failure'
+] as const;
+
+// Context patterns that indicate risky code locations
+export const RISKY_CODE_PATTERNS = [
+  'unvalidated input', 'unchecked cast', 'unsafe operation',
+  'resource leak', 'connection not closed', 'file not closed',
+  'eval(', 'exec(', 'system(', 'shell_exec'
+] as const;
+
+// Legacy compatibility exports
 export const scoreThresholds = {
-  maintainability: {
-    A: 85,
-    B: 70,
-    C: 55,
-    D: 0
-  },
-  cyclomaticComplexity: {
-    A: 0,
-    B: 11,
-    C: 16,
-    D: 21
-  },
-  reliability: {      
-    A: 90,            // Raised from 75 to make A grade much harder
-    B: 75,            // Raised from 60 to make B grade harder
-    C: 50,            // Raised from 45 to ensure C captures moderate issues
-    D: 0              
-  }
+  maintainability: { A: 85, B: 70, C: 55, D: 0 },
+  cyclomaticComplexity: { A: 0, B: 11, C: 16, D: 21 },
+  reliability: { A: 90, B: 75, C: 50, D: 0 }
 };
 
-// Enhanced analysis constants with stronger critical impact
 export const ANALYSIS_CONSTANTS = {
-  DUPLICATION: {
-    LOW: 5,
-    MODERATE: 10,
-    HIGH: 20,
-    IMPACT_MULTIPLIER: 0.2
-  },
-  FUNCTION_SIZE: {
-    ACCEPTABLE: 0,
-    MODERATE: 1,
-    HIGH: 6,
-    IMPACT_MULTIPLIER: 1.5,
-    MAX_IMPACT: 20
-  },
-  DOCUMENTATION: {
-    GOOD: 80,
-    ACCEPTABLE: 70,
-    POOR: 50,
-    IMPACT_MULTIPLIER: 0.25
-  },
-  NESTING_DEPTH: {
-    LOW: 3,
-    MODERATE: 4,
-    HIGH: 5,
-    MODERATE_PENALTY: 5,
-    HIGH_PENALTY: 10
-  },
   SEVERITY: {
-    CRITICAL: 25,      // Increased from 20 for stronger impact
-    MAJOR: 10,         // Increased from 8
-    MINOR: 3           // Increased from 2
-  },
-  RELIABILITY: {
-    CRITICAL_DEDUCTION: 70,    // Increased from 60
-    MAJOR_DEDUCTION: 30,       // Increased from 25
-    MINOR_DEDUCTION: 10,       // Increased from 8
-    MAX_DEDUCTION: 100,
-    MINIMUM_SCORE: 10,  // Increased from 40 for stricter floor
-    LOW_RISK_THRESHOLD: 25,      // Lowered for more sensitive detection
-    MODERATE_RISK_THRESHOLD: 50, // Lowered
-    HIGH_RISK_THRESHOLD: 70,     // Lowered
-    CRASH_RISK_THRESHOLD: 85     // Lowered for earlier detection
-  },
-  FACTORS: {
-    TEST_CODE: 0.9,        // Reduced impact reduction for tests
-    ERROR_HANDLING: 0.8,   // Reduced impact reduction for error handling
-    UTILITY_CODE: 0.9,     // Reduced impact reduction for utilities
-    REPEATED_ISSUES: 0.95, // Reduced impact reduction for repeated issues
-    RARE_PATH: 0.5,
-    EDGE_CASE: 0.7,
-    VALIDATED_CODE: 0.6,
-    UNVALIDATED_INPUT: 1.3,
-    CONSERVATIVE_MODE: 1,
-    GUARDED_PATH: 0.7      // Reduced impact reduction for guarded paths
+    CRITICAL: 25,
+    MAJOR: 10,
+    MINOR: 3
   }
 };
-
-// Legacy compatibility - use the unified scoring utilities instead
-export const issueSeverityWeights = {
-  critical: ANALYSIS_CONSTANTS.SEVERITY.CRITICAL,
-  major: ANALYSIS_CONSTANTS.SEVERITY.MAJOR,
-  minor: ANALYSIS_CONSTANTS.SEVERITY.MINOR
-};
-
-// Grade determination helper - DEPRECATED: Use scoringUtils.calculateGradeFromScore instead
-export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, number>): ScoreGrade {
-  if (score === undefined || score === null || isNaN(score)) {
-    console.warn('Invalid score provided to getGradeFromScore:', score);
-    return 'C';
-  }
-
-  const sortedGrades: ScoreGrade[] = ['A', 'B', 'C'];
-  for (const grade of sortedGrades) {
-    if (score >= thresholds[grade]) return grade;
-  }
-  return 'D';
-}
-
-// Compute reliability grade
-export function getReliabilityGrade(score: number): ScoreGrade {
-  return getGradeFromScore(score, scoreThresholds.reliability);
-}
-
-// Maintainability Score logic
-export function calculateMaintainabilityScore(params: {
-  duplicationPercentage: number;
-  avgFunctionSize: number;
-  documentationCoverage: number;
-  avgNestingDepth: number;
-}): number {
-  const {
-    duplicationPercentage,
-    avgFunctionSize,
-    documentationCoverage,
-    avgNestingDepth
-  } = params;
-
-  let deduction = 0;
-
-  // Duplication penalty
-  if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.HIGH) {
-    deduction += 20 * 0.2;
-  } else if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.MODERATE) {
-    deduction += 10 * 0.2;
-  } else if (duplicationPercentage > ANALYSIS_CONSTANTS.DUPLICATION.LOW) {
-    deduction += 5 * 0.2;
-  }
-
-  // Function size penalty
-  if (avgFunctionSize >= ANALYSIS_CONSTANTS.FUNCTION_SIZE.HIGH) {
-    deduction += 20;
-  } else if (avgFunctionSize >= ANALYSIS_CONSTANTS.FUNCTION_SIZE.MODERATE) {
-    deduction += 5 * 1.5;
-  }
-
-  // Documentation penalty
-  if (documentationCoverage < ANALYSIS_CONSTANTS.DOCUMENTATION.POOR) {
-    deduction += 15 * 0.25;
-  } else if (documentationCoverage < ANALYSIS_CONSTANTS.DOCUMENTATION.ACCEPTABLE) {
-    deduction += 7 * 0.25;
-  }
-
-  // Nesting depth penalty
-  if (avgNestingDepth >= ANALYSIS_CONSTANTS.NESTING_DEPTH.HIGH) {
-    deduction += 10;
-  } else if (avgNestingDepth >= ANALYSIS_CONSTANTS.NESTING_DEPTH.MODERATE) {
-    deduction += 5;
-  }
-
-  const rawScore = 100 - deduction;
-  const finalScore = Math.max(0, Math.min(100, parseFloat(rawScore.toFixed(2))));
-  return finalScore;
-}
-
-export function getMaintainabilityGrade(score: number): ScoreGrade {
-  return getGradeFromScore(score, scoreThresholds.maintainability);
-}
-
-export function getMaintainabilityGradeFromCodeSmells(smellCount: number): ScoreGrade {
-  return getGradeFromScore(smellCount, scoreThresholds.maintainability);
-}
-
-// Determine if reliability needs a warning flag
-export function needsReliabilityWarningFlag(
-  score: ScoreGrade,
-  issues?: { type: string; impact: number }[]
-): boolean {
-  if (!issues || issues.length === 0) return false;
-
-  if ((score === 'A' || score === 'B') &&
-    issues.filter(issue =>
-      issue.type === 'critical' || (issue.impact ?? 0) >= ANALYSIS_CONSTANTS.SEVERITY.CRITICAL
-    ).length >= 2) {
-    return true;
-  }
-
-  if (score === 'B') {
-    const majorIssues = issues.filter(issue =>
-      issue.type === 'major' || (issue.impact ?? 0) >= ANALYSIS_CONSTANTS.SEVERITY.MAJOR
-    );
-    if (majorIssues.length >= 3) return true;
-  }
-
-  return false;
-}

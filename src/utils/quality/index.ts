@@ -2,7 +2,10 @@
 // Export all quality rating functions
 export * from './scoreThresholds';
 export * from './types';
-export * from './scoringUtils'; // New unified utilities
+export * from './scoringUtils';
+
+// Export new SonarQube-style reliability system
+export * from './sonarQubeReliability';
 
 // Import required types
 import { ScoreData } from './types';
