@@ -88,8 +88,8 @@ export const calculateCyclomaticComplexity = (code: string, language: string): n
       continue;
     }
     
-    // Calculate line complexity with comprehensive SonarQube rules
-    let lineComplexity = calculateLineComplexity(line, lines, i);
+    // Calculate line complexity with comprehensive SonarQube rules - NOW WITH LANGUAGE PARAMETER
+    let lineComplexity = calculateLineComplexity(line, lines, i, language);
     
     // Add complexity to current context (main function or nested)
     if (contextStack.length > 0) {
@@ -128,7 +128,7 @@ export const calculateCyclomaticComplexity = (code: string, language: string): n
 };
 
 // Comprehensive line complexity calculation following SonarQube rules
-function calculateLineComplexity(line: string, lines: string[], currentIndex: number): number {
+function calculateLineComplexity(line: string, lines: string[], currentIndex: number, language: string): number {
   let lineComplexity = 0;
   
   // 1. Conditional statements (+1 each)
