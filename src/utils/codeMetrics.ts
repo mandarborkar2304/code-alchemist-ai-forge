@@ -1,4 +1,3 @@
-
 import { MetricsResult, ScoreGrade, ReliabilityIssue } from '@/types';
 
 // Constants for metric calculation and penalties - SonarQube aligned
@@ -8,64 +7,253 @@ const DEEP_NESTING_PENALTY = 5;        // Structural issue penalty
 const READABILITY_PENALTY = 3;         // Code smells penalty
 const REDUNDANT_LOGIC_PENALTY = 2;     // Minor code smell penalty
 
-// McCabe's Cyclomatic Complexity calculation
+// SonarQube-aligned McCabe's Cyclomatic Complexity calculation
 export const calculateCyclomaticComplexity = (code: string, language: string): number => {
-  // Start with base complexity (1)
-  let complexity = 1;
   const lines = code.split("\n");
+  let totalComplexity = 0;
+  let currentFunctionComplexity = 0;
+  let inFunction = false;
+  let braceDepth = 0;
+  let functionStartDepth = 0;
   
-  // Track scope depth to properly analyze nested structures
-  let scopeDepth = 0;
-  const scopeStack: string[] = [];
-  
+  // Track function boundaries to calculate complexity per function
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
+    const originalLine = lines[i]; // Keep original for indentation analysis
     
     // Skip empty lines and comments
     if (line.length === 0 || line.startsWith('//') || line.startsWith('/*') || line.startsWith('*')) {
       continue;
     }
     
-    // Count all conditional statements (SonarQube-aligned)
-    if (line.includes("if ") || line.match(/}\s*else\s+if/) || 
-        line.includes("switch ") || line.includes("case ")) {
-      complexity++;
-    }
-    
-    // Count loops
-    if (line.includes("for ") || line.includes("while ") || 
-        line.includes("do {") || line.match(/\.\s*forEach\s*\(/)) {
-      complexity++;
-    }
-    
-    // Count each catch block
-    if (line.includes("catch ")) {
-      complexity++;
-    }
-    
-    // Count logical operators that create new paths (AND, OR)
-    const logicalOps = (line.match(/&&|\|\|/g) || []).length;
-    complexity += logicalOps;
-    
-    // Count ternary operators
-    const ternaryOps = (line.match(/\?.*:/g) || []).length;
-    complexity += ternaryOps;
-    
-    // Track scope for more accurate analysis
+    // Track brace depth for function boundaries
     const openBraces = (line.match(/{/g) || []).length;
     const closeBraces = (line.match(/}/g) || []).length;
+    braceDepth += openBraces - closeBraces;
     
-    scopeDepth += openBraces - closeBraces;
+    // Function start detection (SonarQube: each method starts with complexity 1)
+    if (isFunctionDeclaration(line)) {
+      // If we were already in a function, finalize the previous one
+      if (inFunction) {
+        totalComplexity += Math.max(1, currentFunctionComplexity);
+      }
+      
+      // Skip getter/setter boilerplate and empty constructors
+      if (isBoilerplateFunction(line, lines, i)) {
+        inFunction = false;
+        currentFunctionComplexity = 0;
+        continue;
+      }
+      
+      // Start new function with base complexity of 1
+      inFunction = true;
+      currentFunctionComplexity = 1;
+      functionStartDepth = braceDepth;
+      continue;
+    }
     
-    // Handle return statements with logical conditions that short-circuit execution
-    if (scopeDepth > 0 && line.includes("return ") && 
-        (line.includes("&&") || line.includes("||"))) {
-      complexity++;
+    // Function end detection
+    if (inFunction && braceDepth <= functionStartDepth && closeBraces > 0) {
+      totalComplexity += Math.max(1, currentFunctionComplexity);
+      inFunction = false;
+      currentFunctionComplexity = 0;
+      continue;
+    }
+    
+    // Only count complexity within functions
+    if (!inFunction) {
+      continue;
+    }
+    
+    // SonarQube complexity counting rules
+    let lineComplexity = 0;
+    
+    // 1. Conditional statements (+1 each)
+    lineComplexity += countMatches(line, /\bif\s*\(/g);
+    lineComplexity += countMatches(line, /\belse\s+if\s*\(/g);
+    lineComplexity += countMatches(line, /\bfor\s*\(/g);
+    lineComplexity += countMatches(line, /\bwhile\s*\(/g);
+    lineComplexity += countMatches(line, /\bdo\s*{/g);
+    
+    // 2. Exception handling (+1 each)
+    lineComplexity += countMatches(line, /\bcatch\s*\(/g);
+    
+    // 3. Switch cases (+1 for each case/default that leads to distinct path)
+    lineComplexity += countMatches(line, /\bcase\s+/g);
+    lineComplexity += countMatches(line, /\bdefault\s*:/g);
+    
+    // 4. Loop control statements (+1 each when in loops)
+    if (isInLoop(lines, i)) {
+      lineComplexity += countMatches(line, /\bcontinue\s*;/g);
+      lineComplexity += countMatches(line, /\bbreak\s*;/g);
+    }
+    
+    // 5. Return statements within conditionals (+1 each)
+    if (hasConditionalReturn(line)) {
+      lineComplexity += countMatches(line, /\breturn\b/g);
+    }
+    
+    // 6. Logical operators in conditions (+1 each)
+    lineComplexity += countLogicalOperators(line);
+    
+    // 7. Ternary operators (+1 each)
+    lineComplexity += countMatches(line, /\?[^:]*:/g);
+    
+    // 8. Short-circuiting conditions (&&, || outside of if conditions)
+    lineComplexity += countShortCircuitOperators(line);
+    
+    currentFunctionComplexity += lineComplexity;
+  }
+  
+  // Handle case where file ends while still in a function
+  if (inFunction) {
+    totalComplexity += Math.max(1, currentFunctionComplexity);
+  }
+  
+  // If no functions detected, treat entire file as one unit with base complexity 1
+  return totalComplexity || 1;
+};
+
+// Helper function to count regex matches
+function countMatches(str: string, regex: RegExp): number {
+  const matches = str.match(regex);
+  return matches ? matches.length : 0;
+}
+
+// Check if line contains a function declaration
+function isFunctionDeclaration(line: string): boolean {
+  return /function\s+\w+\s*\(/.test(line) ||
+         /\w+\s*=\s*function\s*\(/.test(line) ||
+         /\w+\s*:\s*function\s*\(/.test(line) ||
+         /\w+\s*\([^)]*\)\s*{/.test(line) ||
+         /\w+\s*=\s*\([^)]*\)\s*=>/.test(line) ||
+         /\w+\s*=>\s*{/.test(line) ||
+         /constructor\s*\(/.test(line) ||
+         /(?:public|private|protected|static)?\s*\w+\s*\([^)]*\)\s*{/.test(line);
+}
+
+// Check if function is boilerplate (getter/setter/empty constructor)
+function isBoilerplateFunction(line: string, lines: string[], startIndex: number): boolean {
+  // Getter/setter patterns
+  if (/\b(?:get|set)\s+\w+\s*\(/.test(line)) {
+    return true;
+  }
+  
+  // Empty constructor detection
+  if (/constructor\s*\(/.test(line)) {
+    // Look ahead to see if constructor body is empty or just super() call
+    let braceCount = 0;
+    let hasContent = false;
+    
+    for (let i = startIndex; i < Math.min(startIndex + 10, lines.length); i++) {
+      const checkLine = lines[i].trim();
+      braceCount += (checkLine.match(/{/g) || []).length;
+      braceCount -= (checkLine.match(/}/g) || []).length;
+      
+      // Check for actual content (not just super() or this())
+      if (braceCount > 0 && checkLine.length > 0 && 
+          !checkLine.includes('{') && !checkLine.includes('}') &&
+          !/^\s*(?:super|this)\s*\([^)]*\)\s*;?\s*$/.test(checkLine)) {
+        hasContent = true;
+        break;
+      }
+      
+      if (braceCount === 0 && checkLine.includes('}')) {
+        break;
+      }
+    }
+    
+    return !hasContent;
+  }
+  
+  return false;
+}
+
+// Check if current line is within a loop context
+function isInLoop(lines: string[], currentIndex: number): boolean {
+  let loopDepth = 0;
+  let braceDepth = 0;
+  
+  // Look backwards to find loop context
+  for (let i = currentIndex - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    
+    // Count braces to track scope
+    braceDepth += (line.match(/}/g) || []).length;
+    braceDepth -= (line.match(/{/g) || []).length;
+    
+    // If we've gone back beyond current scope, stop
+    if (braceDepth > 0) {
+      break;
+    }
+    
+    // Check for loop keywords
+    if (/\b(?:for|while|do)\b/.test(line) && line.includes('{')) {
+      loopDepth++;
     }
   }
   
-  return complexity;
-};
+  return loopDepth > 0;
+}
+
+// Check if return statement is within a conditional context
+function hasConditionalReturn(line: string): boolean {
+  // Return with ternary or logical operators
+  if (/\breturn\b/.test(line) && (/\?|&&|\|\|/.test(line))) {
+    return true;
+  }
+  
+  // Return statement that appears to be conditional based on context
+  if (/\breturn\b/.test(line) && /\b(?:if|when|unless)\b/.test(line)) {
+    return true;
+  }
+  
+  return false;
+}
+
+// Count logical operators that create branching paths
+function countLogicalOperators(line: string): number {
+  // Count && and || that are not in string literals
+  let count = 0;
+  let inString = false;
+  let stringChar = '';
+  
+  for (let i = 0; i < line.length - 1; i++) {
+    const char = line[i];
+    const nextChar = line[i + 1];
+    
+    // Track string boundaries
+    if ((char === '"' || char === "'" || char === '`') && line[i - 1] !== '\\') {
+      if (!inString) {
+        inString = true;
+        stringChar = char;
+      } else if (char === stringChar) {
+        inString = false;
+        stringChar = '';
+      }
+    }
+    
+    // Count logical operators outside strings
+    if (!inString) {
+      if ((char === '&' && nextChar === '&') || (char === '|' && nextChar === '|')) {
+        count++;
+        i++; // Skip next character since we processed the pair
+      }
+    }
+  }
+  
+  return count;
+}
+
+// Count short-circuiting operators that create complexity
+function countShortCircuitOperators(line: string): number {
+  // Only count logical operators that are not part of if/while/for conditions
+  if (/\b(?:if|while|for)\s*\(/.test(line)) {
+    return 0; // These are already counted in conditional statements
+  }
+  
+  return countLogicalOperators(line);
+}
 
 // Calculate maintainability using a formula similar to Maintainability Index with SonarQube calibration
 export const calculateMaintainability = (code: string, language: string): number => {
