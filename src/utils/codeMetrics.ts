@@ -1,4 +1,3 @@
-
 import { MetricsResult, ScoreGrade, ReliabilityIssue } from '@/types';
 
 // Constants for metric calculation and penalties - SonarQube aligned
@@ -8,64 +7,439 @@ const DEEP_NESTING_PENALTY = 5;        // Structural issue penalty
 const READABILITY_PENALTY = 3;         // Code smells penalty
 const REDUNDANT_LOGIC_PENALTY = 2;     // Minor code smell penalty
 
-// McCabe's Cyclomatic Complexity calculation
+// SonarQube-aligned McCabe's Cyclomatic Complexity calculation
 export const calculateCyclomaticComplexity = (code: string, language: string): number => {
-  // Start with base complexity (1)
-  let complexity = 1;
   const lines = code.split("\n");
+  let totalComplexity = 0;
+  let currentFunctionComplexity = 0;
+  let inFunction = false;
+  let braceDepth = 0;
+  let functionStartDepth = 0;
+  let parenthesesDepth = 0;
   
-  // Track scope depth to properly analyze nested structures
-  let scopeDepth = 0;
-  const scopeStack: string[] = [];
+  // Track nested contexts (functions, callbacks, etc.)
+  const contextStack: { type: string, depth: number, complexity: number }[] = [];
   
+  // Track function boundaries to calculate complexity per function
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
+    const originalLine = lines[i]; // Keep original for indentation analysis
     
     // Skip empty lines and comments
     if (line.length === 0 || line.startsWith('//') || line.startsWith('/*') || line.startsWith('*')) {
       continue;
     }
     
-    // Count all conditional statements (SonarQube-aligned)
-    if (line.includes("if ") || line.match(/}\s*else\s+if/) || 
-        line.includes("switch ") || line.includes("case ")) {
-      complexity++;
-    }
-    
-    // Count loops
-    if (line.includes("for ") || line.includes("while ") || 
-        line.includes("do {") || line.match(/\.\s*forEach\s*\(/)) {
-      complexity++;
-    }
-    
-    // Count each catch block
-    if (line.includes("catch ")) {
-      complexity++;
-    }
-    
-    // Count logical operators that create new paths (AND, OR)
-    const logicalOps = (line.match(/&&|\|\|/g) || []).length;
-    complexity += logicalOps;
-    
-    // Count ternary operators
-    const ternaryOps = (line.match(/\?.*:/g) || []).length;
-    complexity += ternaryOps;
-    
-    // Track scope for more accurate analysis
+    // Track brace and parentheses depth for nested contexts
     const openBraces = (line.match(/{/g) || []).length;
     const closeBraces = (line.match(/}/g) || []).length;
+    const openParens = (line.match(/\(/g) || []).length;
+    const closeParens = (line.match(/\)/g) || []).length;
     
-    scopeDepth += openBraces - closeBraces;
+    braceDepth += openBraces - closeBraces;
+    parenthesesDepth += openParens - closeParens;
     
-    // Handle return statements with logical conditions that short-circuit execution
-    if (scopeDepth > 0 && line.includes("return ") && 
-        (line.includes("&&") || line.includes("||"))) {
-      complexity++;
+    // Function start detection (SonarQube: each method starts with complexity 1)
+    if (isFunctionDeclaration(line)) {
+      // If we were already in a function, finalize the previous one
+      if (inFunction) {
+        totalComplexity += Math.max(1, currentFunctionComplexity);
+      }
+      
+      // Skip getter/setter boilerplate and empty constructors
+      if (isBoilerplateFunction(line, lines, i)) {
+        inFunction = false;
+        currentFunctionComplexity = 0;
+        continue;
+      }
+      
+      // Start new function with base complexity of 1
+      inFunction = true;
+      currentFunctionComplexity = 1;
+      functionStartDepth = braceDepth;
+      continue;
+    }
+    
+    // Detect nested function contexts (arrow functions, callbacks, lambdas)
+    if (inFunction && isNestedFunctionContext(line)) {
+      contextStack.push({
+        type: 'nested_function',
+        depth: braceDepth,
+        complexity: 1 // Nested functions start with complexity 1
+      });
+    }
+    
+    // Function end detection
+    if (inFunction && braceDepth <= functionStartDepth && closeBraces > 0) {
+      // Add any remaining nested context complexity
+      while (contextStack.length > 0) {
+        const context = contextStack.pop()!;
+        currentFunctionComplexity += context.complexity;
+      }
+      
+      totalComplexity += Math.max(1, currentFunctionComplexity);
+      inFunction = false;
+      currentFunctionComplexity = 0;
+      continue;
+    }
+    
+    // Only count complexity within functions
+    if (!inFunction) {
+      continue;
+    }
+    
+    // Calculate line complexity with comprehensive SonarQube rules - NOW WITH LANGUAGE PARAMETER
+    let lineComplexity = calculateLineComplexity(line, lines, i, language);
+    
+    // Add complexity to current context (main function or nested)
+    if (contextStack.length > 0) {
+      contextStack[contextStack.length - 1].complexity += lineComplexity;
+    } else {
+      currentFunctionComplexity += lineComplexity;
+    }
+    
+    // Handle nested context closures
+    if (closeBraces > 0 && contextStack.length > 0) {
+      const currentContext = contextStack[contextStack.length - 1];
+      if (braceDepth <= currentContext.depth) {
+        const context = contextStack.pop()!;
+        // Add nested context complexity to parent
+        if (contextStack.length > 0) {
+          contextStack[contextStack.length - 1].complexity += context.complexity;
+        } else {
+          currentFunctionComplexity += context.complexity;
+        }
+      }
     }
   }
   
-  return complexity;
+  // Handle case where file ends while still in a function
+  if (inFunction) {
+    // Add any remaining nested context complexity
+    while (contextStack.length > 0) {
+      const context = contextStack.pop()!;
+      currentFunctionComplexity += context.complexity;
+    }
+    totalComplexity += Math.max(1, currentFunctionComplexity);
+  }
+  
+  // If no functions detected, treat entire file as one unit with base complexity 1
+  return totalComplexity || 1;
 };
+
+// Comprehensive line complexity calculation following SonarQube rules
+function calculateLineComplexity(line: string, lines: string[], currentIndex: number, language: string): number {
+  let lineComplexity = 0;
+  
+  // 1. Conditional statements (+1 each)
+  lineComplexity += countMatches(line, /\bif\s*\(/g);
+  lineComplexity += countMatches(line, /\belse\s+if\s*\(/g);
+  lineComplexity += countMatches(line, /\belse\b/g);
+  lineComplexity += countMatches(line, /\bfor\s*\(/g);
+  lineComplexity += countMatches(line, /\bwhile\s*\(/g);
+  lineComplexity += countMatches(line, /\bdo\s*{/g);
+  
+  // 2. Exception handling (+1 each)
+  lineComplexity += countMatches(line, /\bcatch\s*\(/g);
+  lineComplexity += countMatches(line, /\bthrow\b/g);
+  
+  // 3. Switch cases (+1 for each case/default that leads to distinct path)
+  lineComplexity += countMatches(line, /\bcase\s+/g);
+  lineComplexity += countMatches(line, /\bdefault\s*:/g);
+  
+  // 4. Loop control statements (+1 each when in loops)
+  if (isInLoop(lines, currentIndex)) {
+    lineComplexity += countMatches(line, /\bcontinue\s*;/g);
+    lineComplexity += countMatches(line, /\bbreak\s*;/g);
+  }
+  
+  // 5. Return statements with conditions (+1 each)
+  lineComplexity += countConditionalReturns(line);
+  
+  // 6. Logical operators in conditions (+1 each)
+  lineComplexity += countLogicalOperators(line);
+  
+  // 7. Ternary operators (+1 each)
+  lineComplexity += countTernaryOperators(line);
+  
+  // 8. Short-circuiting conditions (&&, || outside of if conditions)
+  lineComplexity += countShortCircuitOperators(line);
+  
+  // 9. JSX conditional rendering (React specific)
+  if (['javascript', 'typescript', 'jsx', 'tsx'].includes(language?.toLowerCase() || '')) {
+    lineComplexity += countJSXConditionals(line);
+  }
+  
+  // 10. Embedded callbacks with control flow (.map, .filter, .reduce, etc.)
+  lineComplexity += countCallbackComplexity(line);
+  
+  // 11. Lambda/Arrow function control flows
+  lineComplexity += countLambdaComplexity(line);
+  
+  return lineComplexity;
+}
+
+// Helper function to count regex matches
+function countMatches(str: string, regex: RegExp): number {
+  const matches = str.match(regex);
+  return matches ? matches.length : 0;
+}
+
+// Enhanced function declaration detection
+function isFunctionDeclaration(line: string): boolean {
+  return /function\s+\w+\s*\(/.test(line) ||
+         /\w+\s*=\s*function\s*\(/.test(line) ||
+         /\w+\s*:\s*function\s*\(/.test(line) ||
+         /\w+\s*\([^)]*\)\s*{/.test(line) ||
+         /\w+\s*=\s*\([^)]*\)\s*=>/.test(line) ||
+         /\w+\s*=>\s*{/.test(line) ||
+         /constructor\s*\(/.test(line) ||
+         /(?:public|private|protected|static)?\s*\w+\s*\([^)]*\)\s*{/.test(line) ||
+         /(?:async\s+)?(?:public|private|protected|static)?\s*\w+\s*\([^)]*\)\s*{/.test(line);
+}
+
+// Detect nested function contexts (callbacks, arrow functions, etc.)
+function isNestedFunctionContext(line: string): boolean {
+  return /=>\s*{/.test(line) ||
+         /function\s*\([^)]*\)\s*{/.test(line) ||
+         /\.\s*(?:map|filter|reduce|forEach|find|some|every|sort)\s*\([^)]*(?:=|function)/.test(line);
+}
+
+// Check if function is boilerplate (getter/setter/empty constructor)
+function isBoilerplateFunction(line: string, lines: string[], startIndex: number): boolean {
+  // Getter/setter patterns
+  if (/\b(?:get|set)\s+\w+\s*\(/.test(line)) {
+    return true;
+  }
+  
+  // Empty constructor detection
+  if (/constructor\s*\(/.test(line)) {
+    // Look ahead to see if constructor body is empty or just super() call
+    let braceCount = 0;
+    let hasContent = false;
+    
+    for (let i = startIndex; i < Math.min(startIndex + 10, lines.length); i++) {
+      const checkLine = lines[i].trim();
+      braceCount += (checkLine.match(/{/g) || []).length;
+      braceCount -= (checkLine.match(/}/g) || []).length;
+      
+      // Check for actual content (not just super() or this())
+      if (braceCount > 0 && checkLine.length > 0 && 
+          !checkLine.includes('{') && !checkLine.includes('}') &&
+          !/^\s*(?:super|this)\s*\([^)]*\)\s*;?\s*$/.test(checkLine)) {
+        hasContent = true;
+        break;
+      }
+      
+      if (braceCount === 0 && checkLine.includes('}')) {
+        break;
+      }
+    }
+    
+    return !hasContent;
+  }
+  
+  return false;
+}
+
+// Check if current line is within a loop context
+function isInLoop(lines: string[], currentIndex: number): boolean {
+  let loopDepth = 0;
+  let braceDepth = 0;
+  
+  // Look backwards to find loop context
+  for (let i = currentIndex - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    
+    // Count braces to track scope
+    braceDepth += (line.match(/}/g) || []).length;
+    braceDepth -= (line.match(/{/g) || []).length;
+    
+    // If we've gone back beyond current scope, stop
+    if (braceDepth > 0) {
+      break;
+    }
+    
+    // Check for loop keywords
+    if (/\b(?:for|while|do)\b/.test(line) && line.includes('{')) {
+      loopDepth++;
+    }
+  }
+  
+  return loopDepth > 0;
+}
+
+// Enhanced conditional return detection
+function countConditionalReturns(line: string): number {
+  let count = 0;
+  
+  // Return with ternary operator
+  if (/\breturn\b/.test(line) && /\?[^:]*:/.test(line)) {
+    count++;
+  }
+  
+  // Return with logical operators
+  if (/\breturn\b/.test(line) && /(&&|\|\|)/.test(line)) {
+    count++;
+  }
+  
+  // Early returns in conditions (guard clauses)
+  if (/\breturn\b/.test(line) && /\b(?:if|when|unless)\b/.test(line)) {
+    count++;
+  }
+  
+  return count;
+}
+
+// Enhanced logical operators counting with context awareness
+function countLogicalOperators(line: string): number {
+  let count = 0;
+  let inString = false;
+  let stringChar = '';
+  let inComment = false;
+  
+  for (let i = 0; i < line.length - 1; i++) {
+    const char = line[i];
+    const nextChar = line[i + 1];
+    
+    // Skip if in comment
+    if (char === '/' && nextChar === '/') {
+      inComment = true;
+      break;
+    }
+    
+    if (inComment) continue;
+    
+    // Track string boundaries
+    if ((char === '"' || char === "'" || char === '`') && line[i - 1] !== '\\') {
+      if (!inString) {
+        inString = true;
+        stringChar = char;
+      } else if (char === stringChar) {
+        inString = false;
+        stringChar = '';
+      }
+    }
+    
+    // Count logical operators outside strings
+    if (!inString) {
+      if ((char === '&' && nextChar === '&') || (char === '|' && nextChar === '|')) {
+        count++;
+        i++; // Skip next character since we processed the pair
+      }
+    }
+  }
+  
+  return count;
+}
+
+// Enhanced ternary operator counting
+function countTernaryOperators(line: string): number {
+  let count = 0;
+  let inString = false;
+  let stringChar = '';
+  let questionMarks = 0;
+  let colons = 0;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    // Track string boundaries
+    if ((char === '"' || char === "'" || char === '`') && line[i - 1] !== '\\') {
+      if (!inString) {
+        inString = true;
+        stringChar = char;
+      } else if (char === stringChar) {
+        inString = false;
+        stringChar = '';
+      }
+    }
+    
+    // Count ternary operators outside strings
+    if (!inString) {
+      if (char === '?') {
+        questionMarks++;
+      } else if (char === ':' && questionMarks > colons) {
+        colons++;
+        count++; // Complete ternary operator found
+      }
+    }
+  }
+  
+  return count;
+}
+
+// Count short-circuiting operators that create complexity
+function countShortCircuitOperators(line: string): number {
+  // Only count logical operators that are not part of if/while/for conditions
+  if (/\b(?:if|while|for)\s*\(/.test(line)) {
+    return 0; // These are already counted in conditional statements
+  }
+  
+  // Count standalone logical operators (assignment, return values, etc.)
+  return countLogicalOperators(line);
+}
+
+// Count JSX conditional rendering complexity
+function countJSXConditionals(line: string): number {
+  let count = 0;
+  
+  // JSX conditional rendering patterns
+  count += countMatches(line, /{[^}]*\?[^}]*:[^}]*}/g); // {condition ? a : b}
+  count += countMatches(line, /{[^}]*&&[^}]*}/g);       // {condition && element}
+  count += countMatches(line, /{[^}]*\|\|[^}]*}/g);     // {condition || fallback}
+  
+  return count;
+}
+
+// Count complexity in embedded callbacks
+function countCallbackComplexity(line: string): number {
+  let count = 0;
+  
+  // Array methods with callbacks that can contain control flow
+  const callbackMethods = [
+    'map', 'filter', 'reduce', 'forEach', 'find', 'findIndex',
+    'some', 'every', 'sort', 'reduceRight'
+  ];
+  
+  callbackMethods.forEach(method => {
+    const methodRegex = new RegExp(`\\.${method}\\s*\\([^)]*(?:=>|function)`, 'g');
+    if (methodRegex.test(line)) {
+      // Each callback method with control flow adds complexity
+      count++;
+      
+      // Additional complexity for control structures within callbacks
+      if (/\?|\|\||&&|if|for|while/.test(line)) {
+        count++;
+      }
+    }
+  });
+  
+  return count;
+}
+
+// Count lambda/arrow function complexity
+function countLambdaComplexity(line: string): number {
+  let count = 0;
+  
+  // Arrow functions with control flow
+  if (/=>\s*{/.test(line) || /=>\s*\(/.test(line)) {
+    // Base complexity for arrow function
+    count++;
+    
+    // Additional complexity for control structures in arrow functions
+    if (/\?|\|\||&&|if|return/.test(line)) {
+      count++;
+    }
+  }
+  
+  // Inline arrow functions with ternary or logical operators
+  if (/=>\s*[^{]/.test(line) && (/\?|\|\||&&/.test(line))) {
+    count++;
+  }
+  
+  return count;
+}
 
 // Calculate maintainability using a formula similar to Maintainability Index with SonarQube calibration
 export const calculateMaintainability = (code: string, language: string): number => {
@@ -620,7 +994,7 @@ const hasRiskyOperations = (code: string, language: string): boolean => {
   const riskyPatterns = [
     /\.parse\(/,                     // JSON.parse or similar
     /new FileReader|readFileSync/,   // File operations
-    /fetch\(|axios\.|http\.|https:/, // Network requests
+    /fetch\(|axios\.|http\./,        // Network requests
     /localStorage\.|sessionStorage\./, // Browser storage
     /new Promise/,                   // Promise creation
     /\.catch\(/,                     // Existing catch suggests risk

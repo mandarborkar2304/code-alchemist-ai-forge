@@ -12,6 +12,7 @@ export const programmingLanguages: ProgrammingLanguage[] = [
   { id: "python", name: "Python", fileExtension: ".py" },
   { id: "python3", name: "Python 3", fileExtension: ".py" },
   { id: "pythonml", name: "Data Science", fileExtension: ".py" },
+  { id: "java", name: "Java", fileExtension: ".java" },
   { id: "java19", name: "Java 19", fileExtension: ".java" },
   { id: "kotlin", name: "Kotlin", fileExtension: ".kt" },
   { id: "lua", name: "Lua", fileExtension: ".lua" },

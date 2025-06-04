@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from "react";
 import { ProgrammingLanguage } from "@/types";
 import { FileCode, FileText, AlertCircle } from "lucide-react";
@@ -22,26 +23,30 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   onChange,
   webContent
 }) => {
-  // Generate language-specific comment placeholders
-  const getLanguageSpecificPlaceholder = (langId: string) => {
-    if (langId === "python" || langId === "python3" || langId === "pythonml" || langId === "pytorch" || langId === "tensorflow" || langId === "r" || langId === "bash" || langId === "shell") {
-      return "# Write/Paste your code here and hit analyze";
-    } else if (langId === "html") {
-      return "<!-- Write/Paste your code here and hit analyze -->";
-    } else if (langId === "css") {
-      return "/* Write/Paste your code here and hit analyze */";
-    } else if (langId === "web") {
-      return "<!-- Write/Paste your code here and hit analyze -->";
-    } else if (langId === "lua") {
-      return "-- Write/Paste your code here and hit analyze";
+  // Generate default placeholder instructions based on language
+  const getDefaultInstructions = () => {
+    const langId = language.id;
+    if (langId === "python" || langId === "python3") {
+      return "# Start by importing necessary modules\n# Use proper indentation for blocks\n\n";
+    } else if (langId === "pythonml" || langId === "pytorch" || langId === "tensorflow") {
+      return "# Import data science libraries (numpy, pandas, etc.)\n# Initialize models with appropriate parameters\n\n";
+    } else if (langId === "java" || langId === "java19") {
+      return "// Define a class with proper access modifiers\n// Include a main method to run your program\n\n";
+    } else if (langId === "javascript" || langId === "nodejs") {
+      return "// Initialize variables with const or let\n// Use modern ES6+ syntax when possible\n\n";
+    } else if (langId === "c" || langId === "cpp" || langId === "csharp") {
+      return "// Include necessary header files\n// Remember to free allocated memory\n\n";
+    } else if (langId === "go") {
+      return "// Import required packages\n// Define proper error handling\n\n";
+    } else if (langId === "shell" || langId === "bash") {
+      return "#!/bin/bash\n# Use proper file permissions\n# Handle command errors with proper exit codes\n\n";
     } else {
-      // Default for C, C++, C#, Dart, Go, JavaScript, Java, Kotlin, Node.js, Objective-C, Perl, PHP
-      return "// Write/Paste your code here and hit analyze";
+      return "// Write your code here\n// Follow best practices for this language\n\n";
     }
   };
 
-  // Use placeholder if code is empty
-  const displayedCode = code.trim() === "" ? getLanguageSpecificPlaceholder(language.id) : code;
+  // Use instructions if code is empty
+  const displayedCode = code.trim() === "" ? getDefaultInstructions() : code;
   
   if (language.id === "web" && webContent) {
     return <WebCodeEditor html={webContent.html} css={webContent.css} js={webContent.js} onChangeHtml={webContent.onChangeHtml} onChangeCss={webContent.onChangeCss} onChangeJs={webContent.onChangeJs} />;
@@ -139,13 +144,12 @@ const EnhancedCodeEditor: React.FC<EnhancedCodeEditorProps> = ({ code, onChange,
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             spellCheck={false}
-            className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none rounded-none w-full h-full font-mono overflow-y-hidden"
+            className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin rounded-none w-full h-full font-mono"
             style={{ 
               resize: 'none',
               tabSize: 2,
               lineHeight: 1.5,
-              whiteSpace: 'pre-wrap',
-              scrollbarWidth: 'none'
+              whiteSpace: 'pre-wrap'
             }}
           />
         </div>
@@ -171,10 +175,10 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
   onChangeCss,
   onChangeJs
 }) => {
-  // Language-specific placeholders for web languages
-  const htmlPlaceholder = html.trim() === "" ? "<!-- Write/Paste your HTML code here and hit analyze -->" : html;
-  const cssPlaceholder = css.trim() === "" ? "/* Write/Paste your CSS code here and hit analyze */" : css;
-  const jsPlaceholder = js.trim() === "" ? "// Write/Paste your JavaScript code here and hit analyze" : js;
+  // Default instructions for web languages
+  const htmlInstructions = html.trim() === "" ? "<!-- Structure your page with semantic HTML -->\n<!-- Use proper indentation for nested elements -->\n\n" : html;
+  const cssInstructions = css.trim() === "" ? "/* Use responsive units (rem, %, etc.) */\n/* Group related styles together */\n\n" : css;
+  const jsInstructions = js.trim() === "" ? "// Initialize variables at the top\n// Add event listeners after DOM is loaded\n\n" : js;
   
   const [htmlLines, setHtmlLines] = useState<string[]>([]);
   const [cssLines, setCssLines] = useState<string[]>([]);
@@ -190,9 +194,9 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
 
   // Update line counts when code changes
   useEffect(() => {
-    const htmlLineCount = htmlPlaceholder.split('\n').length;
-    const cssLineCount = cssPlaceholder.split('\n').length;
-    const jsLineCount = jsPlaceholder.split('\n').length;
+    const htmlLineCount = htmlInstructions.split('\n').length;
+    const cssLineCount = cssInstructions.split('\n').length;
+    const jsLineCount = jsInstructions.split('\n').length;
     
     setHtmlLines(Array.from({ length: htmlLineCount }, (_, i) => String(i + 1)));
     setCssLines(Array.from({ length: cssLineCount }, (_, i) => String(i + 1)));
@@ -211,7 +215,7 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
         htmlEditorRef.current?.removeEventListener('scroll', handleHtmlScroll);
       };
     }
-  }, [htmlPlaceholder]);
+  }, [htmlInstructions]);
   
   useEffect(() => {
     // Setup scroll syncing for CSS editor
@@ -227,7 +231,7 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
         cssEditorRef.current?.removeEventListener('scroll', handleCssScroll);
       };
     }
-  }, [cssPlaceholder]);
+  }, [cssInstructions]);
   
   useEffect(() => {
     // Setup scroll syncing for JS editor
@@ -243,7 +247,7 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
         jsEditorRef.current?.removeEventListener('scroll', handleJsScroll);
       };
     }
-  }, [jsPlaceholder]);
+  }, [jsInstructions]);
   
   // Handle tab key for indentation in all editors
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>, currentValue: string, changeHandler: (value: string) => void) => {
@@ -299,18 +303,17 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
             {/* HTML editor */}
             <textarea 
               ref={htmlEditorRef}
-              className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none flex-1 overflow-y-hidden" 
-              value={htmlPlaceholder} 
+              className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin flex-1" 
+              value={htmlInstructions} 
               onChange={e => onChangeHtml(e.target.value)} 
-              onKeyDown={e => handleKeyDown(e, htmlPlaceholder, onChangeHtml)}
+              onKeyDown={e => handleKeyDown(e, htmlInstructions, onChangeHtml)}
               spellCheck={false}
               style={{ 
                 resize: 'none',
                 tabSize: 2,
                 lineHeight: 1.5,
                 whiteSpace: 'pre-wrap',
-                fontFamily: "'Fira Code', 'Consolas', monospace",
-                scrollbarWidth: 'none'
+                fontFamily: "'Fira Code', 'Consolas', monospace"
               }}
             />
           </div>
@@ -349,18 +352,17 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
             {/* CSS editor */}
             <textarea 
               ref={cssEditorRef}
-              className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none flex-1 overflow-y-hidden" 
-              value={cssPlaceholder} 
+              className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin flex-1" 
+              value={cssInstructions} 
               onChange={e => onChangeCss(e.target.value)} 
-              onKeyDown={e => handleKeyDown(e, cssPlaceholder, onChangeCss)}
+              onKeyDown={e => handleKeyDown(e, cssInstructions, onChangeCss)}
               spellCheck={false}
               style={{ 
                 resize: 'none',
                 tabSize: 2,
                 lineHeight: 1.5,
                 whiteSpace: 'pre-wrap',
-                fontFamily: "'Fira Code', 'Consolas', monospace",
-                scrollbarWidth: 'none'
+                fontFamily: "'Fira Code', 'Consolas', monospace"
               }}
             />
           </div>
@@ -399,18 +401,17 @@ const WebCodeEditor: React.FC<WebCodeEditorProps> = ({
             {/* JS editor */}
             <textarea 
               ref={jsEditorRef}
-              className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none flex-1 overflow-y-hidden" 
-              value={jsPlaceholder} 
+              className="code-editor-container p-4 bg-code text-code-foreground focus:outline-none scrollbar-thin flex-1" 
+              value={jsInstructions} 
               onChange={e => onChangeJs(e.target.value)} 
-              onKeyDown={e => handleKeyDown(e, jsPlaceholder, onChangeJs)}
+              onKeyDown={e => handleKeyDown(e, jsInstructions, onChangeJs)}
               spellCheck={false}
               style={{ 
                 resize: 'none',
                 tabSize: 2,
                 lineHeight: 1.5,
                 whiteSpace: 'pre-wrap',
-                fontFamily: "'Fira Code', 'Consolas', monospace",
-                scrollbarWidth: 'none'
+                fontFamily: "'Fira Code', 'Consolas', monospace"
               }}
             />
           </div>

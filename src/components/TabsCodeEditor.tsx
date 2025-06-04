@@ -76,6 +76,7 @@ const TabsCodeEditor: React.FC<TabsCodeEditorProps> = ({
               )}
             </TabsTrigger>
           ))}
+          {/* Add button could be added here if needed */}
         </TabsList>
       </div>
 
@@ -104,6 +105,20 @@ interface CodeEditorWithLineNumbersProps {
   onChange: (value: string) => void;
 }
 
+// Color mapping for simple syntax highlighting
+const getColorClass = (token: string): string => {
+  if (token.match(/^(import|from|def|class|if|else|return|while|for|try|except|with|as|break|continue|pass|raise|yield|assert|del|global|nonlocal|lambda|True|False|None)$/)) {
+    return "text-blue-400"; // Keywords
+  } else if (token.match(/^".+"$/) || token.match(/^'.+'$/) || token.match(/^""".*"""$/) || token.match(/^'''.*'''$/)) {
+    return "text-green-400"; // Strings
+  } else if (token.match(/^[0-9]+$/)) {
+    return "text-yellow-400"; // Numbers
+  } else if (token.match(/^#.+$/)) {
+    return "text-gray-400"; // Comments
+  }
+  return ""; // Default color
+};
+
 const CodeEditorWithLineNumbers: React.FC<CodeEditorWithLineNumbersProps> = ({
   code,
   language,
@@ -113,28 +128,9 @@ const CodeEditorWithLineNumbers: React.FC<CodeEditorWithLineNumbersProps> = ({
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const lineCountRef = useRef<HTMLDivElement>(null);
   
-  // Generate language-specific comment placeholders
-  const getLanguageSpecificPlaceholder = (langId: string) => {
-    if (langId === "python" || langId === "python3" || langId === "pythonml" || langId === "pytorch" || langId === "tensorflow" || langId === "r" || langId === "bash" || langId === "shell") {
-      return "# Write/Paste your code here and hit analyze";
-    } else if (langId === "html") {
-      return "<!-- Write/Paste your code here and hit analyze -->";
-    } else if (langId === "css") {
-      return "/* Write/Paste your code here and hit analyze */";
-    } else if (langId === "lua") {
-      return "-- Write/Paste your code here and hit analyze";
-    } else {
-      // Default for C, C++, C#, Dart, Go, JavaScript, Java, Kotlin, Node.js, Objective-C, Perl, PHP
-      return "// Write/Paste your code here and hit analyze";
-    }
-  };
-
-  // Use placeholder if code is empty
-  const displayedCode = code.trim() === "" ? getLanguageSpecificPlaceholder(language.id) : code;
-  
   // Update line numbers when code changes
   useEffect(() => {
-    const lineCount = displayedCode.split('\n').length;
+    const lineCount = code.split('\n').length;
     const newLines = Array.from({ length: lineCount }, (_, i) => String(i + 1));
     setLines(newLines);
     
@@ -151,7 +147,7 @@ const CodeEditorWithLineNumbers: React.FC<CodeEditorWithLineNumbersProps> = ({
         editorRef.current?.removeEventListener('scroll', handleScroll);
       };
     }
-  }, [displayedCode]);
+  }, [code]);
   
   // Handle tab key for indentation
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -161,7 +157,7 @@ const CodeEditorWithLineNumbers: React.FC<CodeEditorWithLineNumbersProps> = ({
       const end = e.currentTarget.selectionEnd;
       
       // Insert tab at cursor position
-      const newValue = displayedCode.substring(0, start) + '  ' + displayedCode.substring(end);
+      const newValue = code.substring(0, start) + '  ' + code.substring(end);
       onChange(newValue);
       
       // Move cursor after the inserted tab
@@ -197,11 +193,11 @@ const CodeEditorWithLineNumbers: React.FC<CodeEditorWithLineNumbersProps> = ({
         {/* Code editor */}
         <textarea
           ref={editorRef}
-          value={displayedCode}
+          value={code}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           spellCheck={false}
-          className="p-1 bg-code text-code-foreground focus:outline-none flex-1 overflow-y-hidden"
+          className="p-1 bg-code text-code-foreground focus:outline-none flex-1 scrollbar-none"
           style={{ 
             resize: 'none',
             tabSize: 2,
@@ -209,8 +205,7 @@ const CodeEditorWithLineNumbers: React.FC<CodeEditorWithLineNumbersProps> = ({
             whiteSpace: 'pre-wrap',
             fontFamily: "'Fira Code', 'Consolas', monospace",
             backgroundColor: 'rgb(30, 30, 30)',
-            color: '#e6e6e6',
-            scrollbarWidth: 'none'
+            color: '#e6e6e6'
           }}
         />
 
