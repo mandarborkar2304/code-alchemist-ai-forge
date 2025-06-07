@@ -1,7 +1,28 @@
+
 import { ScoreData } from './types';
 import { ScoreGrade } from '@/types';
 import { TechnicalDebtCalculator, TechnicalDebtResult } from './technicalDebtCalculator';
 import { CppParser } from './cppParser';
+
+// SonarQube-aligned thresholds for different metrics
+const SONARQUBE_THRESHOLDS = {
+  DUPLICATION: {
+    ACCEPTABLE: 3,
+    MINOR: 5,
+    MAJOR: 10
+  },
+  DOCUMENTATION: {
+    MAJOR: 30,
+    MINOR: 50
+  }
+};
+
+// Debt ratio grade thresholds
+const DEBT_RATIO_GRADES = {
+  A: 5,   // 0-5%
+  B: 10,  // 6-10%
+  C: 20   // 11-20%
+};
 
 // Enhanced maintainability rating using SonarQube-aligned technical debt calculation
 export function getMaintainabilityRating(
@@ -339,138 +360,6 @@ function getGradeFromDebtRatio(debtRatio: number): ScoreGrade {
   return 'D';
 }
 
-// Generate maintainability report based on SonarQube methodology
-function generateSonarQubeReport(
-  grade: ScoreGrade,
-  debtRatio: number,
-  violations: any[],
-  context?: string
-): {
-  description: string;
-  reason: string;
-  issuesList: string[];
-  improvements: string[];
-} {
-  
-  const isExemptFile = isTestFile(context) || isUtilityCode(context) || isGeneratedCode(context);
-  const exemptionNote = isExemptFile ? ' (reduced penalties for utility/test code)' : '';
-  
-  let description: string;
-  let reason: string;
-  let issuesList: string[] = [];
-  let improvements: string[] = [];
-  
-  switch (grade) {
-    case 'A':
-      description = `Excellent maintainability${exemptionNote}`;
-      reason = `Technical debt ratio is ${debtRatio.toFixed(1)}% - well within acceptable limits.`;
-      if (violations.length === 0) {
-        improvements = ['Maintain current code quality standards'];
-      } else {
-        improvements = ['Continue following best practices', 'Minor optimizations available'];
-      }
-      break;
-      
-    case 'B':
-      description = `Good maintainability${exemptionNote}`;
-      reason = `Technical debt ratio is ${debtRatio.toFixed(1)}% - manageable with minor improvements.`;
-      violations.forEach(v => {
-        if (v.count > 0) {
-          issuesList.push(`${v.count} ${v.type.toLowerCase()} issue(s) detected`);
-        }
-      });
-      improvements = [
-        'Address larger functions by breaking them into smaller units',
-        'Reduce code duplication through abstraction',
-        'Consider adding documentation for complex logic'
-      ];
-      break;
-      
-    case 'C':
-      description = `Moderate maintainability${exemptionNote}`;
-      reason = `Technical debt ratio is ${debtRatio.toFixed(1)}% - requires attention to prevent degradation.`;
-      violations.forEach(v => {
-        if (v.count > 0) {
-          issuesList.push(`${v.count} ${v.type.toLowerCase()} violation(s) (${v.severity} severity)`);
-        }
-      });
-      improvements = [
-        'Refactor large functions into smaller, focused methods',
-        'Extract duplicate code into reusable components',
-        'Simplify complex nested structures',
-        'Improve documentation coverage for public methods'
-      ];
-      break;
-      
-    default:
-      description = `Poor maintainability${exemptionNote}`;
-      reason = `Technical debt ratio is ${debtRatio.toFixed(1)}% - immediate refactoring recommended.`;
-      violations.forEach(v => {
-        if (v.count > 0) {
-          issuesList.push(`${v.count} ${v.type.toLowerCase()} violation(s) (${v.severity} severity)`);
-        }
-      });
-      improvements = [
-        'Comprehensive refactoring required',
-        'Break down large functions and classes',
-        'Eliminate code duplication through proper abstractions',
-        'Reduce nesting complexity',
-        'Add comprehensive documentation',
-        'Consider architectural improvements'
-      ];
-  }
-  
-  return { description, reason, issuesList, improvements };
-}
-
-// Main maintainability rating function using SonarQube methodology
-export function getMaintainabilityRating(
-  score: number, 
-  actualDuplicationPercent?: number,
-  context?: string
-): ScoreData {
-  
-  if (!isFinite(score)) {
-    console.warn('Invalid maintainability score:', score);
-    return {
-      score: 'D',
-      description: 'Invalid maintainability',
-      reason: 'Unable to analyze maintainability due to invalid input.',
-      issues: ['Invalid maintainability score provided'],
-      improvements: ['Ensure valid metrics are available for analysis']
-    };
-  }
-  
-  const safeScore = Math.min(100, Math.max(0, score));
-  
-  // Calculate technical debt using SonarQube methodology
-  const { debtRatio, violations } = calculateMaintainabilityDebt(
-    safeScore, 
-    actualDuplicationPercent,
-    context
-  );
-  
-  const grade = getGradeFromDebtRatio(debtRatio);
-  const { description, reason, issuesList, improvements } = generateSonarQubeReport(
-    grade, 
-    debtRatio, 
-    violations,
-    context
-  );
-  
-  console.log(`🔧 Maintainability: ${grade} (${debtRatio.toFixed(1)}% debt ratio)`);
-  console.log(`📊 Violations: ${violations.length > 0 ? violations.map(v => `${v.type}:${v.count}`).join(', ') : 'none'}`);
-  
-  return {
-    score: grade,
-    description,
-    reason,
-    issues: issuesList,
-    improvements,
-    warningFlag: grade === 'C' || grade === 'D'
-  };
-}
-
 function generateEnhancedReport(
   debtResult: TechnicalDebtResult,
   context?: string
@@ -627,14 +516,114 @@ function calculateLegacyMaintainability(
   actualDuplicationPercent?: number,
   context?: string
 ): ScoreData {
-  // Keep the existing legacy calculation for backward compatibility
-  // ... keep existing code (legacy maintainability calculation)
+  // Calculate technical debt using SonarQube methodology
+  const { debtRatio, violations } = calculateMaintainabilityDebt(
+    safeScore, 
+    actualDuplicationPercent,
+    context
+  );
+  
+  const grade = getGradeFromDebtRatio(debtRatio);
+  const { description, reason, issuesList, improvements } = generateSonarQubeReport(
+    grade, 
+    debtRatio, 
+    violations,
+    context
+  );
+  
+  console.log(`🔧 Maintainability: ${grade} (${debtRatio.toFixed(1)}% debt ratio)`);
+  console.log(`📊 Violations: ${violations.length > 0 ? violations.map(v => `${v.type}:${v.count}`).join(', ') : 'none'}`);
   
   return {
-    score: 'B', // Placeholder
-    description: 'Legacy maintainability calculation',
-    reason: 'Using fallback calculation method',
-    issues: [],
-    improvements: ['Upgrade to enhanced maintainability analysis']
+    score: grade,
+    description,
+    reason,
+    issues: issuesList,
+    improvements,
+    warningFlag: grade === 'C' || grade === 'D'
   };
+}
+
+// Generate maintainability report based on SonarQube methodology
+function generateSonarQubeReport(
+  grade: ScoreGrade,
+  debtRatio: number,
+  violations: any[],
+  context?: string
+): {
+  description: string;
+  reason: string;
+  issuesList: string[];
+  improvements: string[];
+} {
+  
+  const isExemptFile = isTestFile(context) || isUtilityCode(context) || isGeneratedCode(context);
+  const exemptionNote = isExemptFile ? ' (reduced penalties for utility/test code)' : '';
+  
+  let description: string;
+  let reason: string;
+  let issuesList: string[] = [];
+  let improvements: string[] = [];
+  
+  switch (grade) {
+    case 'A':
+      description = `Excellent maintainability${exemptionNote}`;
+      reason = `Technical debt ratio is ${debtRatio.toFixed(1)}% - well within acceptable limits.`;
+      if (violations.length === 0) {
+        improvements = ['Maintain current code quality standards'];
+      } else {
+        improvements = ['Continue following best practices', 'Minor optimizations available'];
+      }
+      break;
+      
+    case 'B':
+      description = `Good maintainability${exemptionNote}`;
+      reason = `Technical debt ratio is ${debtRatio.toFixed(1)}% - manageable with minor improvements.`;
+      violations.forEach(v => {
+        if (v.count > 0) {
+          issuesList.push(`${v.count} ${v.type.toLowerCase()} issue(s) detected`);
+        }
+      });
+      improvements = [
+        'Address larger functions by breaking them into smaller units',
+        'Reduce code duplication through abstraction',
+        'Consider adding documentation for complex logic'
+      ];
+      break;
+      
+    case 'C':
+      description = `Moderate maintainability${exemptionNote}`;
+      reason = `Technical debt ratio is ${debtRatio.toFixed(1)}% - requires attention to prevent degradation.`;
+      violations.forEach(v => {
+        if (v.count > 0) {
+          issuesList.push(`${v.count} ${v.type.toLowerCase()} violation(s) (${v.severity} severity)`);
+        }
+      });
+      improvements = [
+        'Refactor large functions into smaller, focused methods',
+        'Extract duplicate code into reusable components',
+        'Simplify complex nested structures',
+        'Improve documentation coverage for public methods'
+      ];
+      break;
+      
+    default:
+      description = `Poor maintainability${exemptionNote}`;
+      reason = `Technical debt ratio is ${debtRatio.toFixed(1)}% - immediate refactoring recommended.`;
+      violations.forEach(v => {
+        if (v.count > 0) {
+          issuesList.push(`${v.count} ${v.type.toLowerCase()} violation(s) (${v.severity} severity)`);
+        }
+      });
+      improvements = [
+        'Comprehensive refactoring required',
+        'Break down large functions and classes',
+        'Eliminate code duplication through proper abstractions',
+        'Reduce nesting complexity',
+        'Add comprehensive documentation',
+        'Consider architectural improvements'
+      ];
+  }
+  
+  return { description, reason, issuesList, improvements };
 }

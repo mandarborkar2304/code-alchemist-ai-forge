@@ -1,3 +1,4 @@
+
 import { ReliabilityIssue, ScoreGrade } from '@/types';
 
 export type SeverityLevel = 'critical' | 'major' | 'minor' | 'varies';
@@ -7,13 +8,21 @@ export type CategoryName =
   | 'Code Smells - Structure'
   | 'Code Smells - Maintainability';
 
+export interface TechnicalDebtInfo {
+  totalMinutes: number;
+  debtRatio: number;
+  codeSmells: number;
+  issues: any[];
+}
+
 export interface ScoreData {
   score: ScoreGrade;
   description: string;
   reason: string;
-  issues?: string[] | ReliabilityIssue[]; // Consider splitting this into separate fields for clarity
+  issues?: string[] | ReliabilityIssue[];
   improvements?: string[];
-  warningFlag?: boolean; // Indicates potential scoring inconsistencies
+  warningFlag?: boolean;
+  technicalDebt?: TechnicalDebtInfo;
 }
 
 export interface IssueGroup {
