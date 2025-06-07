@@ -7,6 +7,9 @@ export * from './scoringUtils';
 // Export new SonarQube-style reliability system
 export * from './sonarQubeReliability';
 
+// Export the new violations framework
+export * from './violationsFramework';
+
 // Import required types
 import { ScoreData } from './types';
 import { ScoreGrade } from '@/types';
@@ -16,13 +19,16 @@ import { getReliabilityRating } from './reliabilityRating';
 import { getCyclomaticComplexityRating } from './cyclomaticComplexityRating';
 import { getMaintainabilityRating } from './maintainabilityRating';
 import { categorizeReliabilityIssues } from './reliabilityHelpers';
+import { analyzeCodeViolations, formatViolationsReport } from './violationsFramework';
 
 // Export rating functions
 export {
   getReliabilityRating,
   getCyclomaticComplexityRating,
   getMaintainabilityRating,
-  categorizeReliabilityIssues
+  categorizeReliabilityIssues,
+  analyzeCodeViolations,
+  formatViolationsReport
 };
 
 // Helper function to get rating from numerical score
@@ -44,3 +50,44 @@ export function getRatingFromScore(score: number, category: 'reliability' | 'cyc
       };
   }
 }
+
+// Enhanced analysis function that combines metrics with violations
+export function getEnhancedCodeQualityAnalysis(code: string, language: string) {
+  // Get traditional metrics
+  const complexityRating = getCyclomaticComplexityRating(
+    // This would call the updated cyclomatic complexity calculation
+    calculateCyclomaticComplexity(code, language)
+  );
+  
+  const maintainabilityRating = getMaintainabilityRating(
+    // This would call the maintainability calculation
+    calculateMaintainability(code, language)
+  );
+  
+  const reliabilityResult = calculateReliability(code, language);
+  const reliabilityRating = getReliabilityRating(reliabilityResult.score);
+  
+  // Get SonarQube-style violations
+  const violationsAnalysis = analyzeCodeViolations(code, language);
+  
+  return {
+    metrics: {
+      cyclomaticComplexity: complexityRating,
+      maintainability: maintainabilityRating,
+      reliability: reliabilityRating
+    },
+    violations: violationsAnalysis,
+    violationsReport: formatViolationsReport(violationsAnalysis),
+    overallGrade: violationsAnalysis.grade,
+    summary: {
+      hasBlockerIssues: violationsAnalysis.summary.blocker > 0,
+      hasCriticalIssues: violationsAnalysis.summary.critical > 0,
+      totalIssues: violationsAnalysis.violations.length,
+      technicalDebt: violationsAnalysis.summary.totalDebt
+    }
+  };
+}
+
+// Import utility functions that would be used above
+// These imports would reference the updated functions in codeMetrics.ts
+import { calculateCyclomaticComplexity, calculateMaintainability, calculateReliability } from '../codeMetrics';
