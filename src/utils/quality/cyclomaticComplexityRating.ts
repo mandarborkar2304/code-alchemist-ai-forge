@@ -1,211 +1,194 @@
+
 import { ScoreData } from './types';
 import { ScoreGrade } from '@/types';
-import { scoreThresholds, getGradeFromScore, ANALYSIS_CONSTANTS } from './scoreThresholds';
 
-// Estimate nesting depth based on complexity score.
-// This simulates how many nested blocks (if/else, loops) might exist in the code.
-function estimateNestingDepth(score: number): number {
-  if (score < 0 || !isFinite(score)) return 1;
+// SonarQube-aligned Cyclomatic Complexity thresholds
+const SONARQUBE_COMPLEXITY_THRESHOLDS = {
+  A: { min: 1, max: 10 },   // 1-10: Simple methods, easy to understand
+  B: { min: 11, max: 15 },  // 11-15: Moderate complexity, acceptable
+  C: { min: 16, max: 20 },  // 16-20: High complexity, should be refactored
+  D: { min: 21, max: Infinity } // 21+: Very high complexity, critical refactoring needed
+} as const;
 
-  if (score <= 5) return Math.floor(Math.max(1, score / 2));
-  if (score <= 10) return 2 + Math.floor((score - 5) / 2);
-  if (score <= 20) return 5 + Math.floor((score - 10) / 2);
-  return 10 + Math.floor((score - 20) / 3);
+// SonarQube complexity analysis constants
+const SONARQUBE_ANALYSIS_CONSTANTS = {
+  NESTING_DEPTH: {
+    LOW: 3,
+    MODERATE: 5,
+    HIGH: 7
+  },
+  DECISION_POINTS: {
+    SIMPLE: 5,
+    MODERATE: 10,
+    COMPLEX: 15
+  }
+} as const;
+
+// Get SonarQube-aligned grade from complexity score
+function getSonarQubeComplexityGrade(score: number): ScoreGrade {
+  if (score <= SONARQUBE_COMPLEXITY_THRESHOLDS.A.max) return 'A';
+  if (score <= SONARQUBE_COMPLEXITY_THRESHOLDS.B.max) return 'B';
+  if (score <= SONARQUBE_COMPLEXITY_THRESHOLDS.C.max) return 'C';
+  return 'D';
 }
 
-// Estimate number of nested loops or conditional constructs.
-// This helps approximate logic density beyond decision points.
-function estimateNestedLoops(score: number): number {
-  if (score < 0 || !isFinite(score)) return 0;
-
-  return Math.max(0, Math.floor(score / 7) - 1); // Nested loop after ~7 decisions
+// Estimate decision points based on complexity score (SonarQube methodology)
+function estimateDecisionPoints(score: number): number {
+  // SonarQube complexity includes base complexity of 1, so subtract 1 for decision points
+  return Math.max(0, score - 1);
 }
 
-// Calculate penalty factor based on complexity score to simulate
-// the impact of deep nesting and multiple control layers.
-function calculateNestingPenaltyFactor(score: number): number {
-  if (score < 0 || !isFinite(score)) return 1.0;
-
-  if (score <= 5) return 1.0;    // No penalty
-  if (score <= 10) return 1.05;  // 5% penalty
-  if (score <= 20) return 1.15;  // 15% penalty
-  return 1.3;                    // 30% penalty
+// Estimate nesting depth impact (SonarQube considers cognitive complexity)
+function estimateNestingImpact(score: number): number {
+  if (score <= 10) return 1; // Minimal nesting
+  if (score <= 15) return 2; // Moderate nesting
+  if (score <= 20) return 3; // High nesting
+  return 4; // Very high nesting
 }
 
-// Generate human-readable description, reason, and suggestions based on final grade
-function generateDescriptionForRating(
+// Generate SonarQube-style analysis description
+function generateSonarQubeDescription(
   score: number, 
-  rating: ScoreGrade, 
-  nestingDepth: number, 
-  nestedLoops: number
+  grade: ScoreGrade
 ): {
   description: string;
   reason: string;
-  issuesList: string[];
+  issues: string[];
   improvements: string[];
 } {
+  const decisionPoints = estimateDecisionPoints(score);
+  const nestingImpact = estimateNestingImpact(score);
+  
   let description: string;
   let reason: string;
-  let issuesList: string[] = [];
+  let issues: string[] = [];
   let improvements: string[] = [];
 
-  switch (rating) {
+  switch (grade) {
     case 'A':
-      description = `Very low complexity (CC: ${score})`;
-      reason = 'The code has a simple, straightforward flow with minimal decision points.';
-      improvements = ['Continue maintaining low complexity as features are added.'];
+      description = `Low complexity (CC: ${score})`;
+      reason = `This method has ${decisionPoints} decision point${decisionPoints !== 1 ? 's' : ''}, which is within the acceptable range for maintainable code.`;
+      
+      if (score === 1) {
+        issues = ['Linear code with no branching - excellent maintainability'];
+      } else {
+        issues = [`${decisionPoints} decision point${decisionPoints !== 1 ? 's' : ''} detected - well within acceptable limits`];
+      }
+      
+      improvements = [
+        'Maintain current code structure',
+        'Consider adding comments for complex business logic'
+      ];
       break;
 
     case 'B':
-      description = `Low complexity (CC: ${score})`;
-      reason = 'The code has a reasonable number of decision points but remains easily analyzable.';
-
-      if (nestingDepth > ANALYSIS_CONSTANTS.NESTING_DEPTH.LOW) {
-        issuesList.push(`Estimated nesting depth of ${nestingDepth} levels in some areas.`);
+      description = `Moderate complexity (CC: ${score})`;
+      reason = `This method has ${decisionPoints} decision points. While acceptable, it's approaching the threshold where maintainability concerns arise.`;
+      
+      issues = [
+        `${decisionPoints} decision points detected`,
+        `Complexity score of ${score} is in the moderate range`
+      ];
+      
+      if (nestingImpact > 2) {
+        issues.push('Moderate nesting depth detected');
       }
-
-      if (nestedLoops > 0) {
-        issuesList.push(`Estimated ${nestedLoops} nested loops or conditions.`);
-      }
-
-      if (issuesList.length === 0) {
-        issuesList = ['Low cognitive load with manageable decision points.'];
-      }
-
+      
       improvements = [
-        'Continue using small, focused functions.',
-        'Consider reducing nesting depth where applicable.'
+        'Consider breaking down into smaller methods',
+        'Extract complex conditions into well-named variables',
+        'Add comprehensive unit tests to cover all branches'
       ];
       break;
 
     case 'C':
-      description = `Moderate complexity (CC: ${score})`;
-      reason = 'The code has many decision points, making it somewhat difficult to maintain and test thoroughly.';
-
-      if (nestingDepth > ANALYSIS_CONSTANTS.NESTING_DEPTH.MODERATE) {
-        issuesList.push(`Deep nesting detected with approximately ${nestingDepth} levels.`);
+      description = `High complexity (CC: ${score})`;
+      reason = `This method has ${decisionPoints} decision points, indicating high complexity that impacts maintainability and testability.`;
+      
+      issues = [
+        `${decisionPoints} decision points detected - above recommended threshold`,
+        `High complexity score of ${score} indicates difficult maintenance`,
+        'Increased risk of bugs due to complex control flow'
+      ];
+      
+      if (nestingImpact > 2) {
+        issues.push(`Estimated ${nestingImpact} levels of nesting depth`);
       }
-
-      if (nestedLoops > 1) {
-        issuesList.push(`Multiple nested loops detected (approximately ${nestedLoops}).`);
-      }
-
-      if (issuesList.length === 0) {
-        issuesList = [
-          'Moderate number of branches and conditions',
-          'Code requires thorough testing to ensure coverage'
-        ];
-      }
-
+      
       improvements = [
-        'Refactor complex methods into smaller, single-responsibility functions',
-        'Replace nested conditions with guard clauses',
-        'Consider implementing a state machine or strategy pattern for complex logic'
+        'Refactor into multiple smaller methods',
+        'Use early returns to reduce nesting',
+        'Apply the Single Responsibility Principle',
+        'Consider using strategy pattern for complex conditionals',
+        'Increase test coverage to ensure all paths are verified'
       ];
       break;
 
     default: // Grade D
-      description = `High complexity (CC: ${score})`;
-      reason = 'The code has an excessive number of decision points, making it error-prone and difficult to understand.';
-
-      if (nestingDepth > ANALYSIS_CONSTANTS.NESTING_DEPTH.HIGH) {
-        issuesList.push(`Excessive nesting depth of approximately ${nestingDepth} levels.`);
+      description = `Very high complexity (CC: ${score})`;
+      reason = `This method has ${decisionPoints} decision points, representing very high complexity that severely impacts code maintainability, readability, and reliability.`;
+      
+      issues = [
+        `Excessive ${decisionPoints} decision points - critical refactoring needed`,
+        `Critical complexity score of ${score} indicates maintenance nightmare`,
+        'High probability of bugs and regressions',
+        'Difficult to test comprehensively',
+        'Poor readability and understanding'
+      ];
+      
+      if (nestingImpact > 3) {
+        issues.push(`Excessive nesting depth estimated at ${nestingImpact} levels`);
       }
-
-      if (nestedLoops > 2) {
-        issuesList.push(`${nestedLoops} levels of nested loops detected, creating exponential complexity.`);
-      }
-
-      if (issuesList.length === 0) {
-        issuesList = [
-          'High complexity exceeds recommended thresholds',
-          'Difficult to test and maintain with confidence',
-          'High risk of undiscovered bugs and regressions'
-        ];
-      }
-
+      
       improvements = [
-        'Critical refactoring required',
-        'Decompose logic into multiple smaller functions',
-        'Consider architectural changes to simplify control flow',
-        'Implement divide-and-conquer approach to reduce nesting',
-        'Replace nested loops with more efficient algorithms or data structures'
+        'CRITICAL: Immediate refactoring required',
+        'Break down into multiple small, focused methods',
+        'Apply Extract Method refactoring pattern',
+        'Consider redesigning the algorithm or approach',
+        'Implement comprehensive unit tests before refactoring',
+        'Use guard clauses to reduce nesting',
+        'Consider state machine pattern for complex state logic'
       ];
   }
 
-  return { description, reason, issuesList, improvements };
+  return { description, reason, issues, improvements };
 }
 
-// Main function to analyze cyclomatic complexity and return a detailed rating report
+// Main function implementing SonarQube-aligned cyclomatic complexity analysis
 export function getCyclomaticComplexityRating(score: number): ScoreData {
-  // Handle missing or invalid scores gracefully
-  if (score === undefined || score === null || !isFinite(score)) {
-    console.warn('Invalid complexity score:', score);
+  // Validate input score
+  if (score === undefined || score === null || !isFinite(score) || score < 1) {
+    console.warn('Invalid complexity score provided:', score);
     return {
       score: 'D',
-      description: 'Invalid complexity',
-      reason: 'Unable to analyze the code complexity due to invalid input.',
-      issues: ['Invalid complexity score provided'],
-      improvements: ['Ensure valid metrics are available for analysis']
+      description: 'Invalid complexity measurement',
+      reason: 'Unable to calculate complexity due to invalid input. SonarQube requires a minimum complexity of 1.',
+      issues: ['Invalid complexity score - unable to analyze'],
+      improvements: ['Ensure valid code input for complexity analysis']
     };
   }
 
-  // Ensure the score is non-negative
-  const safeScore = Math.max(0, score);
-
-  // Initial grade based on unadjusted complexity
-  const baseRating = getGradeFromScore(safeScore, scoreThresholds.cyclomaticComplexity);
-
-  // Estimate logic structure traits
-  const estimatedNestingDepth = estimateNestingDepth(safeScore);
-  const estimatedNestedLoops = estimateNestedLoops(safeScore);
-  const nestingPenaltyFactor = calculateNestingPenaltyFactor(safeScore);
-
-  let adjustedScore = safeScore;
-
-  // Apply penalty if nesting or loop complexity is high
-  if (
-    estimatedNestedLoops > 1 ||
-    estimatedNestingDepth > ANALYSIS_CONSTANTS.NESTING_DEPTH.HIGH
-  ) {
-    adjustedScore = Math.min(100, safeScore * nestingPenaltyFactor); // Cap to prevent runaway values
-  }
-
-  // Final rating after considering penalties
-  let finalRating = adjustedScore !== safeScore
-    ? getGradeFromScore(adjustedScore, scoreThresholds.cyclomaticComplexity)
-    : baseRating;
-
-  // Cap unrealistic upgrades due to math-based penalty
-  if (
-    (estimatedNestedLoops >= 3 || estimatedNestingDepth > 6) &&
-    baseRating === 'D' &&
-    finalRating === 'C'
-  ) {
-    finalRating = 'D'; // Don't allow bump from D to C if nesting is still severe
-  } else if (
-    estimatedNestedLoops >= 2 &&
-    baseRating === 'D' &&
-    finalRating === 'B'
-  ) {
-    finalRating = 'C'; // Don't allow D to jump directly to B
-  }
-
-  // Create a detailed explanation report
-  const { description, reason, issuesList, improvements } =
-    generateDescriptionForRating(safeScore, finalRating, estimatedNestingDepth, estimatedNestedLoops);
-
-  // Notify if score adjustment was applied
-  if (adjustedScore !== safeScore) {
-    issuesList.push('Complexity score was increased due to nesting penalties.');
-  }
-
-  // Return full analysis result
+  // Ensure minimum complexity of 1 (SonarQube baseline)
+  const validatedScore = Math.max(1, Math.round(score));
+  
+  // Get SonarQube-aligned grade
+  const grade = getSonarQubeComplexityGrade(validatedScore);
+  
+  // Generate detailed analysis
+  const analysis = generateSonarQubeDescription(validatedScore, grade);
+  
+  // Add SonarQube compliance note
+  const complianceNote = `SonarQube Complexity Analysis: Score ${validatedScore} maps to Grade ${grade}`;
+  analysis.issues.unshift(complianceNote);
+  
   return {
-    score: finalRating,
-    description,
-    reason,
-    issues: issuesList,
-    improvements
+    score: grade,
+    description: analysis.description,
+    reason: analysis.reason,
+    issues: analysis.issues,
+    improvements: analysis.improvements
   };
 }
+
+// Export SonarQube thresholds for external validation
+export const SONARQUBE_THRESHOLDS = SONARQUBE_COMPLEXITY_THRESHOLDS;

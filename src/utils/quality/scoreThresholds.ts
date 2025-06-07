@@ -54,14 +54,14 @@ export const RISKY_CODE_PATTERNS = [
   'eval(', 'exec(', 'system(', 'shell_exec'
 ] as const;
 
-// Legacy compatibility exports
+// Updated SonarQube-aligned complexity thresholds
 export const scoreThresholds = {
   maintainability: { A: 85, B: 70, C: 55, D: 0 },
-  cyclomaticComplexity: { A: 0, B: 11, C: 16, D: 21 },
+  cyclomaticComplexity: { A: 10, B: 15, C: 20, D: 21 },  // Updated to match SonarQube
   reliability: { A: 90, B: 75, C: 50, D: 0 }
 };
 
-// Restored missing constants that other files depend on
+// SonarQube analysis constants
 export const ANALYSIS_CONSTANTS = {
   SEVERITY: {
     CRITICAL: 25,
@@ -69,9 +69,9 @@ export const ANALYSIS_CONSTANTS = {
     MINOR: 3
   },
   NESTING_DEPTH: {
-    LOW: 2,
-    MODERATE: 4,
-    HIGH: 6
+    LOW: 3,    // Updated to match SonarQube cognitive complexity
+    MODERATE: 5,
+    HIGH: 7
   },
   FUNCTION_SIZE: {
     ACCEPTABLE: 0,
@@ -101,13 +101,22 @@ export const ANALYSIS_CONSTANTS = {
   }
 };
 
-// Restored missing helper function
+// Updated to use SonarQube complexity thresholds
 export function getGradeFromScore(score: number, thresholds: Record<ScoreGrade, number>): ScoreGrade {
   if (score === undefined || score === null || isNaN(score)) {
     console.warn('Invalid score provided to getGradeFromScore:', score);
     return 'C';
   }
 
+  // For cyclomatic complexity, use range-based grading (SonarQube style)
+  if (thresholds.A === 10 && thresholds.B === 15 && thresholds.C === 20) {
+    if (score <= 10) return 'A';
+    if (score <= 15) return 'B';
+    if (score <= 20) return 'C';
+    return 'D';
+  }
+  
+  // For other metrics, use standard threshold-based grading
   const sortedGrades: ScoreGrade[] = ['A', 'B', 'C'];
   for (const grade of sortedGrades) {
     if (score >= thresholds[grade]) return grade;

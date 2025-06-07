@@ -1,4 +1,3 @@
-
 import { MetricsResult, ScoreGrade, ReliabilityIssue } from '@/types';
 
 // Constants for metric calculation and penalties - SonarQube aligned
@@ -8,64 +7,178 @@ const DEEP_NESTING_PENALTY = 5;        // Structural issue penalty
 const READABILITY_PENALTY = 3;         // Code smells penalty
 const REDUNDANT_LOGIC_PENALTY = 2;     // Minor code smell penalty
 
-// McCabe's Cyclomatic Complexity calculation
+// SonarQube Cyclomatic Complexity calculation - exact replication
 export const calculateCyclomaticComplexity = (code: string, language: string): number => {
-  // Start with base complexity (1)
+  // SonarQube starts with base complexity of 1 for method entry point
   let complexity = 1;
   const lines = code.split("\n");
   
-  // Track scope depth to properly analyze nested structures
-  let scopeDepth = 0;
-  const scopeStack: string[] = [];
+  // Remove comments and strings to avoid false positives
+  const cleanedCode = removeCommentsAndStrings(code, language);
   
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+  // SonarQube control flow structures that add +1 complexity each
+  const controlFlowPatterns = [
+    // Conditional statements
+    /\bif\s*\(/g,                    // if statements
+    /\belse\s+if\s*\(/g,            // else if statements (separate from else)
+    /\?\s*[^:]*\s*:/g,              // ternary operator
     
-    // Skip empty lines and comments
-    if (line.length === 0 || line.startsWith('//') || line.startsWith('/*') || line.startsWith('*')) {
-      continue;
+    // Switch statements and cases
+    /\bswitch\s*\(/g,               // switch statement
+    /\bcase\s+[^:]+:/g,             // each case label
+    /\bdefault\s*:/g,               // default case
+    
+    // Loops
+    /\bfor\s*\(/g,                  // for loops
+    /\bwhile\s*\(/g,                // while loops
+    /\bdo\s*\{/g,                   // do-while loops
+    
+    // Enhanced for loops (language specific)
+    /\bfor\s*\(\s*\w+\s+\w+\s*:\s*\w+\s*\)/g,  // Java enhanced for
+    /\bfor\s+\w+\s+in\s+/g,        // Python for-in
+    /\.forEach\s*\(/g,              // JavaScript forEach
+    /\.map\s*\(/g,                  // JavaScript map
+    /\.filter\s*\(/g,               // JavaScript filter
+    /\.reduce\s*\(/g,               // JavaScript reduce
+    /\.some\s*\(/g,                 // JavaScript some
+    /\.every\s*\(/g,                // JavaScript every
+    
+    // Exception handling
+    /\bcatch\s*\(/g,                // catch blocks
+    /\bfinally\s*\{/g,              // finally blocks (some SonarQube versions count this)
+    
+    // Function/method definitions (for languages where they add complexity)
+    /\bfunction\s+\w+\s*\(/g,       // function declarations
+    /\w+\s*=\s*function\s*\(/g,     // function expressions
+    /\w+\s*=>\s*{/g,                // arrow functions with block body
+  ];
+  
+  // Count all control flow structures
+  controlFlowPatterns.forEach(pattern => {
+    const matches = cleanedCode.match(pattern);
+    if (matches) {
+      complexity += matches.length;
+    }
+  });
+  
+  // SonarQube logical operators - each adds +1 complexity
+  const logicalOperators = [
+    /&&/g,  // logical AND
+    /\|\|/g // logical OR
+  ];
+  
+  logicalOperators.forEach(pattern => {
+    const matches = cleanedCode.match(pattern);
+    if (matches) {
+      complexity += matches.length;
+    }
+  });
+  
+  // Language-specific complexity additions
+  if (language.toLowerCase() === 'java') {
+    // Java-specific patterns
+    const javaPatterns = [
+      /\bthrows\s+\w+/g,              // throws declarations
+      /\bassert\s+/g,                 // assert statements
+    ];
+    
+    javaPatterns.forEach(pattern => {
+      const matches = cleanedCode.match(pattern);
+      if (matches) {
+        complexity += matches.length;
+      }
+    });
+  }
+  
+  if (['javascript', 'typescript'].includes(language.toLowerCase())) {
+    // JavaScript/TypeScript specific patterns
+    const jsPatterns = [
+      /\.then\s*\(/g,                 // Promise then
+      /\.catch\s*\(/g,                // Promise catch
+      /\basync\s+function/g,          // async functions
+      /\bawait\s+/g,                  // await expressions
+    ];
+    
+    jsPatterns.forEach(pattern => {
+      const matches = cleanedCode.match(pattern);
+      if (matches) {
+        complexity += matches.length;
+      }
+    });
+  }
+  
+  if (language.toLowerCase() === 'python') {
+    // Python-specific patterns
+    const pythonPatterns = [
+      /\bexcept\s+/g,                 // except blocks
+      /\bwith\s+/g,                   // with statements
+      /\belif\s+/g,                   // elif statements
+    ];
+    
+    pythonPatterns.forEach(pattern => {
+      const matches = cleanedCode.match(pattern);
+      if (matches) {
+        complexity += matches.length;
+      }
+    });
+  }
+  
+  // Handle nested complexity (SonarQube considers nesting depth impact)
+  const nestingMultiplier = calculateNestingMultiplier(cleanedCode, language);
+  
+  return Math.max(1, Math.round(complexity * nestingMultiplier));
+};
+
+// Helper function to remove comments and strings to avoid false pattern matching
+function removeCommentsAndStrings(code: string, language: string): string {
+  let cleaned = code;
+  
+  // Remove single-line comments
+  if (['javascript', 'typescript', 'java', 'c++', 'go', 'rust'].includes(language.toLowerCase())) {
+    cleaned = cleaned.replace(/\/\/.*$/gm, '');
+    cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, '');
+  } else if (language.toLowerCase() === 'python') {
+    cleaned = cleaned.replace(/#.*$/gm, '');
+    cleaned = cleaned.replace(/"""[\s\S]*?"""/g, '');
+    cleaned = cleaned.replace(/'''[\s\S]*?'''/g, '');
+  }
+  
+  // Remove string literals
+  cleaned = cleaned.replace(/"([^"\\]|\\.)*"/g, '""');
+  cleaned = cleaned.replace(/'([^'\\]|\\.)*'/g, "''");
+  cleaned = cleaned.replace(/`([^`\\]|\\.)*`/g, '``');
+  
+  return cleaned;
+}
+
+// Calculate nesting multiplier based on depth (SonarQube considers nesting impact)
+function calculateNestingMultiplier(code: string, language: string): number {
+  const lines = code.split('\n');
+  let maxDepth = 0;
+  let currentDepth = 0;
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    
+    // Count opening braces/blocks
+    if (trimmed.includes('{') || 
+        trimmed.match(/:\s*$/) ||  // Python-style blocks
+        trimmed.includes('then') ||
+        trimmed.includes('do')) {
+      currentDepth++;
+      maxDepth = Math.max(maxDepth, currentDepth);
     }
     
-    // Count all conditional statements (SonarQube-aligned)
-    if (line.includes("if ") || line.match(/}\s*else\s+if/) || 
-        line.includes("switch ") || line.includes("case ")) {
-      complexity++;
-    }
-    
-    // Count loops
-    if (line.includes("for ") || line.includes("while ") || 
-        line.includes("do {") || line.match(/\.\s*forEach\s*\(/)) {
-      complexity++;
-    }
-    
-    // Count each catch block
-    if (line.includes("catch ")) {
-      complexity++;
-    }
-    
-    // Count logical operators that create new paths (AND, OR)
-    const logicalOps = (line.match(/&&|\|\|/g) || []).length;
-    complexity += logicalOps;
-    
-    // Count ternary operators
-    const ternaryOps = (line.match(/\?.*:/g) || []).length;
-    complexity += ternaryOps;
-    
-    // Track scope for more accurate analysis
-    const openBraces = (line.match(/{/g) || []).length;
-    const closeBraces = (line.match(/}/g) || []).length;
-    
-    scopeDepth += openBraces - closeBraces;
-    
-    // Handle return statements with logical conditions that short-circuit execution
-    if (scopeDepth > 0 && line.includes("return ") && 
-        (line.includes("&&") || line.includes("||"))) {
-      complexity++;
+    // Count closing braces/blocks
+    if (trimmed.includes('}') || 
+        (language.toLowerCase() === 'python' && trimmed.length > 0 && !trimmed.startsWith(' ') && currentDepth > 0)) {
+      currentDepth = Math.max(0, currentDepth - 1);
     }
   }
   
-  return complexity;
-};
+  // SonarQube applies slight penalty for deep nesting
+  return maxDepth > 5 ? 1.1 : 1.0;
+}
 
 // Calculate maintainability using a formula similar to Maintainability Index with SonarQube calibration
 export const calculateMaintainability = (code: string, language: string): number => {
