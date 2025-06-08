@@ -93,7 +93,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
 
   const passedAllTests = analysis.testCases.every((tc) => tc.passed);
 
-  // Group violations by type and severity
+  // Group violations by simplified severity (Major/Minor)
   const majorViolationTypes = new Map<string, {count: number, examples: string[]}>(); 
   const minorViolationTypes = new Map<string, {count: number, examples: string[]}>();
 
@@ -195,7 +195,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                 </div>
               </Card>
 
-              {/* Cyclomatic, Maintainability, Reliability Cards */}
+              {/* Cyclomatic, Maintainability, Reliability Cards - NO RECOMMENDATIONS */}
               {['cyclomaticComplexity', 'maintainability', 'reliability'].map((metricKey) => {
                 const metric = analysis[metricKey as keyof CodeAnalysis] as any;
                 const tooltipFn = {
@@ -240,17 +240,6 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                             </ul>
                           </div>
                         )}
-
-                        {metric.improvements && metric.improvements.length > 0 && (
-                          <div className="mt-2">
-                            <span className="font-semibold">Recommendations:</span>
-                            <ul className="list-disc list-inside mt-1">
-                              {metric.improvements.map((improvement: string, i: number) => (
-                                <li key={i} className="text-xs">{improvement}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
                       </CardDescription>
                     </CardHeader>
                   </Card>
@@ -258,7 +247,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
               })}
             </TabsContent>
             
-            {/* Updated Violations Tab with categorized issues */}
+            {/* Updated Violations Tab with simplified Major/Minor classification */}
             <TabsContent value="violations" className="space-y-4 min-h-[400px]">
               {/* Major Violations Section */}
               <Alert variant={majorViolationTypes.size > 0 ? "destructive" : "default"}>
@@ -270,6 +259,9 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                   </Badge>
                 </AlertTitle>
                 <AlertDescription>
+                  <div className="text-xs text-muted-foreground mb-2">
+                    Includes SonarQube Blocker, Critical, and Major severity issues
+                  </div>
                   {majorViolationTypes.size > 0 ? (
                     <div className="mt-2">
                       <Button 
@@ -322,6 +314,9 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                   </Badge>
                 </AlertTitle>
                 <AlertDescription>
+                  <div className="text-xs text-muted-foreground mb-2">
+                    Includes SonarQube Minor and Info severity issues
+                  </div>
                   {minorViolationTypes.size > 0 ? (
                     <div className="mt-2">
                       <Button 
@@ -363,46 +358,6 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                   )}
                 </AlertDescription>
               </Alert>
-              
-              {/* Improvement Suggestions Section */}
-              <Card>
-                <CardHeader className="p-4">
-                  <CardTitle className="text-sm">Suggested Improvements</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <ul className="space-y-2 text-sm">
-                    {majorViolationTypes.size > 0 && (
-                      <>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 mt-0.5 text-destructive" />
-                          <span>Add error handling with try-catch blocks around risky operations.</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 mt-0.5 text-destructive" />
-                          <span>Break down deeply nested code blocks into separate helper methods.</span>
-                        </li>
-                      </>
-                    )}
-                    {minorViolationTypes.size > 0 && (
-                      <>
-                        <li className="flex items-start gap-2">
-                          <Info className="h-4 w-4 mt-0.5" />
-                          <span>Replace magic numbers with named constants for better readability.</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <Info className="h-4 w-4 mt-0.5" />
-                          <span>Add comments to explain complex sections of code.</span>
-                        </li>
-                      </>
-                    )}
-                    {majorViolationTypes.size === 0 && minorViolationTypes.size === 0 && (
-                      <li className="text-center text-muted-foreground">
-                        No specific improvements needed.
-                      </li>
-                    )}
-                  </ul>
-                </CardContent>
-              </Card>
             </TabsContent>
 
             {/* AI Feedback and corrected code */}

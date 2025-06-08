@@ -1,4 +1,3 @@
-
 import { ScoreData } from './types';
 import { ScoreGrade } from '@/types';
 import { TechnicalDebtCalculator, TechnicalDebtResult } from './technicalDebtCalculator';
@@ -49,8 +48,7 @@ export function getMaintainabilityRating(
       score: 'D',
       description: 'Invalid maintainability',
       reason: 'Unable to analyze maintainability due to invalid input.',
-      issues: ['Invalid maintainability score provided'],
-      improvements: ['Ensure valid metrics are available for analysis']
+      issues: ['Invalid maintainability score provided']
     };
   }
   
@@ -83,7 +81,7 @@ function calculateEnhancedMaintainability(
   const debtCalculator = new TechnicalDebtCalculator(code, language, codeLines, context);
   const debtResult = debtCalculator.calculateTechnicalDebt();
   
-  const { description, reason, issuesList, improvements } = generateEnhancedReport(
+  const { description, reason, issuesList } = generateEnhancedReport(
     debtResult, 
     context
   );
@@ -97,7 +95,6 @@ function calculateEnhancedMaintainability(
     description,
     reason,
     issues: issuesList,
-    improvements,
     warningFlag: debtResult.grade === 'C' || debtResult.grade === 'D',
     technicalDebt: {
       totalMinutes: debtResult.totalDebtMinutes,
@@ -126,7 +123,7 @@ function calculateCppMaintainability(code: string, context?: string): ScoreData 
   debtResult.debtRatio = (debtResult.totalDebtMinutes / debtResult.estimatedDevelopmentMinutes) * 100;
   debtResult.grade = calculateGradeFromDebtRatio(debtResult.debtRatio);
   
-  const { description, reason, issuesList, improvements } = generateCppReport(
+  const { description, reason, issuesList } = generateCppReport(
     debtResult, 
     parseResult,
     context
@@ -141,7 +138,6 @@ function calculateCppMaintainability(code: string, context?: string): ScoreData 
     description,
     reason,
     issues: issuesList,
-    improvements,
     warningFlag: debtResult.grade === 'C' || debtResult.grade === 'D',
     technicalDebt: {
       totalMinutes: debtResult.totalDebtMinutes,
@@ -214,7 +210,6 @@ function generateEnhancedReport(
   description: string;
   reason: string;
   issuesList: string[];
-  improvements: string[];
 } {
   
   const isExemptFile = isTestFile(context) || isUtilityCode(context) || isGeneratedCode(context);
@@ -223,7 +218,6 @@ function generateEnhancedReport(
   let description: string;
   let reason: string;
   let issuesList: string[] = [];
-  let improvements: string[] = [];
   
   const debtTime = formatDebtTime(debtResult.totalDebtMinutes);
   
@@ -231,9 +225,6 @@ function generateEnhancedReport(
     case 'A':
       description = `Excellent maintainability${exemptionNote}`;
       reason = `Technical debt: ${debtTime}, debt ratio: ${debtResult.debtRatio.toFixed(1)}%, code smells: ${debtResult.codeSmells}`;
-      if (debtResult.codeSmells === 0) {
-        improvements = ['Maintain current code quality standards'];
-      }
       break;
       
     case 'B':
@@ -268,48 +259,7 @@ function generateEnhancedReport(
     issuesList.push(`${count} ${typeLabel} issue(s) (${severity} severity)`);
   });
   
-  // Generate improvements based on most common issues
-  const sortedIssues = Array.from(issuesByType.entries())
-    .sort(([,a], [,b]) => b.count - a.count)
-    .slice(0, 3);
-  
-  sortedIssues.forEach(([type, data]) => {
-    switch (type) {
-      case 'function_size':
-        improvements.push('Break down large functions into smaller, focused methods');
-        break;
-      case 'nesting_depth':
-        improvements.push('Reduce nesting complexity by extracting methods or using guard clauses');
-        break;
-      case 'duplication':
-        improvements.push('Eliminate code duplication through proper abstractions');
-        break;
-      case 'documentation':
-        improvements.push('Add documentation for public methods and complex logic');
-        break;
-      case 'complexity':
-        improvements.push('Simplify complex methods by reducing cyclomatic complexity');
-        break;
-      case 'naming':
-        improvements.push('Improve variable and function naming consistency');
-        break;
-      case 'structure':
-        improvements.push('Address structural issues and remove dead code');
-        break;
-      case 'unused_code':
-        improvements.push('Remove unused variables and dead code');
-        break;
-      case 'magic_numbers':
-        improvements.push('Replace magic numbers with named constants');
-        break;
-    }
-  });
-  
-  if (improvements.length === 0) {
-    improvements.push('Continue following best practices');
-  }
-  
-  return { description, reason, issuesList, improvements };
+  return { description, reason, issuesList };
 }
 
 function generateCppReport(
@@ -320,20 +270,12 @@ function generateCppReport(
   description: string;
   reason: string;
   issuesList: string[];
-  improvements: string[];
 } {
   
   const report = generateEnhancedReport(debtResult, context);
   
   // Add C++ specific context
   report.reason += ` | Functions: ${parseResult.functions.length}, Classes: ${parseResult.classes.length}`;
-  
-  // Add C++ specific improvements
-  if (parseResult.classes.length > 0) {
-    report.improvements.push('Consider RAII patterns for resource management');
-    report.improvements.push('Ensure proper virtual destructors for polymorphic classes');
-    report.improvements.push('Use smart pointers instead of raw pointers where possible');
-  }
   
   return report;
 }
@@ -389,7 +331,6 @@ function calculateLegacyMaintainability(
     score: grade,
     description: `Maintainability rating based on score: ${safeScore}`,
     reason: `Calculated from provided metrics (score: ${safeScore})`,
-    issues: safeScore < 80 ? ['Limited analysis without source code'] : [],
-    improvements: ['Provide source code for detailed technical debt analysis']
+    issues: safeScore < 80 ? ['Limited analysis without source code'] : []
   };
 }

@@ -1,8 +1,10 @@
-
 import { ScoreGrade } from '@/types';
 
-// SonarQube-style severity levels
-export type ViolationSeverity = 'blocker' | 'critical' | 'major' | 'minor' | 'info';
+// SonarQube-style severity levels (internal use)
+export type SonarQubeSeverity = 'blocker' | 'critical' | 'major' | 'minor' | 'info';
+
+// Simplified severity levels for display (our binary classification)
+export type SimplifiedSeverity = 'major' | 'minor';
 
 // Violation categories matching SonarQube
 export type ViolationCategory = 'bug' | 'vulnerability' | 'code_smell' | 'security_hotspot';
@@ -10,7 +12,8 @@ export type ViolationCategory = 'bug' | 'vulnerability' | 'code_smell' | 'securi
 // Violation types
 export interface CodeViolation {
   id: string;
-  severity: ViolationSeverity;
+  sonarQubeSeverity: SonarQubeSeverity; // Internal SonarQube severity
+  displaySeverity: SimplifiedSeverity;  // Simplified display severity
   category: ViolationCategory;
   rule: string;
   message: string;
@@ -25,12 +28,16 @@ export interface CodeViolation {
 export interface ViolationAnalysisResult {
   violations: CodeViolation[];
   summary: {
-    blocker: number;
-    critical: number;
-    major: number;
-    minor: number;
-    info: number;
+    major: number;     // Blocker + Critical mapped to Major
+    minor: number;     // Minor + Info mapped to Minor
     totalDebt: number; // Total minutes
+    sonarQubeBreakdown: {
+      blocker: number;
+      critical: number;
+      major: number;
+      minor: number;
+      info: number;
+    };
   };
   grade: ScoreGrade;
   reliabilityRating: ScoreGrade;
@@ -38,25 +45,38 @@ export interface ViolationAnalysisResult {
   maintainabilityRating: ScoreGrade;
 }
 
+// SonarQube severity to simplified severity mapping
+function mapToSimplifiedSeverity(sonarQubeSeverity: SonarQubeSeverity): SimplifiedSeverity {
+  switch (sonarQubeSeverity) {
+    case 'blocker':
+    case 'critical':
+    case 'major':
+      return 'major';
+    case 'minor':
+    case 'info':
+      return 'minor';
+  }
+}
+
 // SonarQube-style rule definitions
 const VIOLATION_RULES = {
   // BLOCKER - Critical bugs that will cause crashes
   'null-pointer-dereference': {
-    severity: 'blocker' as ViolationSeverity,
+    severity: 'blocker' as SonarQubeSeverity,
     category: 'bug' as ViolationCategory,
     effort: 30,
     message: 'Possible null pointer dereference',
     tags: ['bug', 'crash', 'runtime']
   },
   'divide-by-zero': {
-    severity: 'blocker' as ViolationSeverity,
+    severity: 'blocker' as SonarQubeSeverity,
     category: 'bug' as ViolationCategory,
     effort: 15,
     message: 'Possible division by zero',
     tags: ['bug', 'arithmetic', 'runtime']
   },
   'infinite-loop': {
-    severity: 'blocker' as ViolationSeverity,
+    severity: 'blocker' as SonarQubeSeverity,
     category: 'bug' as ViolationCategory,
     effort: 45,
     message: 'Potential infinite loop detected',
@@ -65,21 +85,21 @@ const VIOLATION_RULES = {
 
   // CRITICAL - High impact bugs
   'unchecked-array-access': {
-    severity: 'critical' as ViolationSeverity,
+    severity: 'critical' as SonarQubeSeverity,
     category: 'bug' as ViolationCategory,
     effort: 20,
     message: 'Array access without bounds checking',
     tags: ['bug', 'bounds', 'runtime']
   },
   'resource-leak': {
-    severity: 'critical' as ViolationSeverity,
+    severity: 'critical' as SonarQubeSeverity,
     category: 'bug' as ViolationCategory,
     effort: 25,
     message: 'Resource not properly closed',
     tags: ['bug', 'resource', 'memory']
   },
   'unhandled-exception': {
-    severity: 'critical' as ViolationSeverity,
+    severity: 'critical' as SonarQubeSeverity,
     category: 'bug' as ViolationCategory,
     effort: 20,
     message: 'Exception not properly handled',
@@ -88,28 +108,28 @@ const VIOLATION_RULES = {
 
   // MAJOR - Significant code quality issues
   'cognitive-complexity': {
-    severity: 'major' as ViolationSeverity,
+    severity: 'major' as SonarQubeSeverity,
     category: 'code_smell' as ViolationCategory,
     effort: 60,
     message: 'Method has high cognitive complexity',
     tags: ['maintainability', 'complexity']
   },
   'function-too-long': {
-    severity: 'major' as ViolationSeverity,
+    severity: 'major' as SonarQubeSeverity,
     category: 'code_smell' as ViolationCategory,
     effort: 45,
     message: 'Function exceeds maximum length',
     tags: ['maintainability', 'function-size']
   },
   'too-many-parameters': {
-    severity: 'major' as ViolationSeverity,
+    severity: 'major' as SonarQubeSeverity,
     category: 'code_smell' as ViolationCategory,
     effort: 30,
     message: 'Function has too many parameters',
     tags: ['maintainability', 'parameters']
   },
   'duplicated-code': {
-    severity: 'major' as ViolationSeverity,
+    severity: 'major' as SonarQubeSeverity,
     category: 'code_smell' as ViolationCategory,
     effort: 40,
     message: 'Duplicated code block detected',
@@ -118,28 +138,28 @@ const VIOLATION_RULES = {
 
   // MINOR - Code style and minor improvements
   'missing-documentation': {
-    severity: 'minor' as ViolationSeverity,
+    severity: 'minor' as SonarQubeSeverity,
     category: 'code_smell' as ViolationCategory,
     effort: 5,
     message: 'Public method should be documented',
     tags: ['documentation', 'maintainability']
   },
   'inconsistent-naming': {
-    severity: 'minor' as ViolationSeverity,
+    severity: 'minor' as SonarQubeSeverity,
     category: 'code_smell' as ViolationCategory,
     effort: 10,
     message: 'Inconsistent naming convention',
     tags: ['naming', 'convention']
   },
   'dead-code': {
-    severity: 'minor' as ViolationSeverity,
+    severity: 'minor' as SonarQubeSeverity,
     category: 'code_smell' as ViolationCategory,
     effort: 5,
     message: 'Dead code should be removed',
     tags: ['dead-code', 'cleanup']
   },
   'magic-number': {
-    severity: 'minor' as ViolationSeverity,
+    severity: 'minor' as SonarQubeSeverity,
     category: 'code_smell' as ViolationCategory,
     effort: 10,
     message: 'Magic number should be defined as constant',
@@ -184,9 +204,13 @@ export class ViolationDetector {
     customMessage?: string
   ) {
     const rule = VIOLATION_RULES[ruleKey];
+    const sonarQubeSeverity = rule.severity;
+    const displaySeverity = mapToSimplifiedSeverity(sonarQubeSeverity);
+    
     const violation: CodeViolation = {
       id: `V${this.violationId++}`,
-      severity: rule.severity,
+      sonarQubeSeverity,
+      displaySeverity,
       category: rule.category,
       rule: ruleKey,
       message: customMessage || rule.message,
@@ -275,7 +299,8 @@ export class ViolationDetector {
     const resourcePatterns = [
       /new FileReader|new FileWriter|createReadStream/,
       /new Socket|createServer|connect\(/,
-      /new XMLHttpRequest|fetch\(/
+      /new XMLHttpRequest|fetch\(/,
+      /new WebSocket/
     ];
 
     lines.forEach((line, index) => {
@@ -473,19 +498,27 @@ export class ViolationDetector {
   }
 
   private generateResults(): ViolationAnalysisResult {
+    // Count violations by SonarQube severity (internal tracking)
+    const sonarQubeBreakdown = {
+      blocker: this.violations.filter(v => v.sonarQubeSeverity === 'blocker').length,
+      critical: this.violations.filter(v => v.sonarQubeSeverity === 'critical').length,
+      major: this.violations.filter(v => v.sonarQubeSeverity === 'major').length,
+      minor: this.violations.filter(v => v.sonarQubeSeverity === 'minor').length,
+      info: this.violations.filter(v => v.sonarQubeSeverity === 'info').length
+    };
+
+    // Count violations by simplified severity (for display)
     const summary = {
-      blocker: this.violations.filter(v => v.severity === 'blocker').length,
-      critical: this.violations.filter(v => v.severity === 'critical').length,
-      major: this.violations.filter(v => v.severity === 'major').length,
-      minor: this.violations.filter(v => v.severity === 'minor').length,
-      info: this.violations.filter(v => v.severity === 'info').length,
-      totalDebt: this.violations.reduce((sum, v) => sum + v.effort, 0)
+      major: this.violations.filter(v => v.displaySeverity === 'major').length,
+      minor: this.violations.filter(v => v.displaySeverity === 'minor').length,
+      totalDebt: this.violations.reduce((sum, v) => sum + v.effort, 0),
+      sonarQubeBreakdown
     };
 
     // Calculate grades based on violation counts (SonarQube style)
-    const grade = this.calculateOverallGrade(summary);
-    const reliabilityRating = this.calculateReliabilityGrade(summary);
-    const securityRating = this.calculateSecurityGrade(summary);
+    const grade = this.calculateOverallGrade(sonarQubeBreakdown);
+    const reliabilityRating = this.calculateReliabilityGrade(sonarQubeBreakdown);
+    const securityRating = this.calculateSecurityGrade(sonarQubeBreakdown);
     const maintainabilityRating = this.calculateMaintainabilityGrade(summary);
 
     return {
@@ -498,14 +531,14 @@ export class ViolationDetector {
     };
   }
 
-  private calculateOverallGrade(summary: any): ScoreGrade {
-    if (summary.blocker > 0) return 'D';
-    if (summary.critical > 1 || summary.major > 5) return 'C';
-    if (summary.critical > 0 || summary.major > 2) return 'B';
+  private calculateOverallGrade(sonarQubeBreakdown: any): ScoreGrade {
+    if (sonarQubeBreakdown.blocker > 0) return 'D';
+    if (sonarQubeBreakdown.critical > 1 || sonarQubeBreakdown.major > 5) return 'C';
+    if (sonarQubeBreakdown.critical > 0 || sonarQubeBreakdown.major > 2) return 'B';
     return 'A';
   }
 
-  private calculateReliabilityGrade(summary: any): ScoreGrade {
+  private calculateReliabilityGrade(sonarQubeBreakdown: any): ScoreGrade {
     const bugCount = this.violations.filter(v => v.category === 'bug').length;
     if (bugCount > 3) return 'D';
     if (bugCount > 1) return 'C';
@@ -513,7 +546,7 @@ export class ViolationDetector {
     return 'A';
   }
 
-  private calculateSecurityGrade(summary: any): ScoreGrade {
+  private calculateSecurityGrade(sonarQubeBreakdown: any): ScoreGrade {
     const securityIssues = this.violations.filter(v => 
       v.category === 'vulnerability' || v.category === 'security_hotspot').length;
     if (securityIssues > 2) return 'D';
@@ -536,7 +569,7 @@ export function analyzeCodeViolations(code: string, language: string): Violation
   return detector.analyzeViolations();
 }
 
-// Helper function to format violations report
+// Helper function to format violations report with new severity mapping
 export function formatViolationsReport(result: ViolationAnalysisResult): string {
   const { violations, summary } = result;
   
@@ -548,21 +581,28 @@ export function formatViolationsReport(result: ViolationAnalysisResult): string 
   report += `- **Maintainability**: ${result.maintainabilityRating}\n`;
   report += `- **Total Technical Debt**: ${Math.floor(summary.totalDebt / 60)}h ${summary.totalDebt % 60}min\n\n`;
   
-  report += `### Violation Counts\n`;
+  report += `### Violation Counts (Simplified)\n`;
   report += `| Severity | Count |\n`;
   report += `|----------|-------|\n`;
-  report += `| Blocker  | ${summary.blocker} |\n`;
-  report += `| Critical | ${summary.critical} |\n`;
   report += `| Major    | ${summary.major} |\n`;
-  report += `| Minor    | ${summary.minor} |\n`;
-  report += `| Info     | ${summary.info} |\n\n`;
+  report += `| Minor    | ${summary.minor} |\n\n`;
+  
+  report += `### SonarQube Severity Breakdown (Internal)\n`;
+  report += `| SonarQube Severity | Count |\n`;
+  report += `|-------------------|-------|\n`;
+  report += `| Blocker           | ${summary.sonarQubeBreakdown.blocker} |\n`;
+  report += `| Critical          | ${summary.sonarQubeBreakdown.critical} |\n`;
+  report += `| Major             | ${summary.sonarQubeBreakdown.major} |\n`;
+  report += `| Minor             | ${summary.sonarQubeBreakdown.minor} |\n`;
+  report += `| Info              | ${summary.sonarQubeBreakdown.info} |\n\n`;
   
   if (violations.length > 0) {
     report += `### Detailed Violations\n\n`;
     violations.forEach((violation, index) => {
-      report += `#### ${index + 1}. ${violation.severity.toUpperCase()}: ${violation.message}\n`;
+      report += `#### ${index + 1}. ${violation.displaySeverity.toUpperCase()}: ${violation.message}\n`;
       report += `- **Rule**: ${violation.rule}\n`;
       report += `- **Category**: ${violation.category}\n`;
+      report += `- **SonarQube Severity**: ${violation.sonarQubeSeverity}\n`;
       if (violation.line) report += `- **Location**: Line ${violation.line}\n`;
       report += `- **Effort**: ${violation.debt}\n`;
       report += `- **Tags**: ${violation.tags.join(', ')}\n\n`;

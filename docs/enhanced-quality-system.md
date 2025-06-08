@@ -3,7 +3,37 @@
 
 ## Overview
 
-The Enhanced Quality System provides comprehensive code analysis aligned with SonarQube standards, offering realistic technical debt estimation, detailed code smell detection, and language-specific parsing capabilities.
+The Enhanced Quality System provides comprehensive code analysis aligned with SonarQube standards, offering realistic technical debt estimation, detailed code smell detection, and language-specific parsing capabilities. The system uses a simplified binary violation classification (Major/Minor) while internally maintaining full SonarQube severity mapping for accurate analysis.
+
+## Violation Classification System
+
+### SonarQube Severity Mapping
+
+The system internally uses SonarQube's full severity scale but presents a simplified binary classification:
+
+| SonarQube Severity | Display Classification | Description |
+|-------------------|------------------------|-------------|
+| Blocker | Major | Critical bugs that will cause crashes |
+| Critical | Major | High impact bugs and security issues |
+| Major | Major | Significant code quality issues |
+| Minor | Minor | Code style and minor improvements |
+| Info | Minor | Informational suggestions |
+
+### Mapping Logic
+
+```typescript
+function mapToSimplifiedSeverity(sonarQubeSeverity: SonarQubeSeverity): SimplifiedSeverity {
+  switch (sonarQubeSeverity) {
+    case 'blocker':
+    case 'critical':
+    case 'major':
+      return 'major';
+    case 'minor':
+    case 'info':
+      return 'minor';
+  }
+}
+```
 
 ## Technical Debt Calculation
 
@@ -43,6 +73,24 @@ Based on SonarQube's empirical data:
 | B | 6-10% | Good maintainability |
 | C | 11-20% | Moderate maintainability |
 | D | 21%+ | Poor maintainability |
+
+## Streamlined Reporting
+
+### Removed Components
+
+The following elements have been removed from metric reports to provide cleaner, more focused output:
+
+1. **Recommendations Sections**: Generic improvement suggestions under each metric (Cyclomatic Complexity, Maintainability, Reliability)
+2. **Context-Insensitive Suggestions**: Automated recommendations that often lack specificity
+
+### Focused Output Elements
+
+Reports now emphasize:
+
+- **Score and Grade**: Clear A/B/C/D rating with percentage
+- **Technical Debt Information**: Specific debt time and ratio
+- **Issue Summaries**: Counted violations by simplified severity
+- **Violation Details**: Expandable lists with examples
 
 ## Code Smell Detection
 
@@ -214,7 +262,6 @@ interface ScoreData {
   description: string;
   reason: string;
   issues: string[];
-  improvements: string[];
   warningFlag?: boolean;
   technicalDebt?: TechnicalDebtInfo; // Enhanced information
 }
@@ -258,6 +305,23 @@ The system has been validated against SonarQube results:
 - Integration tests with real codebases
 - Performance benchmarks across languages
 
+## Documentation Standards
+
+### Violation Rule Documentation
+
+Each violation rule includes:
+
+- **Rule ID**: Unique identifier
+- **SonarQube Severity**: Internal severity mapping
+- **Display Severity**: Simplified Major/Minor classification
+- **Remediation Time**: Estimated fix time in minutes
+- **Detection Pattern**: Code pattern that triggers the rule
+- **Examples**: Code samples demonstrating the violation
+
+### Mapping Tables
+
+All severity mappings, threshold values, and remediation times are documented in lookup tables for transparency and maintainability.
+
 ## Future Enhancements
 
 ### Planned Features
@@ -267,8 +331,8 @@ The system has been validated against SonarQube results:
    - Modern C++ feature usage
    - Memory safety analysis
 
-2. **Machine Learning Integration**
-   - Pattern recognition for complex code smells
+2. **Enhanced Pattern Recognition**
+   - Machine learning for complex code smells
    - Adaptive threshold adjustment
    - Code quality prediction
 
