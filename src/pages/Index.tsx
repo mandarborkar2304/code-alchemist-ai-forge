@@ -1,14 +1,11 @@
-
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import HeroSection from "@/components/HeroSection";
 import { Brain, Code, Zap, Shield, Sparkles, Github } from "lucide-react";
-
 const Index = () => {
-  return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
+  return <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Header />
       
       <HeroSection />
@@ -28,9 +25,7 @@ const Index = () => {
                   <Brain className="w-6 h-6 text-primary" />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">AI-Powered Analysis</h3>
-                <p className="text-muted-foreground">
-                  Get instant, intelligent feedback on your code with our advanced AI system that identifies problems and suggests improvements.
-                </p>
+                <p className="text-muted-foreground">Get report on your code with our advanced evaluation system that identifies problems and potentials issues.</p>
               </div>
               
               {/* Feature 2 */}
@@ -141,8 +136,6 @@ const Index = () => {
       </main>
       
       <Footer />
-    </div>
-  );
+    </div>;
 };
-
 export default Index;
