@@ -26,7 +26,7 @@ const HeroSection = () => {
           </div>
           
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight animate-fade-in" style={{ animationDelay: '0.1s' }}>
-            <span className="text-gradient-primary">Transform</span> Your Code With AI
+            <span className="text-gradient-primary">Transform</span> Your Code
           </h1>
           
           <p className="text-xl text-muted-foreground animate-fade-in" style={{ animationDelay: '0.2s' }}>
