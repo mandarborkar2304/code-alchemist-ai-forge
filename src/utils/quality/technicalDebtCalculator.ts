@@ -2,12 +2,13 @@
 import { ScoreGrade } from '@/types';
 
 export interface DebtIssue {
-  type: 'function_size' | 'nesting_depth' | 'duplication' | 'documentation' | 'complexity' | 'naming' | 'structure';
+  type: 'function_size' | 'nesting_depth' | 'duplication' | 'documentation' | 'complexity' | 'naming' | 'structure' | 'unused_code' | 'magic_numbers';
   severity: 'minor' | 'major' | 'critical';
   description: string;
   remedationTimeMinutes: number;
   lineNumber?: number;
   functionName?: string;
+  file?: string;
 }
 
 export interface TechnicalDebtResult {
@@ -16,64 +17,80 @@ export interface TechnicalDebtResult {
   grade: ScoreGrade;
   issues: DebtIssue[];
   codeSmells: number;
+  estimatedDevelopmentMinutes: number;
 }
 
 // SonarQube-aligned remediation time constants (in minutes)
 const REMEDIATION_TIMES = {
   FUNCTION_SIZE: {
-    minor: 10,    // Function slightly over threshold
-    major: 20,    // Function significantly over threshold  
-    critical: 45  // Very large function requiring major refactoring
+    minor: 15,    // Function moderately over threshold (31-50 lines)
+    major: 30,    // Function significantly over threshold (51-100 lines)
+    critical: 60  // Very large function requiring major refactoring (100+ lines)
   },
   NESTING_DEPTH: {
-    minor: 5,     // One level over threshold
-    major: 15,    // Multiple levels requiring restructuring
-    critical: 30  // Deep nesting requiring architectural changes
+    minor: 10,    // One level over threshold (depth 4)
+    major: 20,    // Multiple levels requiring restructuring (depth 5-6)
+    critical: 45  // Deep nesting requiring architectural changes (depth 7+)
   },
   DUPLICATION: {
-    minor: 10,    // Small duplicated blocks
-    major: 20,    // Significant duplication
-    critical: 40  // Extensive duplication across multiple files
+    minor: 20,    // Small duplicated blocks (6-10 lines)
+    major: 40,    // Significant duplication (11-20 lines)
+    critical: 80  // Extensive duplication across multiple files (21+ lines)
   },
   DOCUMENTATION: {
-    minor: 2,     // Missing simple documentation
-    major: 5,     // Missing complex method documentation
-    critical: 10  // Missing class/module documentation
+    minor: 5,     // Missing simple method documentation
+    major: 10,    // Missing complex method documentation
+    critical: 20  // Missing class/module documentation
   },
   COMPLEXITY: {
-    minor: 15,    // Moderate complexity requiring simplification
-    major: 30,    // High complexity requiring refactoring
-    critical: 60  // Very high complexity requiring redesign
+    minor: 20,    // Moderate complexity requiring simplification (11-15)
+    major: 40,    // High complexity requiring refactoring (16-25)
+    critical: 90  // Very high complexity requiring redesign (26+)
   },
   NAMING: {
-    minor: 3,     // Simple rename
-    major: 8,     // Significant naming improvements
-    critical: 15  // Major naming convention overhaul
+    minor: 5,     // Simple rename or convention fix
+    major: 15,    // Significant naming improvements
+    critical: 30  // Major naming convention overhaul
   },
   STRUCTURE: {
-    minor: 10,    // Minor structural improvements
-    major: 25,    // Significant structural changes
-    critical: 45  // Major architectural refactoring
+    minor: 15,    // Minor structural improvements
+    major: 35,    // Significant structural changes
+    critical: 60  // Major architectural refactoring
+  },
+  UNUSED_CODE: {
+    minor: 5,     // Unused variable or import
+    major: 15,    // Unused method or class
+    critical: 30  // Large unused code segments
+  },
+  MAGIC_NUMBERS: {
+    minor: 3,     // Single magic number
+    major: 8,     // Multiple magic numbers
+    critical: 15  // Widespread use of magic numbers
   }
 } as const;
 
-// Enhanced debt calculation with SonarQube methodology
 export class TechnicalDebtCalculator {
   private issues: DebtIssue[] = [];
   private estimatedLOC: number;
+  private functions: Array<{name: string, startLine: number, endLine: number, complexity: number}> = [];
   
   constructor(
     private code: string, 
     private language: string,
-    codeLines: number
+    codeLines: number,
+    private fileName?: string
   ) {
-    this.estimatedLOC = Math.max(50, codeLines);
+    this.estimatedLOC = Math.max(10, codeLines);
   }
 
   calculateTechnicalDebt(): TechnicalDebtResult {
     this.issues = [];
+    this.functions = [];
     
-    // Analyze different aspects of technical debt
+    // Pre-analyze the code structure
+    this.analyzeFunctions();
+    
+    // Comprehensive debt analysis
     this.analyzeFunctionSizes();
     this.analyzeNestingComplexity();
     this.analyzeCodeDuplication();
@@ -81,11 +98,12 @@ export class TechnicalDebtCalculator {
     this.analyzeCyclomaticComplexity();
     this.analyzeNamingConventions();
     this.analyzeStructuralIssues();
+    this.analyzeUnusedCode();
+    this.analyzeMagicNumbers();
     
     const totalDebtMinutes = this.issues.reduce((sum, issue) => sum + issue.remedationTimeMinutes, 0);
     
-    // Calculate debt ratio using SonarQube formula
-    // Assumption: 1 LOC = 30 minutes development time (SonarQube default)
+    // SonarQube formula: 1 LOC = 30 minutes development time (industry standard)
     const estimatedDevelopmentMinutes = this.estimatedLOC * 30;
     const debtRatio = estimatedDevelopmentMinutes > 0 
       ? (totalDebtMinutes / estimatedDevelopmentMinutes) * 100 
@@ -94,33 +112,78 @@ export class TechnicalDebtCalculator {
     const grade = this.calculateGradeFromDebtRatio(debtRatio);
     const codeSmells = this.issues.length;
     
+    console.log(`🔧 Technical Debt Analysis:`);
+    console.log(`📊 LOC: ${this.estimatedLOC}, Functions: ${this.functions.length}`);
+    console.log(`⏱️ Total Debt: ${this.formatTime(totalDebtMinutes)}`);
+    console.log(`📈 Debt Ratio: ${debtRatio.toFixed(1)}%`);
+    console.log(`🚨 Code Smells: ${codeSmells}`);
+    console.log(`🎯 Grade: ${grade}`);
+    
     return {
       totalDebtMinutes,
       debtRatio,
       grade,
       issues: this.issues,
-      codeSmells
+      codeSmells,
+      estimatedDevelopmentMinutes
     };
   }
 
-  private analyzeFunctionSizes() {
+  private analyzeFunctions() {
     const lines = this.code.split('\n');
-    const functions = this.extractFunctions(lines);
+    let currentFunction: {name: string, startLine: number, braceDepth: number} | null = null;
+    let braceDepth = 0;
     
-    functions.forEach(func => {
+    lines.forEach((line, index) => {
+      const trimmed = line.trim();
+      
+      // Function detection
+      if (this.isFunctionStart(trimmed)) {
+        const name = this.extractFunctionName(trimmed) || `function_${index}`;
+        currentFunction = {
+          name,
+          startLine: index + 1,
+          braceDepth: 0
+        };
+        braceDepth = 0;
+      }
+      
+      if (currentFunction) {
+        braceDepth += (line.match(/{/g) || []).length;
+        braceDepth -= (line.match(/}/g) || []).length;
+        
+        if (braceDepth === 0 && line.includes('}')) {
+          const complexity = this.calculateFunctionComplexity(
+            lines.slice(currentFunction.startLine - 1, index + 1).join('\n')
+          );
+          
+          this.functions.push({
+            name: currentFunction.name,
+            startLine: currentFunction.startLine,
+            endLine: index + 1,
+            complexity
+          });
+          currentFunction = null;
+        }
+      }
+    });
+  }
+
+  private analyzeFunctionSizes() {
+    this.functions.forEach(func => {
       const size = func.endLine - func.startLine + 1;
       
       if (size > 100) {
         this.addIssue('function_size', 'critical', 
-          `Function '${func.name}' is ${size} lines (threshold: 100)`,
+          `Function '${func.name}' is ${size} lines (threshold: 100). Consider breaking into smaller methods.`,
           REMEDIATION_TIMES.FUNCTION_SIZE.critical, func.startLine, func.name);
-      } else if (size > 60) {
+      } else if (size > 50) {
         this.addIssue('function_size', 'major',
-          `Function '${func.name}' is ${size} lines (threshold: 60)`,
+          `Function '${func.name}' is ${size} lines (threshold: 50). Should be refactored for better readability.`,
           REMEDIATION_TIMES.FUNCTION_SIZE.major, func.startLine, func.name);
       } else if (size > 30) {
         this.addIssue('function_size', 'minor',
-          `Function '${func.name}' is ${size} lines (threshold: 30)`,
+          `Function '${func.name}' is ${size} lines (threshold: 30). Consider simplifying.`,
           REMEDIATION_TIMES.FUNCTION_SIZE.minor, func.startLine, func.name);
       }
     });
@@ -136,7 +199,6 @@ export class TechnicalDebtCalculator {
     lines.forEach((line, index) => {
       const trimmed = line.trim();
       
-      // Track function boundaries
       if (this.isFunctionStart(trimmed)) {
         currentFunction = this.extractFunctionName(trimmed) || `function_${index}`;
         functionStartLine = index + 1;
@@ -144,7 +206,7 @@ export class TechnicalDebtCalculator {
         maxDepthInFunction = 0;
       }
       
-      // Count nesting depth for control structures only
+      // Count control structures that add nesting
       if (this.isControlStructure(trimmed)) {
         currentDepth++;
         maxDepthInFunction = Math.max(maxDepthInFunction, currentDepth);
@@ -152,19 +214,18 @@ export class TechnicalDebtCalculator {
         currentDepth--;
       }
       
-      // Check depth at function end
       if (this.isFunctionEnd(trimmed, currentDepth) && currentFunction) {
-        if (maxDepthInFunction > 5) {
+        if (maxDepthInFunction > 6) {
           this.addIssue('nesting_depth', 'critical',
-            `Function '${currentFunction}' has nesting depth ${maxDepthInFunction} (threshold: 5)`,
+            `Function '${currentFunction}' has excessive nesting depth ${maxDepthInFunction} (threshold: 6). Requires architectural changes.`,
             REMEDIATION_TIMES.NESTING_DEPTH.critical, functionStartLine, currentFunction);
         } else if (maxDepthInFunction > 4) {
           this.addIssue('nesting_depth', 'major',
-            `Function '${currentFunction}' has nesting depth ${maxDepthInFunction} (threshold: 4)`,
+            `Function '${currentFunction}' has high nesting depth ${maxDepthInFunction} (threshold: 4). Needs restructuring.`,
             REMEDIATION_TIMES.NESTING_DEPTH.major, functionStartLine, currentFunction);
         } else if (maxDepthInFunction > 3) {
           this.addIssue('nesting_depth', 'minor',
-            `Function '${currentFunction}' has nesting depth ${maxDepthInFunction} (threshold: 3)`,
+            `Function '${currentFunction}' has moderate nesting depth ${maxDepthInFunction} (threshold: 3). Consider simplification.`,
             REMEDIATION_TIMES.NESTING_DEPTH.minor, functionStartLine, currentFunction);
         }
         currentFunction = '';
@@ -181,10 +242,10 @@ export class TechnicalDebtCalculator {
     for (let i = 0; i <= lines.length - blockSize; i++) {
       const block = lines.slice(i, i + blockSize)
         .map(line => line.trim())
-        .filter(line => line.length > 0 && !line.startsWith('//'))
+        .filter(line => line.length > 0 && !line.startsWith('//') && !line.startsWith('*'))
         .join('\n');
       
-      if (block.length > 100) { // Minimum block content threshold
+      if (block.length > 50) { // Minimum meaningful block content
         if (!duplicatedBlocks.has(block)) {
           duplicatedBlocks.set(block, []);
         }
@@ -192,86 +253,96 @@ export class TechnicalDebtCalculator {
       }
     }
     
-    // Calculate duplication metrics
-    let duplicatedLines = 0;
+    // Calculate duplication debt
+    let totalDuplicatedLines = 0;
     duplicatedBlocks.forEach((occurrences, block) => {
       if (occurrences.length > 1) {
         const linesInBlock = block.split('\n').length;
-        duplicatedLines += linesInBlock * (occurrences.length - 1);
+        totalDuplicatedLines += linesInBlock * (occurrences.length - 1);
         
-        const duplicationPercentage = (duplicatedLines / lines.length) * 100;
         let severity: 'minor' | 'major' | 'critical' = 'minor';
-        
-        if (duplicationPercentage > 20) severity = 'critical';
-        else if (duplicationPercentage > 10) severity = 'major';
+        if (linesInBlock > 20) severity = 'critical';
+        else if (linesInBlock > 10) severity = 'major';
         
         occurrences.forEach((lineNum, index) => {
           if (index > 0) { // Don't report the first occurrence
             this.addIssue('duplication', severity,
-              `Duplicated code block (${linesInBlock} lines)`,
+              `Duplicated code block of ${linesInBlock} lines. Extract into a reusable method.`,
               REMEDIATION_TIMES.DUPLICATION[severity], lineNum);
           }
         });
       }
     });
+    
+    // Additional duplication penalty for high overall duplication
+    const duplicationPercentage = (totalDuplicatedLines / lines.length) * 100;
+    if (duplicationPercentage > 15) {
+      this.addIssue('duplication', 'critical',
+        `High code duplication: ${duplicationPercentage.toFixed(1)}% of codebase is duplicated`,
+        REMEDIATION_TIMES.DUPLICATION.critical);
+    }
   }
 
   private analyzeDocumentation() {
-    const lines = this.code.split('\n');
-    const functions = this.extractFunctions(lines);
-    const classes = this.extractClasses(lines);
-    
-    // Check function documentation
-    functions.forEach(func => {
-      const hasDocumentation = this.hasDocumentationNear(lines, func.startLine - 1);
-      const isPublic = this.isPublicFunction(func.declaration);
-      const isComplex = func.endLine - func.startLine > 20;
+    this.functions.forEach(func => {
+      const hasDocumentation = this.hasDocumentationNear(func.startLine - 1);
+      const isPublic = this.isPublicFunction(func.name);
+      const isComplex = func.complexity > 10 || (func.endLine - func.startLine) > 25;
       
       if (!hasDocumentation) {
         if (isPublic && isComplex) {
-          this.addIssue('documentation', 'major',
-            `Public function '${func.name}' lacks documentation`,
-            REMEDIATION_TIMES.DOCUMENTATION.major, func.startLine, func.name);
+          this.addIssue('documentation', 'critical',
+            `Complex public function '${func.name}' lacks documentation (complexity: ${func.complexity})`,
+            REMEDIATION_TIMES.DOCUMENTATION.critical, func.startLine, func.name);
         } else if (isPublic || isComplex) {
+          this.addIssue('documentation', 'major',
+            `Function '${func.name}' should be documented (${isPublic ? 'public' : 'complex'})`,
+            REMEDIATION_TIMES.DOCUMENTATION.major, func.startLine, func.name);
+        } else if (func.endLine - func.startLine > 15) {
           this.addIssue('documentation', 'minor',
-            `Function '${func.name}' should be documented`,
+            `Function '${func.name}' would benefit from documentation`,
             REMEDIATION_TIMES.DOCUMENTATION.minor, func.startLine, func.name);
         }
       }
     });
     
-    // Check class documentation
-    classes.forEach(cls => {
-      const hasDocumentation = this.hasDocumentationNear(lines, cls.startLine - 1);
-      if (!hasDocumentation) {
-        this.addIssue('documentation', 'critical',
-          `Class '${cls.name}' lacks documentation`,
-          REMEDIATION_TIMES.DOCUMENTATION.critical, cls.startLine, cls.name);
+    // Check for class-level documentation
+    this.analyzeClassDocumentation();
+  }
+
+  private analyzeClassDocumentation() {
+    const lines = this.code.split('\n');
+    
+    lines.forEach((line, index) => {
+      const classMatch = line.match(/class\s+(\w+)/);
+      if (classMatch) {
+        const className = classMatch[1];
+        const hasDocumentation = this.hasDocumentationNear(index);
+        
+        if (!hasDocumentation) {
+          this.addIssue('documentation', 'critical',
+            `Class '${className}' lacks documentation`,
+            REMEDIATION_TIMES.DOCUMENTATION.critical, index + 1, className);
+        }
       }
     });
   }
 
   private analyzeCyclomaticComplexity() {
-    const functions = this.extractFunctions(this.code.split('\n'));
-    
-    functions.forEach(func => {
-      const functionCode = this.code.split('\n')
-        .slice(func.startLine - 1, func.endLine)
-        .join('\n');
+    this.functions.forEach(func => {
+      const complexity = func.complexity;
       
-      const complexity = this.calculateFunctionComplexity(functionCode);
-      
-      if (complexity > 30) {
+      if (complexity > 25) {
         this.addIssue('complexity', 'critical',
-          `Function '${func.name}' has cyclomatic complexity ${complexity} (threshold: 30)`,
+          `Function '${func.name}' has very high cyclomatic complexity ${complexity} (threshold: 25). Requires redesign.`,
           REMEDIATION_TIMES.COMPLEXITY.critical, func.startLine, func.name);
-      } else if (complexity > 20) {
-        this.addIssue('complexity', 'major',
-          `Function '${func.name}' has cyclomatic complexity ${complexity} (threshold: 20)`,
-          REMEDIATION_TIMES.COMPLEXITY.major, func.startLine, func.name);
       } else if (complexity > 15) {
+        this.addIssue('complexity', 'major',
+          `Function '${func.name}' has high cyclomatic complexity ${complexity} (threshold: 15). Needs refactoring.`,
+          REMEDIATION_TIMES.COMPLEXITY.major, func.startLine, func.name);
+      } else if (complexity > 10) {
         this.addIssue('complexity', 'minor',
-          `Function '${func.name}' has cyclomatic complexity ${complexity} (threshold: 15)`,
+          `Function '${func.name}' has moderate cyclomatic complexity ${complexity} (threshold: 10). Consider simplification.`,
           REMEDIATION_TIMES.COMPLEXITY.minor, func.startLine, func.name);
       }
     });
@@ -279,23 +350,36 @@ export class TechnicalDebtCalculator {
 
   private analyzeNamingConventions() {
     const lines = this.code.split('\n');
+    const singleLetterVars = new Set<string>();
     
     lines.forEach((line, index) => {
-      // Check for single-letter variables (excluding common loop counters)
-      const singleLetterVars = line.match(/\b(?:let|const|var|int|float|double)\s+([a-hj-km-np-z])\b/g);
-      if (singleLetterVars) {
-        singleLetterVars.forEach(match => {
-          this.addIssue('naming', 'minor',
-            'Single letter variable names should be avoided',
-            REMEDIATION_TIMES.NAMING.minor, index + 1);
+      // Single-letter variables (excluding common loop counters)
+      const singleLetterMatches = line.match(/\b(?:let|const|var|int|float|double)\s+([a-hj-km-np-z])\b/g);
+      if (singleLetterMatches) {
+        singleLetterMatches.forEach(match => {
+          const varName = match.split(/\s+/).pop();
+          if (varName && !singleLetterVars.has(varName)) {
+            singleLetterVars.add(varName);
+            this.addIssue('naming', 'minor',
+              `Single letter variable '${varName}' should have a descriptive name`,
+              REMEDIATION_TIMES.NAMING.minor, index + 1);
+          }
         });
       }
       
-      // Check for inconsistent naming patterns
+      // Inconsistent naming patterns
       if (this.hasInconsistentNaming(line)) {
         this.addIssue('naming', 'major',
-          'Inconsistent naming convention detected',
+          'Inconsistent naming convention detected (mixing camelCase and snake_case)',
           REMEDIATION_TIMES.NAMING.major, index + 1);
+      }
+      
+      // All caps variables (possible constants that should be better organized)
+      const allCapsVars = line.match(/\b[A-Z][A-Z_0-9]{3,}\b/g);
+      if (allCapsVars && !line.includes('const') && !line.includes('#define')) {
+        this.addIssue('naming', 'minor',
+          'Consider using proper constant declaration for all-caps identifiers',
+          REMEDIATION_TIMES.NAMING.minor, index + 1);
       }
     });
   }
@@ -311,7 +395,7 @@ export class TechnicalDebtCalculator {
           (trimmed.includes('{}') || 
            (index < lines.length - 1 && lines[index + 1].trim() === '{}'))) {
         this.addIssue('structure', 'major',
-          'Empty catch block suppresses exceptions',
+          'Empty catch block suppresses exceptions. Add proper error handling.',
           REMEDIATION_TIMES.STRUCTURE.major, index + 1);
       }
       
@@ -319,11 +403,73 @@ export class TechnicalDebtCalculator {
       if (trimmed.match(/^\s*return\s*.*;?\s*$/) && 
           index < lines.length - 1) {
         const nextLine = lines[index + 1].trim();
-        if (nextLine && !nextLine.startsWith('}') && !nextLine.startsWith('//')) {
+        if (nextLine && !nextLine.startsWith('}') && !nextLine.startsWith('//') && nextLine !== '') {
           this.addIssue('structure', 'minor',
             'Unreachable code after return statement',
             REMEDIATION_TIMES.STRUCTURE.minor, index + 2);
         }
+      }
+      
+      // TODO/FIXME comments indicating technical debt
+      if (trimmed.includes('TODO') || trimmed.includes('FIXME') || trimmed.includes('HACK')) {
+        this.addIssue('structure', 'minor',
+          'TODO/FIXME comment indicates incomplete implementation',
+          REMEDIATION_TIMES.STRUCTURE.minor, index + 1);
+      }
+    });
+  }
+
+  private analyzeUnusedCode() {
+    const lines = this.code.split('\n');
+    const declaredVars = new Set<string>();
+    const usedVars = new Set<string>();
+    
+    // Simple unused variable detection
+    lines.forEach((line, index) => {
+      // Variable declarations
+      const varDeclarations = line.match(/\b(?:let|const|var)\s+(\w+)/g);
+      if (varDeclarations) {
+        varDeclarations.forEach(decl => {
+          const varName = decl.split(/\s+/).pop();
+          if (varName) {
+            declaredVars.add(varName);
+          }
+        });
+      }
+      
+      // Variable usage
+      const identifiers = line.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g);
+      if (identifiers) {
+        identifiers.forEach(id => usedVars.add(id));
+      }
+    });
+    
+    // Check for potentially unused variables
+    declaredVars.forEach(varName => {
+      if (!usedVars.has(varName) && varName.length > 1) {
+        this.addIssue('unused_code', 'minor',
+          `Variable '${varName}' appears to be unused`,
+          REMEDIATION_TIMES.UNUSED_CODE.minor);
+      }
+    });
+  }
+
+  private analyzeMagicNumbers() {
+    const lines = this.code.split('\n');
+    
+    lines.forEach((line, index) => {
+      // Find numeric literals (excluding common acceptable values)
+      const magicNumbers = line.match(/\b(?<![\w.])\d{2,}\b(?![\w.])/g);
+      if (magicNumbers) {
+        magicNumbers.forEach(num => {
+          const value = parseInt(num);
+          // Exclude common acceptable numbers
+          if (value !== 100 && value !== 1000 && value !== 0 && value !== 1) {
+            this.addIssue('magic_numbers', 'minor',
+              `Magic number ${num} should be replaced with a named constant`,
+              REMEDIATION_TIMES.MAGIC_NUMBERS.minor, index + 1);
+          }
+        });
       }
     });
   }
@@ -343,59 +489,9 @@ export class TechnicalDebtCalculator {
       description,
       remedationTimeMinutes,
       lineNumber,
-      functionName
+      functionName,
+      file: this.fileName
     });
-  }
-
-  private extractFunctions(lines: string[]): Array<{name: string, startLine: number, endLine: number, declaration: string}> {
-    const functions: Array<{name: string, startLine: number, endLine: number, declaration: string}> = [];
-    let currentFunction: {name: string, startLine: number, declaration: string} | null = null;
-    let braceDepth = 0;
-    
-    lines.forEach((line, index) => {
-      const trimmed = line.trim();
-      
-      if (this.isFunctionStart(trimmed)) {
-        const name = this.extractFunctionName(trimmed) || `function_${index}`;
-        currentFunction = {
-          name,
-          startLine: index + 1,
-          declaration: trimmed
-        };
-        braceDepth = 0;
-      }
-      
-      if (currentFunction) {
-        braceDepth += (line.match(/{/g) || []).length;
-        braceDepth -= (line.match(/}/g) || []).length;
-        
-        if (braceDepth === 0 && line.includes('}')) {
-          functions.push({
-            ...currentFunction,
-            endLine: index + 1
-          });
-          currentFunction = null;
-        }
-      }
-    });
-    
-    return functions;
-  }
-
-  private extractClasses(lines: string[]): Array<{name: string, startLine: number}> {
-    const classes: Array<{name: string, startLine: number}> = [];
-    
-    lines.forEach((line, index) => {
-      const classMatch = line.match(/class\s+(\w+)/);
-      if (classMatch) {
-        classes.push({
-          name: classMatch[1],
-          startLine: index + 1
-        });
-      }
-    });
-    
-    return classes;
   }
 
   private isFunctionStart(line: string): boolean {
@@ -405,8 +501,7 @@ export class TechnicalDebtCalculator {
       line.match(/\w+\s*:\s*function\s*\(/) ||
       line.match(/\w+\s*\([^)]*\)\s*{/) ||
       line.match(/\w+\s*=\s*\([^)]*\)\s*=>/) ||
-      line.match(/^\s*\w+\s+\w+\s*\([^)]*\)\s*{/) || // C++ style
-      line.match(/^\s*(?:public|private|protected)?\s*\w+\s+\w+\s*\([^)]*\)/) // Java/C++ methods
+      line.match(/^\s*(?:public|private|protected)?\s*\w+\s+\w+\s*\([^)]*\)/) // C++ methods
     );
   }
 
@@ -430,7 +525,7 @@ export class TechnicalDebtCalculator {
       /(\w+)\s*:\s*function\s*\(/,
       /(\w+)\s*\([^)]*\)\s*{/,
       /(\w+)\s*=\s*\([^)]*\)\s*=>/,
-      /^\s*\w+\s+(\w+)\s*\([^)]*\)/, // C++ style
+      /^\s*(?:public|private|protected)?\s*\w+\s+(\w+)\s*\([^)]*\)/, // C++ style
     ];
     
     for (const pattern of patterns) {
@@ -443,7 +538,9 @@ export class TechnicalDebtCalculator {
     return null;
   }
 
-  private hasDocumentationNear(lines: string[], lineIndex: number): boolean {
+  private hasDocumentationNear(lineIndex: number): boolean {
+    const lines = this.code.split('\n');
+    
     // Check 3 lines above for documentation
     for (let i = Math.max(0, lineIndex - 3); i < lineIndex; i++) {
       const line = lines[i]?.trim() || '';
@@ -457,10 +554,9 @@ export class TechnicalDebtCalculator {
     return false;
   }
 
-  private isPublicFunction(declaration: string): boolean {
-    return declaration.includes('public') || 
-           declaration.includes('export') ||
-           !declaration.includes('private');
+  private isPublicFunction(functionName: string): boolean {
+    // Simple heuristic: functions starting with underscore are usually private
+    return !functionName.startsWith('_');
   }
 
   private hasInconsistentNaming(line: string): boolean {
@@ -491,5 +587,12 @@ export class TechnicalDebtCalculator {
     if (debtRatio <= 10) return 'B';  // 6-10%
     if (debtRatio <= 20) return 'C';  // 11-20%
     return 'D';                       // 21%+
+  }
+
+  private formatTime(minutes: number): string {
+    if (minutes < 60) return `${minutes}min`;
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}min` : `${hours}h`;
   }
 }
