@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { ProgrammingLanguage } from "@/types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -44,14 +43,14 @@ const TabsCodeEditor: React.FC<TabsCodeEditorProps> = ({
       onValueChange={onActiveFileChange}
       className="h-full flex flex-col"
     >
-      <div className="border-b border-border bg-muted">
-        <TabsList className="h-10 bg-muted w-full flex overflow-x-auto scrollbar-thin">
+      <div className="border-b border-border bg-muted min-h-0 flex-shrink-0">
+        <TabsList className="h-10 bg-muted w-full flex overflow-x-auto overflow-y-hidden scrollbar-thin whitespace-nowrap">
           {files.map((file) => (
             <TabsTrigger
               key={file.id}
               value={file.id}
               className={cn(
-                "flex items-center gap-2 px-4 py-2 border-r border-border relative",
+                "flex items-center gap-2 px-4 py-2 border-r border-border relative flex-shrink-0",
                 "data-[state=active]:bg-code data-[state=active]:text-foreground",
                 "hover:bg-code/50 transition-colors",
                 file.id === activeFileId ? 
@@ -59,13 +58,13 @@ const TabsCodeEditor: React.FC<TabsCodeEditorProps> = ({
                   "text-muted-foreground"
               )}
             >
-              <FileCode className="h-4 w-4" />
+              <FileCode className="h-4 w-4 flex-shrink-0" />
               <span className="whitespace-nowrap truncate max-w-[150px]">{file.name}</span>
               {onRemoveFile && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-5 w-5 p-0 rounded-full hover:bg-destructive/20 hover:text-destructive ml-1"
+                  className="h-5 w-5 p-0 rounded-full hover:bg-destructive/20 hover:text-destructive ml-1 flex-shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     onRemoveFile(file.id);
@@ -76,11 +75,10 @@ const TabsCodeEditor: React.FC<TabsCodeEditorProps> = ({
               )}
             </TabsTrigger>
           ))}
-          {/* Add button could be added here if needed */}
         </TabsList>
       </div>
 
-      <div className="flex-1">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {files.map((file) => (
           <TabsContent
             key={file.id}
