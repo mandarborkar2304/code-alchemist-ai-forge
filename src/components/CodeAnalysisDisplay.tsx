@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { CodeAnalysis } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,91 +15,90 @@ interface CodeAnalysisDisplayProps {
   analysis: CodeAnalysis | null;
   onApplyCorrection: (code: string) => void;
 }
-
 const getRatingColor = (rating: 'A' | 'B' | 'C' | 'D') => {
   switch (rating) {
-    case 'A': return 'bg-green-500';
-    case 'B': return 'bg-yellow-500';
-    case 'C': return 'bg-orange-500';
-    case 'D': return 'bg-red-500';
+    case 'A':
+      return 'bg-green-500';
+    case 'B':
+      return 'bg-yellow-500';
+    case 'C':
+      return 'bg-orange-500';
+    case 'D':
+      return 'bg-red-500';
   }
 };
-
 const scoreToPercentage = (rating: 'A' | 'B' | 'C' | 'D'): number => {
   switch (rating) {
-    case 'A': return 90;
-    case 'B': return 70;
-    case 'C': return 50;
-    case 'D': return 30;
+    case 'A':
+      return 90;
+    case 'B':
+      return 70;
+    case 'C':
+      return 50;
+    case 'D':
+      return 30;
   }
 };
-
 const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
   analysis,
-  onApplyCorrection,
+  onApplyCorrection
 }) => {
   const [expandedSection, setExpandedSection] = useState<'major' | 'minor' | null>(null);
-  
+
   // Helper functions for tooltips
-  const getComplexityTooltip = () => (
-    <p className="max-w-xs">
+  const getComplexityTooltip = () => <p className="max-w-xs">
       A source code complexity that correlates to a number of coding errors.
-      <br/><br/>
-      <strong>Complexity Ratings:</strong><br/>
-      A- Good<br/>
-      B- Medium complexity<br/>
-      C- High complexity<br/>
+      <br /><br />
+      <strong>Complexity Ratings:</strong><br />
+      A- Good<br />
+      B- Medium complexity<br />
+      C- High complexity<br />
       D- Extreme complexity
-    </p>
-  );
-
-  const getMaintainabilityTooltip = () => (
-    <p className="max-w-xs">
+    </p>;
+  const getMaintainabilityTooltip = () => <p className="max-w-xs">
       The ability to update or modify the system under test.
-      <br/><br/>
-      <strong>Maintainability Ratings:</strong><br/>
-      A (≥90)- Highly maintainable<br/>
-      B (80-89)- Good maintainability<br/>
-      C (70-79)- Moderate maintainability<br/>
+      <br /><br />
+      <strong>Maintainability Ratings:</strong><br />
+      A (≥90)- Highly maintainable<br />
+      B (80-89)- Good maintainability<br />
+      C (70-79)- Moderate maintainability<br />
       D (&lt;70)- Poor maintainability
-    </p>
-  );
-
-  const getReliabilityTooltip = () => (
-    <p className="max-w-xs">
+    </p>;
+  const getReliabilityTooltip = () => <p className="max-w-xs">
       The ability to perform consistently and handle errors.
-      <br/><br/>
-      <strong>Reliability Ratings:</strong><br/>
-      A- No issues detected<br/>
-      B- Minor issues detected<br/>
-      C- Major issues detected<br/>
+      <br /><br />
+      <strong>Reliability Ratings:</strong><br />
+      A- No issues detected<br />
+      B- Minor issues detected<br />
+      C- Major issues detected<br />
       D- Critical issues detected
-    </p>
-  );
-
+    </p>;
   if (!analysis) {
-    return (
-      <div className="flex items-center justify-center h-full">
+    return <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <Code className="w-12 h-12 text-primary/50 mx-auto mb-4" />
           <p className="text-muted-foreground text-sm">
             Enter your code and hit analyze to see results
           </p>
         </div>
-      </div>
-    );
+      </div>;
   }
-
-  const passedAllTests = analysis.testCases.every((tc) => tc.passed);
+  const passedAllTests = analysis.testCases.every(tc => tc.passed);
 
   // Group violations by simplified severity (Major/Minor)
-  const majorViolationTypes = new Map<string, {count: number, examples: string[]}>(); 
-  const minorViolationTypes = new Map<string, {count: number, examples: string[]}>();
+  const majorViolationTypes = new Map<string, {
+    count: number;
+    examples: string[];
+  }>();
+  const minorViolationTypes = new Map<string, {
+    count: number;
+    examples: string[];
+  }>();
 
   // Helper to categorize violations by type
   const categorizeViolation = (issue: string, severity: 'major' | 'minor') => {
     let type = '';
-    
+
     // Determine issue type for grouping
     if (issue.includes('nesting') || issue.includes('Nesting')) {
       type = 'Deep nesting';
@@ -126,11 +124,12 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
       // Default to first 3 words for grouping
       type = issue.split(' ').slice(0, 3).join(' ');
     }
-    
     const target = severity === 'major' ? majorViolationTypes : minorViolationTypes;
-    
     if (!target.has(type)) {
-      target.set(type, { count: 1, examples: [issue] });
+      target.set(type, {
+        count: 1,
+        examples: [issue]
+      });
     } else {
       const current = target.get(type)!;
       current.count++;
@@ -144,17 +143,11 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
   analysis.violations.lineReferences?.forEach(ref => {
     categorizeViolation(ref.issue, ref.severity);
   });
-
-  return (
-    <div className="space-y-4 h-full overflow-y-auto scrollbar-thin pr-2">
+  return <div className="space-y-4 h-full overflow-y-auto scrollbar-thin pr-2">
       <Card className="border-border bg-black/20">
         <CardHeader className="p-4">
           <CardTitle className="text-base flex items-center">
-            {passedAllTests ? (
-              <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-            ) : (
-              <AlertTriangle className="w-5 h-5 text-yellow-500 mr-2" />
-            )}
+            {passedAllTests ? <CheckCircle className="w-5 h-5 text-green-500 mr-2" /> : <AlertTriangle className="w-5 h-5 text-yellow-500 mr-2" />}
             Code Analysis Results
           </CardTitle>
           <CardDescription className="text-xs flex items-center justify-between">
@@ -196,21 +189,18 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
               </Card>
 
               {/* Cyclomatic, Maintainability, Reliability Cards - NO RECOMMENDATIONS */}
-              {['cyclomaticComplexity', 'maintainability', 'reliability'].map((metricKey) => {
-                const metric = analysis[metricKey as keyof CodeAnalysis] as any;
-                const tooltipFn = {
-                  cyclomaticComplexity: getComplexityTooltip,
-                  maintainability: getMaintainabilityTooltip,
-                  reliability: getReliabilityTooltip
-                }[metricKey];
-                return (
-                  <Card key={metricKey}>
+              {['cyclomaticComplexity', 'maintainability', 'reliability'].map(metricKey => {
+              const metric = analysis[metricKey as keyof CodeAnalysis] as any;
+              const tooltipFn = {
+                cyclomaticComplexity: getComplexityTooltip,
+                maintainability: getMaintainabilityTooltip,
+                reliability: getReliabilityTooltip
+              }[metricKey];
+              return <Card key={metricKey}>
                     <CardHeader className="p-4">
                       <div className="flex justify-between items-center">
                         <CardTitle className="text-sm flex items-center">
-                          {metricKey === 'cyclomaticComplexity' ? 'Cyclomatic Complexity' :
-                           metricKey === 'maintainability' ? 'Maintainability' :
-                           'Reliability'}
+                          {metricKey === 'cyclomaticComplexity' ? 'Cyclomatic Complexity' : metricKey === 'maintainability' ? 'Maintainability' : 'Reliability'}
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -230,21 +220,16 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                         <span className="font-semibold mt-1">Rating: {metric.description}</span>
                         <span className="mt-1">{metric.reason}</span>
 
-                        {metric.issues && metric.issues.length > 0 && (
-                          <div className="mt-2">
+                        {metric.issues && metric.issues.length > 0 && <div className="mt-2">
                             <span className="font-semibold">Issues:</span>
                             <ul className="list-disc list-inside mt-1">
-                              {metric.issues.map((issue: string, i: number) => (
-                                <li key={i} className="text-xs">{issue}</li>
-                              ))}
+                              {metric.issues.map((issue: string, i: number) => <li key={i} className="text-xs">{issue}</li>)}
                             </ul>
-                          </div>
-                        )}
+                          </div>}
                       </CardDescription>
                     </CardHeader>
-                  </Card>
-                );
-              })}
+                  </Card>;
+            })}
             </TabsContent>
             
             {/* Updated Violations Tab with simplified Major/Minor classification */}
@@ -262,45 +247,26 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                   <div className="text-xs text-muted-foreground mb-2">
                     Includes SonarQube Blocker, Critical, and Major severity issues
                   </div>
-                  {majorViolationTypes.size > 0 ? (
-                    <div className="mt-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2"
-                        onClick={() => setExpandedSection(expandedSection === 'major' ? null : 'major')}
-                      >
+                  {majorViolationTypes.size > 0 ? <div className="mt-2">
+                      <Button variant="ghost" size="sm" className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2" onClick={() => setExpandedSection(expandedSection === 'major' ? null : 'major')}>
                         {expandedSection === 'major' ? 'Collapse' : 'Expand'} details
                       </Button>
                       
-                      {expandedSection === 'major' && (
-                        <ul className="mt-2 space-y-1">
-                          {Array.from(majorViolationTypes.entries()).map(([type, data], i) => (
-                            <li key={i} className="text-sm">
+                      {expandedSection === 'major' && <ul className="mt-2 space-y-1">
+                          {Array.from(majorViolationTypes.entries()).map(([type, data], i) => <li key={i} className="text-sm">
                               <div className="flex items-start gap-1.5">
                                 <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
                                 <div>
                                   <strong>{type}</strong> ({data.count} {data.count === 1 ? 'instance' : 'instances'})
-                                  {data.examples.length > 0 && (
-                                    <ul className="ml-5 mt-1 list-disc text-xs opacity-90">
-                                      {data.examples.map((example, j) => (
-                                        <li key={j}>{example}</li>
-                                      ))}
-                                      {data.count > data.examples.length && (
-                                        <li className="italic">...and {data.count - data.examples.length} more</li>
-                                      )}
-                                    </ul>
-                                  )}
+                                  {data.examples.length > 0 && <ul className="ml-5 mt-1 list-disc text-xs opacity-90">
+                                      {data.examples.map((example, j) => <li key={j}>{example}</li>)}
+                                      {data.count > data.examples.length && <li className="italic">...and {data.count - data.examples.length} more</li>}
+                                    </ul>}
                                 </div>
                               </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm mt-1">No major violations detected.</p>
-                  )}
+                            </li>)}
+                        </ul>}
+                    </div> : <p className="text-sm mt-1">No major violations detected.</p>}
                 </AlertDescription>
               </Alert>
               
@@ -317,45 +283,26 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                   <div className="text-xs text-muted-foreground mb-2">
                     Includes SonarQube Minor and Info severity issues
                   </div>
-                  {minorViolationTypes.size > 0 ? (
-                    <div className="mt-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2"
-                        onClick={() => setExpandedSection(expandedSection === 'minor' ? null : 'minor')}
-                      >
+                  {minorViolationTypes.size > 0 ? <div className="mt-2">
+                      <Button variant="ghost" size="sm" className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2" onClick={() => setExpandedSection(expandedSection === 'minor' ? null : 'minor')}>
                         {expandedSection === 'minor' ? 'Collapse' : 'Expand'} details
                       </Button>
                       
-                      {expandedSection === 'minor' && (
-                        <ul className="mt-2 space-y-1">
-                          {Array.from(minorViolationTypes.entries()).map(([type, data], i) => (
-                            <li key={i} className="text-sm">
+                      {expandedSection === 'minor' && <ul className="mt-2 space-y-1">
+                          {Array.from(minorViolationTypes.entries()).map(([type, data], i) => <li key={i} className="text-sm">
                               <div className="flex items-start gap-1.5">
                                 <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
                                 <div>
                                   <strong>{type}</strong> ({data.count} {data.count === 1 ? 'instance' : 'instances'})
-                                  {data.examples.length > 0 && (
-                                    <ul className="ml-5 mt-1 list-disc text-xs opacity-90">
-                                      {data.examples.map((example, j) => (
-                                        <li key={j}>{example}</li>
-                                      ))}
-                                      {data.count > data.examples.length && (
-                                        <li className="italic">...and {data.count - data.examples.length} more</li>
-                                      )}
-                                    </ul>
-                                  )}
+                                  {data.examples.length > 0 && <ul className="ml-5 mt-1 list-disc text-xs opacity-90">
+                                      {data.examples.map((example, j) => <li key={j}>{example}</li>)}
+                                      {data.count > data.examples.length && <li className="italic">...and {data.count - data.examples.length} more</li>}
+                                    </ul>}
                                 </div>
                               </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm mt-1">No minor violations detected.</p>
-                  )}
+                            </li>)}
+                        </ul>}
+                    </div> : <p className="text-sm mt-1">No minor violations detected.</p>}
                 </AlertDescription>
               </Alert>
             </TabsContent>
@@ -363,36 +310,27 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
             {/* AI Feedback and corrected code */}
             <TabsContent value="feedback" className="space-y-4 min-h-[400px]">
               <div className="space-y-3 h-full">
-                <h3 className="text-sm font-medium">AI Code Review</h3>
+                <h3 className="text-sm font-medium">Code Review</h3>
                 <div className="p-3 rounded-md bg-muted border border-border text-sm h-[calc(100vh-400px)] overflow-y-auto whitespace-pre-line markdown">
                   {analysis.aiSuggestions}
                 </div>
               </div>
 
-              {analysis.correctedCode && (
-                <div className="space-y-3">
+              {analysis.correctedCode && <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-medium">Improved Code</h3>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs border-primary/50 hover:bg-primary/10"
-                      onClick={() => onApplyCorrection(analysis.correctedCode!)}
-                    >
+                    <Button variant="outline" size="sm" className="h-7 text-xs border-primary/50 hover:bg-primary/10" onClick={() => onApplyCorrection(analysis.correctedCode!)}>
                       Apply Correction
                     </Button>
                   </div>
                   <pre className="p-3 rounded-md bg-code border border-border text-sm overflow-x-auto scrollbar-thin">
                     <code className="text-code-foreground">{analysis.correctedCode}</code>
                   </pre>
-                </div>
-              )}
+                </div>}
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
-    </div>
-  );
+    </div>;
 };
-
 export default CodeAnalysisDisplay;
