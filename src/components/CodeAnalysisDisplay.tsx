@@ -162,7 +162,7 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
             <TabsList className="grid grid-cols-3 mb-4 bg-muted">
               <TabsTrigger value="metrics">Metrics</TabsTrigger>
               <TabsTrigger value="violations">Violations</TabsTrigger>
-              <TabsTrigger value="feedback">AI Feedback</TabsTrigger>
+              <TabsTrigger value="feedback">Feedback</TabsTrigger>
             </TabsList>
 
             <TabsContent value="metrics" className="space-y-4 min-h-[400px] animate-fade-in">
