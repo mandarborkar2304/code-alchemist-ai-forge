@@ -149,7 +149,8 @@ const EnhancedCodeEditor: React.FC<EnhancedCodeEditorProps> = ({ code, onChange,
               resize: 'none',
               tabSize: 2,
               lineHeight: 1.5,
-              whiteSpace: 'pre-wrap'
+              whiteSpace: 'pre-wrap',
+              overflowY: 'hidden'
             }}
           />
         </div>
