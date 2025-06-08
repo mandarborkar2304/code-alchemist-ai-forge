@@ -205,7 +205,8 @@ const CodeEditorWithLineNumbers: React.FC<CodeEditorWithLineNumbersProps> = ({
             whiteSpace: 'pre-wrap',
             fontFamily: "'Fira Code', 'Consolas', monospace",
             backgroundColor: 'rgb(30, 30, 30)',
-            color: '#e6e6e6'
+            color: '#e6e6e6',
+            overflowY: 'hidden',
           }}
         />
 

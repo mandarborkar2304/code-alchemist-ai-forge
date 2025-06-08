@@ -30,7 +30,7 @@ const HeroSection = () => {
           </h1>
           
           <p className="text-xl text-muted-foreground animate-fade-in" style={{ animationDelay: '0.2s' }}>
-            Elevate your programming with AI-powered code analysis, refactoring suggestions,
+            Elevate your programming with Advanced Static code analysis, refactoring suggestions,
             and quality improvement recommendations that help you write better code, faster.
           </p>
           
