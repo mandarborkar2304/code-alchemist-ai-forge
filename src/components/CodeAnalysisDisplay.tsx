@@ -244,9 +244,6 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                   </Badge>
                 </AlertTitle>
                 <AlertDescription>
-                  <div className="text-xs text-muted-foreground mb-2">
-                    Includes SonarQube Blocker, Critical, and Major severity issues
-                  </div>
                   {majorViolationTypes.size > 0 ? <div className="mt-2">
                       <Button variant="ghost" size="sm" className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2" onClick={() => setExpandedSection(expandedSection === 'major' ? null : 'major')}>
                         {expandedSection === 'major' ? 'Collapse' : 'Expand'} details
@@ -280,9 +277,6 @@ const CodeAnalysisDisplay: React.FC<CodeAnalysisDisplayProps> = ({
                   </Badge>
                 </AlertTitle>
                 <AlertDescription>
-                  <div className="text-xs text-muted-foreground mb-2">
-                    Includes SonarQube Minor and Info severity issues
-                  </div>
                   {minorViolationTypes.size > 0 ? <div className="mt-2">
                       <Button variant="ghost" size="sm" className="p-0 h-auto text-xs hover:bg-transparent hover:underline mb-2" onClick={() => setExpandedSection(expandedSection === 'minor' ? null : 'minor')}>
                         {expandedSection === 'minor' ? 'Collapse' : 'Expand'} details
