@@ -1,6 +1,5 @@
 
 // Export all quality rating functions
-export * from './scoreThresholds';
 export * from './types';
 export * from './scoringUtils';
 
@@ -20,6 +19,7 @@ import { getCyclomaticComplexityRating } from './cyclomaticComplexityRating';
 import { getMaintainabilityRating } from './maintainabilityRating';
 import { categorizeReliabilityIssues } from './reliabilityHelpers';
 import { analyzeCodeViolations, formatViolationsReport } from './violationsFramework';
+import { scoreThresholds, getGradeFromScore, needsReliabilityWarningFlag } from './scoreThresholds';
 
 // Export rating functions
 export {
@@ -28,7 +28,10 @@ export {
   getMaintainabilityRating,
   categorizeReliabilityIssues,
   analyzeCodeViolations,
-  formatViolationsReport
+  formatViolationsReport,
+  scoreThresholds,
+  getGradeFromScore,
+  needsReliabilityWarningFlag
 };
 
 // Helper function to get rating from numerical score
@@ -45,8 +48,7 @@ export function getRatingFromScore(score: number, category: 'reliability' | 'cyc
         score: 'C' as ScoreGrade,
         description: 'Unknown metric',
         reason: 'No rating available for the requested metric',
-        issues: [],
-        improvements: []
+        issues: []
       };
   }
 }
@@ -80,8 +82,8 @@ export function getEnhancedCodeQualityAnalysis(code: string, language: string) {
     violationsReport: formatViolationsReport(violationsAnalysis),
     overallGrade: violationsAnalysis.grade,
     summary: {
-      hasBlockerIssues: violationsAnalysis.summary.blocker > 0,
-      hasCriticalIssues: violationsAnalysis.summary.critical > 0,
+      hasBlockerIssues: violationsAnalysis.summary.sonarQubeBreakdown.blocker > 0,
+      hasCriticalIssues: violationsAnalysis.summary.sonarQubeBreakdown.critical > 0,
       totalIssues: violationsAnalysis.violations.length,
       technicalDebt: violationsAnalysis.summary.totalDebt
     }
