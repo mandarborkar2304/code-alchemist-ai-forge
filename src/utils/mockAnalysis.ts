@@ -1,4 +1,3 @@
-
 import { CodeAnalysis } from "@/types";
 
 // Enhanced mock analysis with new features
@@ -60,7 +59,7 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
     cyclomaticComplexity: {
       score: complexityGrade,
       description: 'Mock cyclomatic complexity analysis',
-      explanation: 'Mock cyclomatic complexity calculation'
+      reason: 'Mock cyclomatic complexity calculation'
     },
     complexity: {
       time: {
