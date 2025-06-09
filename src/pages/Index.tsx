@@ -24,7 +24,7 @@ const Index = () => {
                 <div className="rounded-full bg-primary/10 w-12 h-12 flex items-center justify-center mb-4">
                   <Brain className="w-6 h-6 text-primary" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">AI-Powered Analysis</h3>
+                <h3 className="text-xl font-semibold mb-2">Advanced Static Analysis</h3>
                 <p className="text-muted-foreground">Get report on your code with our advanced evaluation system that identifies problems and potentials issues.</p>
               </div>
               
