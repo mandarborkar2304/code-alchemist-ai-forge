@@ -1,6 +1,5 @@
 
 import { CodeAnalysis } from "@/types";
-import { getGradeFromScore } from "./quality";
 
 // Enhanced mock analysis with new features
 export const generateMockAnalysis = (code: string, language: string): CodeAnalysis => {
@@ -12,9 +11,17 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
   const maintainabilityScore = Math.max(0, 100 - Math.floor(codeLength / 100));
   const complexityScore = Math.max(0, 100 - Math.floor(lines / 3));
   
-  const reliabilityGrade = getGradeFromScore(reliabilityScore, 'reliability');
-  const maintainabilityGrade = getGradeFromScore(maintainabilityScore, 'maintainability');
-  const complexityGrade = getGradeFromScore(complexityScore, 'complexity');
+  // Simple grade calculation
+  const getGradeFromScore = (score: number): 'A' | 'B' | 'C' | 'D' => {
+    if (score >= 90) return 'A';
+    if (score >= 80) return 'B';
+    if (score >= 70) return 'C';
+    return 'D';
+  };
+  
+  const reliabilityGrade = getGradeFromScore(reliabilityScore);
+  const maintainabilityGrade = getGradeFromScore(maintainabilityScore);
+  const complexityGrade = getGradeFromScore(complexityScore);
   
   const hasErrors = code.includes('error') || code.includes('Exception');
   const hasSecurityVulnerability = code.includes('SQLInjection') || code.includes('XSS');
@@ -31,26 +38,28 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
     summary: analysisSummary,
     metrics: {
       linesOfCode: lines,
-      commentDensity: Math.random() * 10,
-      indentation: 2,
-      readability: Math.random() * 10,
-      complexity: complexityScore,
-      duplication: Math.random() * 10,
-      security: Math.random() * 10
+      codeLines: lines - Math.floor(lines * 0.1), // Estimate code lines
+      commentLines: Math.floor(lines * 0.1), // Estimate comment lines
+      commentPercentage: 10, // Mock percentage
+      functionCount: Math.max(1, Math.floor(lines / 20)), // Estimate functions
+      averageFunctionLength: Math.floor(lines / Math.max(1, Math.floor(lines / 20))),
+      maxNestingDepth: Math.min(5, Math.floor(lines / 10)),
+      cyclomaticComplexity: complexityScore
     },
     reliability: {
-      score: reliabilityScore,
-      grade: reliabilityGrade,
+      score: reliabilityGrade,
+      description: 'Mock reliability analysis',
+      reason: 'Based on error patterns and code structure',
       issues: errorMessages.concat(securityIssues)
     },
     maintainability: {
-      score: maintainabilityScore,
-      grade: maintainabilityGrade,
-      technicalDebt: Math.random() * 100
+      score: maintainabilityGrade,
+      description: 'Mock maintainability analysis',
+      reason: 'Based on code complexity and structure'
     },
     cyclomaticComplexity: {
       score: complexityGrade,
-      grade: complexityGrade,
+      description: 'Mock cyclomatic complexity analysis',
       explanation: 'Mock cyclomatic complexity calculation'
     },
     complexity: {
@@ -84,7 +93,7 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
         }
       },
       score: Math.max(60, 100 - Math.floor(lines / 5)),
-      grade: getGradeFromScore(Math.max(60, 100 - Math.floor(lines / 5)), 'codeSmells')
+      grade: getGradeFromScore(Math.max(60, 100 - Math.floor(lines / 5)))
     },
     recommendations: {
       recommendations: generateMockRecommendations(code, language, lines),
@@ -101,12 +110,9 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
       }
     },
     violations: {
-      summary: {
-        totalViolations: 0,
-        sonarQubeBreakdown: { blocker: 0, critical: 0, major: 0, minor: 0, info: 0 },
-        totalDebt: 0
-      },
-      grade: 'A'
+      major: 0,
+      minor: 0,
+      details: []
     },
     aiSuggestions: 'Consider adding more comments for better code documentation',
     testCases: [
