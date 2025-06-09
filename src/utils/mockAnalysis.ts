@@ -60,53 +60,6 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
       description: 'Mock cyclomatic complexity analysis',
       reason: 'Mock cyclomatic complexity calculation'
     },
-    complexity: {
-      time: {
-        timeComplexity: mockTimeComplexity(code),
-        confidence: 'high' as const,
-        explanation: generateComplexityExplanation(code, 'time'),
-        factors: extractComplexityFactors(code, 'time')
-      },
-      space: {
-        spaceComplexity: mockSpaceComplexity(code),
-        confidence: 'medium' as const,
-        explanation: generateComplexityExplanation(code, 'space'),
-        factors: extractComplexityFactors(code, 'space')
-      },
-      overallScore: calculateComplexityScore(code),
-      grade: getComplexityGrade(calculateComplexityScore(code))
-    },
-    codeSmells: {
-      smells: generateMockCodeSmells(code, lines),
-      summary: {
-        total: Math.min(5, Math.floor(lines / 10)),
-        major: Math.min(2, Math.floor(lines / 25)),
-        minor: Math.min(3, Math.floor(lines / 15)),
-        byCategory: {
-          Method: Math.floor(lines / 30),
-          Structure: Math.floor(lines / 40),
-          Naming: Math.floor(lines / 50),
-          Logic: Math.floor(lines / 35),
-          Performance: Math.floor(lines / 45)
-        }
-      },
-      score: Math.max(60, 100 - Math.floor(lines / 5)),
-      grade: getGradeFromScore(Math.max(60, 100 - Math.floor(lines / 5)))
-    },
-    recommendations: {
-      recommendations: generateMockRecommendations(code, language, lines),
-      prioritizedActions: [],
-      summary: {
-        total: Math.min(6, Math.floor(lines / 8)),
-        highPriority: Math.min(2, Math.floor(lines / 20)),
-        categories: {
-          Performance: Math.floor(lines / 25),
-          Maintainability: Math.floor(lines / 20),
-          Reliability: Math.floor(lines / 30),
-          Style: Math.floor(lines / 40)
-        }
-      }
-    },
     violations: {
       major: 0,
       minor: 0,
