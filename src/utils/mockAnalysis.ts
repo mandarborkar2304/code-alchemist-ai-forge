@@ -34,7 +34,6 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
   
   // Enhanced analysis with new complexity and code smells data
   const enhancedAnalysis: CodeAnalysis = {
-    summary: analysisSummary,
     metrics: {
       linesOfCode: lines,
       codeLines: lines - Math.floor(lines * 0.1), // Estimate code lines
