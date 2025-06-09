@@ -1,4 +1,3 @@
-
 import { CodeAnalysis, ReliabilityIssue } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +12,7 @@ import { CodeQualityMeter } from "./CodeQualityMeter";
 import OverviewSection from "./OverviewSection";
 import ComplexityDisplay from "./ComplexityDisplay";
 import CodeSmellsDisplay from "./CodeSmellsDisplay";
+import AreaOfImprovements from "./AreaOfImprovements";
 
 interface CodeAnalysisDisplayProps {
   analysis: CodeAnalysis | null;
@@ -190,12 +190,15 @@ const CodeAnalysisDisplay = ({ analysis, onApplyCorrection }: CodeAnalysisDispla
             <div className="space-y-4">
               <TestCaseDisplay testCases={analysis.testCases} />
               
+              {/* Area of Improvements */}
+              <AreaOfImprovements analysis={analysis} />
+              
               {/* AI Recommendations */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-sm flex items-center gap-2">
                     <Lightbulb className="h-4 w-4 text-amber-600" />
-                    Recommendations
+                    AI Recommendations
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
