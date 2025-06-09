@@ -1,372 +1,506 @@
-import { CodeAnalysis, ReliabilityIssue } from "@/types";
-import { 
-  calculateCyclomaticComplexity,
-  calculateMaintainability,
-  calculateReliability,
-  getCodeMetrics,
-  scoreToGrade
-} from "./codeMetrics";
-import { getRatingFromScore } from "./quality";
-import { 
-  analyzeCodeForIssues, 
-  generateTestCasesFromCode, 
-  categorizeViolations
-} from "./codeAnalysis";
+import { CodeAnalysis } from "@/types";
+import { getGradeFromScore } from "./quality";
 
+// Enhanced mock analysis with new features
 export const generateMockAnalysis = (code: string, language: string): CodeAnalysis => {
-  // Calculate metrics using enhanced SonarQube-aligned algorithms
-  const cyclomaticComplexityScore = calculateCyclomaticComplexity(code, language);
-  const maintainabilityScore = calculateMaintainability(code, language);
-  const reliabilityResult = calculateReliability(code, language);
+  const codeLength = code.length;
+  const lines = code.split('\n').length;
   
-  // Get the ratings for each metric using SonarQube-aligned thresholds
-  const cyclomaticComplexityRating = getRatingFromScore(cyclomaticComplexityScore, 'cyclomaticComplexity');
-  const maintainabilityRating = getRatingFromScore(maintainabilityScore, 'maintainability');
-  const reliabilityRating = getRatingFromScore(reliabilityResult.score, 'reliability');
+  // Basic metrics calculation (mocked)
+  const reliabilityScore = Math.max(0, 100 - Math.floor(lines / 5));
+  const maintainabilityScore = Math.max(0, 100 - Math.floor(codeLength / 100));
+  const complexityScore = Math.max(0, 100 - Math.floor(lines / 3));
   
-  // Skip analysis for trivial code
-  let issuesList: string[] = [];
-  let lineReferences: {line: number, issue: string, severity: 'major' | 'minor'}[] = [];
+  const reliabilityGrade = getGradeFromScore(reliabilityScore);
+  const maintainabilityGrade = getGradeFromScore(maintainabilityScore);
+  const complexityGrade = getGradeFromScore(complexityScore);
   
-  // Only analyze non-trivial code
-  const isTrivialCode = code.split('\n').length < 5 && !code.includes('if') && !code.includes('for');
+  const hasErrors = code.includes('error') || code.includes('Exception');
+  const hasSecurityVulnerability = code.includes('SQLInjection') || code.includes('XSS');
   
-  if (!isTrivialCode) {
-    const analysisResult = analyzeCodeForIssues(code, language);
-    issuesList = analysisResult.details;
-    lineReferences = analysisResult.lineReferences;
-  }
+  const errorMessages = hasErrors ? ['Potential runtime error'] : [];
+  const securityIssues = hasSecurityVulnerability ? ['Possible SQL injection vulnerability'] : [];
   
-  // Enhanced categorization using SonarQube terminology
-  const violations = categorizeViolations(issuesList, lineReferences);
-  violations.lineReferences = lineReferences;
+  const totalIssues = errorMessages.length + securityIssues.length;
   
-  // Get code metrics with enhanced detail
-  const metrics = getCodeMetrics(code, language);
+  const analysisSummary = `Analysis found ${totalIssues} potential issues.`;
   
-  // Generate test cases with SonarQube-style methodology
-  const testCases = generateTestCasesFromCode(code, language);
-  
-  // Compute overall code quality score with weighted reliability (SonarQube style)
-  const overallGrade = computeOverallGrade(
-    cyclomaticComplexityRating.score, 
-    maintainabilityRating.score, 
-    reliabilityRating.score,
-    reliabilityResult.issues || []
-  );
-  
-  // Generate language-specific AI suggestions with SonarQube terminology
-  let aiSuggestions: string;
-  
-  if (language === 'java') {
-    aiSuggestions = generateSonarQubeStyleJavaSuggestions(code, violations, metrics, reliabilityResult.issues);
-  } else {
-    aiSuggestions = generateSonarQubeStyleSuggestions(code, violations, metrics, language, reliabilityResult.issues);
-  }
-  
-  return {
-    cyclomaticComplexity: cyclomaticComplexityRating,
-    maintainability: maintainabilityRating,
-    reliability: reliabilityRating,
-    violations,
-    testCases,
-    aiSuggestions,
-    metrics,
-    overallGrade
+  const mockTimeComplexity = (code: string): string => {
+    const nestedLoops = (code.match(/for\s*\(.*for\s*\(/g) || []).length;
+    const recursion = (code.match(/function\s+\w+.*{\s*.*\w+\s*\(/g) || []).length;
+    
+    if (nestedLoops >= 2) return 'O(n³)';
+    if (nestedLoops >= 1) return 'O(n²)';
+    if (recursion > 0 && code.includes('fibonacci')) return 'O(2ⁿ)';
+    if (recursion > 0) return 'O(n)';
+    if (code.includes('sort') || code.includes('Sort')) return 'O(n log n)';
+    if (code.includes('for') || code.includes('while')) return 'O(n)';
+    return 'O(1)';
   };
-};
-
-// Generate Java-specific SonarQube-style suggestions
-function generateSonarQubeStyleJavaSuggestions(code: string, violations: any, metrics: any, issues: ReliabilityIssue[]): string {
-  let suggestions = "# SonarQube-Style Code Analysis\n\n";
   
-  // Detect competitive programming context
-  const isCompetitiveProgramming = code.includes("public static void main") &&
-    (code.includes("Scanner") || code.includes("BufferedReader")) &&
-    code.length < 1000;
+  const mockSpaceComplexity = (code: string): string => {
+    const arrays = (code.match(/new\s+\w*Array|new\s+\w*\[|\[\]/g) || []).length;
+    const recursion = (code.match(/function\s+\w+.*{\s*.*\w+\s*\(/g) || []).length;
     
-  if (isCompetitiveProgramming) {
-    suggestions += "## Competitive Programming Context Detected\n\n";
-    suggestions += "Analysis is tailored for competitive programming:\n";
-    suggestions += "- Time complexity optimization is prioritized\n";
-    suggestions += "- Standard OOP practices are applied with context\n";
-    suggestions += "- Algorithm efficiency is the primary focus\n\n";
-  }
+    if (recursion > 0 && code.includes('fibonacci')) return 'O(2ⁿ)';
+    if (arrays > 2 || recursion > 0) return 'O(n)';
+    return 'O(1)';
+  };
   
-  // Add SonarQube-style issue section using enhanced categorization
-  suggestions += "## Quality Issues\n\n";
+  const generateComplexityExplanation = (code: string, type: 'time' | 'space'): string => {
+    if (type === 'time') {
+      if (code.includes('for') && code.includes('while')) {
+        return 'Multiple loop structures detected affecting time complexity';
+      }
+      if (code.includes('for')) {
+        return 'Loop-based operations drive the time complexity';
+      }
+      return 'Linear operations with constant time complexity';
+    } else {
+      if (code.includes('Array') || code.includes('[]')) {
+        return 'Dynamic data structures contribute to space usage';
+      }
+      return 'Minimal auxiliary space requirements';
+    }
+  };
   
-  // Group issues by type with exact SonarQube terminology
-  const bugs = issues.filter(i => i.category === 'runtime' || i.category === 'exception');
-  const codeSmells = issues.filter(i => i.category === 'structure' || i.category === 'readability');
-  const vulnerabilities = issues.filter(i => i.description.toLowerCase().includes('security') || 
-                                           i.description.toLowerCase().includes('injection'));
-  
-  // Add SonarQube-style severity indicators
-  if (bugs.length > 0) {
-    suggestions += "### Bugs\n\n";
-    const criticalBugs = bugs.filter(i => i.type === 'critical');
-    const majorBugs = bugs.filter(i => i.type === 'major');
-    const minorBugs = bugs.filter(i => i.type === 'minor');
+  const extractComplexityFactors = (code: string, type: 'time' | 'space'): string[] => {
+    const factors: string[] = [];
     
-    if (criticalBugs.length > 0) {
-      suggestions += "#### Blocker Issues\n\n";
-      criticalBugs.forEach(bug => {
-        suggestions += `- ${bug.description}${bug.line ? ` (line ${bug.line})` : ''} - **Impact: ${bug.impact} points**\n`;
+    if (type === 'time') {
+      if (code.includes('for')) factors.push('Loop iterations');
+      if (code.includes('recursion') || code.includes('function')) factors.push('Recursive calls');
+      if (code.includes('sort')) factors.push('Sorting operations');
+    } else {
+      if (code.includes('Array') || code.includes('[]')) factors.push('Array allocation');
+      if (code.includes('Map') || code.includes('{}')) factors.push('Hash map usage');
+      if (code.includes('recursion')) factors.push('Call stack usage');
+    }
+    
+    return factors.length > 0 ? factors : ['No significant factors'];
+  };
+  
+  const calculateComplexityScore = (code: string): number => {
+    const timeComplexity = mockTimeComplexity(code);
+    const spaceComplexity = mockSpaceComplexity(code);
+    
+    const timeScore = getComplexityScoreByType(timeComplexity);
+    const spaceScore = getComplexityScoreByType(spaceComplexity);
+    
+    return Math.round(timeScore * 0.6 + spaceScore * 0.4);
+  };
+  
+  const getComplexityScoreByType = (complexity: string): number => {
+    const scores: { [key: string]: number } = {
+      'O(1)': 100,
+      'O(log n)': 95,
+      'O(n)': 85,
+      'O(n log n)': 75,
+      'O(n²)': 60,
+      'O(n³)': 40,
+      'O(2ⁿ)': 20
+    };
+    return scores[complexity] || 70;
+  };
+  
+  const getComplexityGrade = (score: number): 'A' | 'B' | 'C' | 'D' => {
+    if (score >= 90) return 'A';
+    if (score >= 80) return 'B';
+    if (score >= 70) return 'C';
+    return 'D';
+  };
+  
+  const generateMockCodeSmells = (code: string, lines: number): any[] => {
+    const smells: any[] = [];
+    
+    // Long method smell
+    if (lines > 30) {
+      smells.push({
+        type: 'Long Method',
+        severity: lines > 50 ? 'Major' : 'Minor',
+        description: `Function appears to be ${lines} lines long`,
+        line: Math.floor(lines / 2),
+        suggestion: 'Break this method into smaller, focused functions',
+        category: 'Method'
       });
-      suggestions += "\n";
     }
     
-    if (majorBugs.length > 0) {
-      suggestions += "#### Major Issues\n\n";
-      majorBugs.forEach(bug => {
-        suggestions += `- ${bug.description}${bug.line ? ` (line ${bug.line})` : ''}\n`;
+    // Magic numbers
+    const numbers = code.match(/\b\d{2,}\b/g);
+    if (numbers && numbers.length > 0) {
+      smells.push({
+        type: 'Magic Number',
+        severity: 'Minor',
+        description: `Magic number '${numbers[0]}' found`,
+        line: Math.floor(Math.random() * lines) + 1,
+        suggestion: 'Replace with a named constant',
+        category: 'Naming'
       });
-      suggestions += "\n";
     }
     
-    if (minorBugs.length > 0) {
-      suggestions += "#### Minor Issues\n\n";
-      minorBugs.forEach(bug => {
-        suggestions += `- ${bug.description}${bug.line ? ` (line ${bug.line})` : ''}\n`;
+    // Deep nesting (estimated)
+    const braces = (code.match(/{/g) || []).length;
+    if (braces > lines * 0.3) {
+      smells.push({
+        type: 'Deep Nesting',
+        severity: 'Major',
+        description: 'Deep nesting detected',
+        line: Math.floor(lines * 0.7),
+        suggestion: 'Reduce nesting by extracting methods',
+        category: 'Structure'
       });
-      suggestions += "\n";
     }
-  }
-  
-  if (vulnerabilities.length > 0) {
-    suggestions += "### Vulnerabilities\n\n";
-    vulnerabilities.forEach(vuln => {
-      suggestions += `- ${vuln.description}${vuln.line ? ` (line ${vuln.line})` : ''}\n`;
-    });
-    suggestions += "\n";
-  }
-  
-  if (codeSmells.length > 0) {
-    suggestions += "### Code Smells\n\n";
     
-    // Group code smells by category for better organization
-    const structureSmells = codeSmells.filter(i => i.category === 'structure');
-    const readabilitySmells = codeSmells.filter(i => i.category === 'readability');
-    
-    if (structureSmells.length > 0) {
-      suggestions += "#### Structure Issues\n\n";
-      structureSmells.forEach(smell => {
-        suggestions += `- ${smell.description}${smell.line ? ` (line ${smell.line})` : ''}\n`;
+    // Duplicate code (simulated)
+    if (lines > 20 && code.length > 500) {
+      smells.push({
+        type: 'Duplicate Code',
+        severity: 'Major',
+        description: 'Potential code duplication detected',
+        suggestion: 'Extract common code into reusable functions',
+        category: 'Structure'
       });
-      suggestions += "\n";
     }
     
-    if (readabilitySmells.length > 0) {
-      suggestions += "#### Maintainability Issues\n\n";
-      readabilitySmells.forEach(smell => {
-        suggestions += `- ${smell.description}${smell.line ? ` (line ${smell.line})` : ''}\n`;
+    return smells;
+  };
+  
+  const generateMockRecommendations = (code: string, language: string, lines: number): any[] => {
+    const recommendations: any[] = [];
+    
+    // Performance recommendations
+    if (code.includes('for') && code.includes('for')) {
+      recommendations.push({
+        title: 'Optimize Nested Loops',
+        description: 'Consider using more efficient algorithms to reduce time complexity',
+        priority: 'High',
+        category: 'Performance',
+        actionable: true,
+        impact: 'Significant performance improvement for large datasets'
       });
-      suggestions += "\n";
-    }
-  }
-  
-  // Add maintainability issues with SonarQube-style metrics
-  if (metrics.averageFunctionLength > 30 && !isCompetitiveProgramming) {
-    suggestions += "### Maintainability Metrics\n\n";
-    suggestions += `- Method length: Average of ${Math.round(metrics.averageFunctionLength)} lines exceeds recommended length of 30 lines\n`;
-    suggestions += "- Consider extracting complex logic into smaller, focused helper methods\n\n";
-  }
-  
-  // Add complexity issues with SonarQube-style metrics
-  if (metrics.cyclomaticComplexity > 0) {
-    suggestions += "### Complexity Metrics\n\n";
-    suggestions += `- Cyclomatic Complexity: ${metrics.cyclomaticComplexity}\n`;
-    suggestions += `- Max Nesting Depth: ${metrics.maxNestingDepth}\n`;
-    
-    if (metrics.cyclomaticComplexity > 10) {
-      suggestions += "- **Action Required**: Consider refactoring complex methods into smaller units with clear responsibilities\n";
     }
     
-    suggestions += "\n";
-  }
-  
-  // Add documentation insights with SonarQube-style recommendations
-  if (metrics.commentPercentage < 15 && !isCompetitiveProgramming && metrics.linesOfCode > 30) {
-    suggestions += "### Documentation Issues\n\n";
-    suggestions += `- Comment Density: ${Math.round(metrics.commentPercentage)}% (SonarQube recommends >20%)\n`;
-    suggestions += "- Insufficient comments: Add JavaDoc comments to classes and methods\n";
-    suggestions += "- Consider adding @param and @return tags to method documentation\n\n";
-  }
-  
-  // Add algorithmic efficiency recommendations for competitive programming
-  if (isCompetitiveProgramming) {
-    suggestions += "### Algorithm Optimization\n\n";
-    
-    if (code.includes("for") && code.match(/for\s*\([^{]+\{[\s\S]*?for\s*\(/)) {
-      suggestions += "- Nested loops have O(n²) or higher complexity - consider more efficient algorithms\n";
-      suggestions += "- Look for opportunities to use more efficient data structures (HashSet/HashMap)\n";
-      suggestions += "- Consider memoization or dynamic programming techniques\n\n";
+    // Maintainability recommendations
+    if (lines > 25) {
+      recommendations.push({
+        title: 'Break Down Large Functions',
+        description: 'Extract smaller, focused functions for better maintainability',
+        priority: 'Medium',
+        category: 'Maintainability',
+        actionable: true,
+        impact: 'Improves code readability and makes testing easier'
+      });
     }
     
-    if (code.includes("for") && code.includes("+=") && code.includes("String")) {
-      suggestions += "- Replace string concatenation in loops with StringBuilder for better performance\n\n";
+    // Reliability recommendations
+    if (code.includes('null') || code.includes('undefined')) {
+      recommendations.push({
+        title: 'Add Null Safety Checks',
+        description: 'Add proper null/undefined checks to prevent runtime errors',
+        priority: 'High',
+        category: 'Reliability',
+        actionable: true,
+        impact: 'Prevents potential application crashes'
+      });
     }
-  }
+    
+    // Style recommendations
+    const numbers = code.match(/\b\d{2,}\b/g);
+    if (numbers && numbers.length > 2) {
+      recommendations.push({
+        title: 'Replace Magic Numbers',
+        description: 'Replace magic numbers with named constants',
+        priority: 'Low',
+        category: 'Style',
+        actionable: true,
+        impact: 'Makes code more self-documenting'
+      });
+    }
+    
+    return recommendations;
+  };
   
-  return suggestions;
-}
-
-// Generate SonarQube-style suggestions for other languages
-function generateSonarQubeStyleSuggestions(
-  code: string, 
-  violations: any, 
-  metrics: any, 
-  language: string, 
-  issues: ReliabilityIssue[]
-): string {
-  let suggestions = `# SonarQube-Style ${language.charAt(0).toUpperCase() + language.slice(1)} Analysis\n\n`;
+  const getGradeFromScore = (score: number): 'A' | 'B' | 'C' | 'D' => {
+    if (score >= 90) return 'A';
+    if (score >= 80) return 'B';
+    if (score >= 70) return 'C';
+    return 'D';
+  };
   
-  // Add file metrics summary in SonarQube style
-  suggestions += "## File Metrics\n\n";
-  suggestions += `- Lines of Code: ${metrics.linesOfCode}\n`;
-  suggestions += `- Functions: ${metrics.functionCount}\n`;
-  suggestions += `- Cyclomatic Complexity: ${metrics.cyclomaticComplexity}\n`;
-  suggestions += `- Comment Density: ${Math.round(metrics.commentPercentage)}%\n\n`;
-  
-  // Add badges for each quality dimension (SonarQube style)
-  suggestions += "## Quality Ratings\n\n";
-  suggestions += "| Dimension | Grade | Description |\n";
-  suggestions += "|-----------|-------|-------------|\n";
-  
-  // Calculate grades based on issues
-  const reliabilityGrade = getRatingFromScore(calculateReliability(code, language).score, 'reliability').score;
-  const maintainabilityGrade = getRatingFromScore(calculateMaintainability(code, language), 'maintainability').score;
-  const complexityGrade = getRatingFromScore(calculateCyclomaticComplexity(code, language), 'cyclomaticComplexity').score;
-  
-  suggestions += `| Reliability | ${reliabilityGrade} | ${getGradeDescription('reliability', reliabilityGrade)} |\n`;
-  suggestions += `| Maintainability | ${maintainabilityGrade} | ${getGradeDescription('maintainability', maintainabilityGrade)} |\n`;
-  suggestions += `| Complexity | ${complexityGrade} | ${getGradeDescription('complexity', complexityGrade)} |\n\n`;
-  
-  // Add SonarQube-style issue section
-  suggestions += "## Quality Issues\n\n";
-  
-  // Group issues by type with SonarQube terminology
-  const bugs = issues.filter(i => i.category === 'runtime' || i.category === 'exception');
-  const codeSmells = issues.filter(i => i.category === 'structure' || i.category === 'readability');
-  
-  if (bugs.length > 0) {
-    suggestions += "### Bugs\n\n";
-    bugs.forEach(bug => {
-      const severityLabel = bug.type === 'critical' ? '🚫 Blocker' : 
-                         bug.type === 'major' ? '⚠️ Major' : '📝 Minor';
-      suggestions += `- **${severityLabel}**: ${bug.description}${bug.line ? ` (line ${bug.line})` : ''}\n`;
-    });
-    suggestions += "\n";
-  }
-  
-  if (codeSmells.length > 0) {
-    suggestions += "### Code Smells\n\n";
-    codeSmells.forEach(smell => {
-      const severityLabel = smell.type === 'major' ? '⚠️ Major' : '📝 Minor';
-      suggestions += `- **${severityLabel}**: ${smell.description}${smell.line ? ` (line ${smell.line})` : ''}\n`;
-    });
-    suggestions += "\n";
-  }
-  
-  // Add maintainability metrics in SonarQube style
-  suggestions += "## Maintainability Metrics\n\n";
-  suggestions += `- Functions: ${metrics.functionCount}\n`;
-  suggestions += `- Average function size: ${Math.round(metrics.averageFunctionLength)} lines\n`;
-  suggestions += `- Maximum nesting depth: ${metrics.maxNestingDepth}\n`;
-  suggestions += `- Comment density: ${Math.round(metrics.commentPercentage)}%\n\n`;
-  
-  // Add actionable recommendations based on metrics (SonarQube style)
-  suggestions += "## Recommendations\n\n";
-  
-  if (metrics.averageFunctionLength > 30) {
-    suggestions += "- **Function Size**: Functions are too long. Break down functions exceeding 30 lines.\n";
-  }
-  
-  if (metrics.maxNestingDepth > 3) {
-    suggestions += "- **Complexity**: Nesting depth exceeds recommended threshold (3). Use early returns or extract methods.\n";
-  }
-  
-  if (metrics.commentPercentage < 15 && metrics.linesOfCode > 30) {
-    suggestions += "- **Documentation**: Add more comments to improve maintainability.\n";
-  }
-  
-  if (metrics.cyclomaticComplexity > 10) {
-    suggestions += `- **Cognitive Complexity**: Complexity score (${metrics.cyclomaticComplexity}) is too high. Simplify logic.\n`;
-  }
-  
-  return suggestions;
-}
-
-// Helper function for grade descriptions
-function getGradeDescription(metric: string, grade: 'A' | 'B' | 'C' | 'D'): string {
-  const descriptions = {
+  // Enhanced analysis with new complexity and code smells data
+  const enhancedAnalysis = {
+    summary: analysisSummary,
+    metrics: {
+      linesOfCode: lines,
+      codeLength: codeLength,
+      commentDensity: Math.random() * 10,
+      indentation: 2,
+      readability: Math.random() * 10,
+      complexity: complexityScore,
+      duplication: Math.random() * 10,
+      security: Math.random() * 10
+    },
     reliability: {
-      A: 'Highly reliable',
-      B: 'Good reliability',
-      C: 'Moderate reliability issues',
-      D: 'Major reliability concerns'
+      score: reliabilityScore,
+      grade: reliabilityGrade,
+      issues: errorMessages.concat(securityIssues)
     },
     maintainability: {
-      A: 'Highly maintainable',
-      B: 'Good maintainability',
-      C: 'Moderately maintainable',
-      D: 'Hard to maintain'
+      score: maintainabilityScore,
+      grade: maintainabilityGrade,
+      technicalDebt: Math.random() * 100
     },
     complexity: {
-      A: 'Low complexity',
-      B: 'Moderate complexity',
-      C: 'High complexity',
-      D: 'Very high complexity'
+      time: {
+        timeComplexity: mockTimeComplexity(code),
+        confidence: 'high' as const,
+        explanation: generateComplexityExplanation(code, 'time'),
+        factors: extractComplexityFactors(code, 'time')
+      },
+      space: {
+        spaceComplexity: mockSpaceComplexity(code),
+        confidence: 'medium' as const,
+        explanation: generateComplexityExplanation(code, 'space'),
+        factors: extractComplexityFactors(code, 'space')
+      },
+      overallScore: calculateComplexityScore(code),
+      grade: getComplexityGrade(calculateComplexityScore(code))
+    },
+    codeSmells: {
+      smells: generateMockCodeSmells(code, lines),
+      summary: {
+        total: Math.min(5, Math.floor(lines / 10)),
+        major: Math.min(2, Math.floor(lines / 25)),
+        minor: Math.min(3, Math.floor(lines / 15)),
+        byCategory: {
+          Method: Math.floor(lines / 30),
+          Structure: Math.floor(lines / 40),
+          Naming: Math.floor(lines / 50),
+          Logic: Math.floor(lines / 35),
+          Performance: Math.floor(lines / 45)
+        }
+      },
+      score: Math.max(60, 100 - Math.floor(lines / 5)),
+      grade: getGradeFromScore(Math.max(60, 100 - Math.floor(lines / 5)))
+    },
+    recommendations: {
+      recommendations: generateMockRecommendations(code, language, lines),
+      prioritizedActions: [],
+      summary: {
+        total: Math.min(6, Math.floor(lines / 8)),
+        highPriority: Math.min(2, Math.floor(lines / 20)),
+        categories: {
+          Performance: Math.floor(lines / 25),
+          Maintainability: Math.floor(lines / 20),
+          Reliability: Math.floor(lines / 30),
+          Style: Math.floor(lines / 40)
+        }
+      }
     }
   };
   
-  return descriptions[metric as keyof typeof descriptions][grade];
+  return enhancedAnalysis;
+};
+
+// Helper functions for new mock data
+function mockTimeComplexity(code: string): string {
+  const nestedLoops = (code.match(/for\s*\(.*for\s*\(/g) || []).length;
+  const recursion = (code.match(/function\s+\w+.*{\s*.*\w+\s*\(/g) || []).length;
+  
+  if (nestedLoops >= 2) return 'O(n³)';
+  if (nestedLoops >= 1) return 'O(n²)';
+  if (recursion > 0 && code.includes('fibonacci')) return 'O(2ⁿ)';
+  if (recursion > 0) return 'O(n)';
+  if (code.includes('sort') || code.includes('Sort')) return 'O(n log n)';
+  if (code.includes('for') || code.includes('while')) return 'O(n)';
+  return 'O(1)';
 }
 
-// Function to compute an overall grade with enhanced SonarQube-aligned weighting
-function computeOverallGrade(
-  complexity: 'A' | 'B' | 'C' | 'D', 
-  maintainability: 'A' | 'B' | 'C' | 'D', 
-  reliability: 'A' | 'B' | 'C' | 'D',
-  issues: ReliabilityIssue[]
-): 'A' | 'B' | 'C' | 'D' {
-  // Convert letter grades to numbers (A=4, B=3, C=2, D=1)
-  const gradeValues = {
-    'A': 4,
-    'B': 3,
-    'C': 2,
-    'D': 1
-  };
+function mockSpaceComplexity(code: string): string {
+  const arrays = (code.match(/new\s+\w*Array|new\s+\w*\[|\[\]/g) || []).length;
+  const recursion = (code.match(/function\s+\w+.*{\s*.*\w+\s*\(/g) || []).length;
   
-  // Count critical issues for potential overrides
-  const criticalIssues = issues.filter(i => i.type === 'critical').length;
+  if (recursion > 0 && code.includes('fibonacci')) return 'O(2ⁿ)';
+  if (arrays > 2 || recursion > 0) return 'O(n)';
+  return 'O(1)';
+}
+
+function generateComplexityExplanation(code: string, type: 'time' | 'space'): string {
+  if (type === 'time') {
+    if (code.includes('for') && code.includes('while')) {
+      return 'Multiple loop structures detected affecting time complexity';
+    }
+    if (code.includes('for')) {
+      return 'Loop-based operations drive the time complexity';
+    }
+    return 'Linear operations with constant time complexity';
+  } else {
+    if (code.includes('Array') || code.includes('[]')) {
+      return 'Dynamic data structures contribute to space usage';
+    }
+    return 'Minimal auxiliary space requirements';
+  }
+}
+
+function extractComplexityFactors(code: string, type: 'time' | 'space'): string[] {
+  const factors: string[] = [];
   
-  // Calculate average grade value with SonarQube-style weighting:
-  // - Reliability is weighted more heavily (40%)
-  // - Maintainability is weighted at 35%
-  // - Complexity is weighted at 25%
-  const complexityValue = gradeValues[complexity];
-  const maintainabilityValue = gradeValues[maintainability];
-  const reliabilityValue = gradeValues[reliability];
-  
-  // Calculate weighted average
-  const weightedAverage = (
-    (complexityValue * 0.25) + 
-    (maintainabilityValue * 0.35) + 
-    (reliabilityValue * 0.40)
-  );
-  
-  // Apply SonarQube-style override rules: critical issues override the final grade
-  if (criticalIssues >= 3) {
-    return 'D'; // Multiple critical issues always result in D grade
-  } else if (criticalIssues > 0 && weightedAverage >= 3.5) {
-    return 'B'; // Critical issues cap the grade at B
+  if (type === 'time') {
+    if (code.includes('for')) factors.push('Loop iterations');
+    if (code.includes('recursion') || code.includes('function')) factors.push('Recursive calls');
+    if (code.includes('sort')) factors.push('Sorting operations');
+  } else {
+    if (code.includes('Array') || code.includes('[]')) factors.push('Array allocation');
+    if (code.includes('Map') || code.includes('{}')) factors.push('Hash map usage');
+    if (code.includes('recursion')) factors.push('Call stack usage');
   }
   
-  // Convert weighted average back to letter grade
-  if (weightedAverage >= 3.5) return 'A';
-  if (weightedAverage >= 2.5) return 'B';
-  if (weightedAverage >= 1.5) return 'C';
+  return factors.length > 0 ? factors : ['No significant factors'];
+}
+
+function calculateComplexityScore(code: string): number {
+  const timeComplexity = mockTimeComplexity(code);
+  const spaceComplexity = mockSpaceComplexity(code);
+  
+  const timeScore = getComplexityScoreByType(timeComplexity);
+  const spaceScore = getComplexityScoreByType(spaceComplexity);
+  
+  return Math.round(timeScore * 0.6 + spaceScore * 0.4);
+}
+
+function getComplexityScoreByType(complexity: string): number {
+  const scores: { [key: string]: number } = {
+    'O(1)': 100,
+    'O(log n)': 95,
+    'O(n)': 85,
+    'O(n log n)': 75,
+    'O(n²)': 60,
+    'O(n³)': 40,
+    'O(2ⁿ)': 20
+  };
+  return scores[complexity] || 70;
+}
+
+function getComplexityGrade(score: number): 'A' | 'B' | 'C' | 'D' {
+  if (score >= 90) return 'A';
+  if (score >= 80) return 'B';
+  if (score >= 70) return 'C';
+  return 'D';
+}
+
+function generateMockCodeSmells(code: string, lines: number): any[] {
+  const smells: any[] = [];
+  
+  // Long method smell
+  if (lines > 30) {
+    smells.push({
+      type: 'Long Method',
+      severity: lines > 50 ? 'Major' : 'Minor',
+      description: `Function appears to be ${lines} lines long`,
+      line: Math.floor(lines / 2),
+      suggestion: 'Break this method into smaller, focused functions',
+      category: 'Method'
+    });
+  }
+  
+  // Magic numbers
+  const numbers = code.match(/\b\d{2,}\b/g);
+  if (numbers && numbers.length > 0) {
+    smells.push({
+      type: 'Magic Number',
+      severity: 'Minor',
+      description: `Magic number '${numbers[0]}' found`,
+      line: Math.floor(Math.random() * lines) + 1,
+      suggestion: 'Replace with a named constant',
+      category: 'Naming'
+    });
+  }
+  
+  // Deep nesting (estimated)
+  const braces = (code.match(/{/g) || []).length;
+  if (braces > lines * 0.3) {
+    smells.push({
+      type: 'Deep Nesting',
+      severity: 'Major',
+      description: 'Deep nesting detected',
+      line: Math.floor(lines * 0.7),
+      suggestion: 'Reduce nesting by extracting methods',
+      category: 'Structure'
+    });
+  }
+  
+  // Duplicate code (simulated)
+  if (lines > 20 && code.length > 500) {
+    smells.push({
+      type: 'Duplicate Code',
+      severity: 'Major',
+      description: 'Potential code duplication detected',
+      suggestion: 'Extract common code into reusable functions',
+      category: 'Structure'
+    });
+  }
+  
+  return smells;
+}
+
+function generateMockRecommendations(code: string, language: string, lines: number): any[] {
+  const recommendations: any[] = [];
+  
+  // Performance recommendations
+  if (code.includes('for') && code.includes('for')) {
+    recommendations.push({
+      title: 'Optimize Nested Loops',
+      description: 'Consider using more efficient algorithms to reduce time complexity',
+      priority: 'High',
+      category: 'Performance',
+      actionable: true,
+      impact: 'Significant performance improvement for large datasets'
+    });
+  }
+  
+  // Maintainability recommendations
+  if (lines > 25) {
+    recommendations.push({
+      title: 'Break Down Large Functions',
+      description: 'Extract smaller, focused functions for better maintainability',
+      priority: 'Medium',
+      category: 'Maintainability',
+      actionable: true,
+      impact: 'Improves code readability and makes testing easier'
+    });
+  }
+  
+  // Reliability recommendations
+  if (code.includes('null') || code.includes('undefined')) {
+    recommendations.push({
+      title: 'Add Null Safety Checks',
+      description: 'Add proper null/undefined checks to prevent runtime errors',
+      priority: 'High',
+      category: 'Reliability',
+      actionable: true,
+      impact: 'Prevents potential application crashes'
+    });
+  }
+  
+  // Style recommendations
+  const numbers = code.match(/\b\d{2,}\b/g);
+  if (numbers && numbers.length > 2) {
+    recommendations.push({
+      title: 'Replace Magic Numbers',
+      description: 'Replace magic numbers with named constants',
+      priority: 'Low',
+      category: 'Style',
+      actionable: true,
+      impact: 'Makes code more self-documenting'
+    });
+  }
+  
+  return recommendations;
+}
+
+function getGradeFromScore(score: number): 'A' | 'B' | 'C' | 'D' {
+  if (score >= 90) return 'A';
+  if (score >= 80) return 'B';
+  if (score >= 70) return 'C';
   return 'D';
 }
