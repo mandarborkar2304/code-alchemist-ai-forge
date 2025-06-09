@@ -1,4 +1,3 @@
-
 import { CodeAnalysis, ReliabilityIssue } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +13,6 @@ import OverviewSection from "./OverviewSection";
 import ComplexityDisplay from "./ComplexityDisplay";
 import CodeSmellsDisplay from "./CodeSmellsDisplay";
 import AreaOfImprovements from "./AreaOfImprovements";
-import AIRecommendations from "./AIRecommendations";
 
 interface CodeAnalysisDisplayProps {
   analysis: CodeAnalysis | null;
@@ -82,9 +80,9 @@ const CodeAnalysisDisplay = ({ analysis, onApplyCorrection }: CodeAnalysisDispla
             <AlertCircle className="h-3 w-3 mr-1" />
             Code Smells
           </TabsTrigger>
-          <TabsTrigger value="recommendations" className="text-xs">
-            <Lightbulb className="h-3 w-3 mr-1" />
-            Insights
+          <TabsTrigger value="tests" className="text-xs">
+            <TestTube className="h-3 w-3 mr-1" />
+            Tests
           </TabsTrigger>
         </TabsList>
 
@@ -188,19 +186,36 @@ const CodeAnalysisDisplay = ({ analysis, onApplyCorrection }: CodeAnalysisDispla
             )}
           </TabsContent>
 
-          <TabsContent value="recommendations" className="mt-0">
+          <TabsContent value="tests" className="mt-0">
             <div className="space-y-4">
-              {/* Test Cases */}
               <TestCaseDisplay testCases={analysis.testCases} />
               
-              {/* Area of Improvements - Rule-based suggestions */}
+              {/* Area of Improvements */}
               <AreaOfImprovements analysis={analysis} />
               
-              {/* AI Recommendations - AI-driven insights */}
-              <AIRecommendations 
-                analysis={analysis} 
-                onApplyCorrection={handleApplyCorrection} 
-              />
+              {/* AI Recommendations */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Lightbulb className="h-4 w-4 text-amber-600" />
+                    AI Recommendations
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="prose prose-sm max-w-none">
+                    <ReactMarkdown>{analysis.aiSuggestions}</ReactMarkdown>
+                  </div>
+                  
+                  {analysis.correctedCode && (
+                    <div className="mt-4 pt-4 border-t">
+                      <Button onClick={handleApplyCorrection} size="sm" className="gap-2">
+                        <CheckCircle className="h-4 w-4" />
+                        Apply Suggested Improvements
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
         </div>
