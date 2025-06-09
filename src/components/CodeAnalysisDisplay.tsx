@@ -1,3 +1,4 @@
+
 import { CodeAnalysis, ReliabilityIssue } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,7 @@ import { AlertTriangle, CheckCircle, Info, XCircle, Lightbulb, TestTube, Code2, 
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import TestCaseDisplay from "./TestCaseDisplay";
-import CodeQualityMeter from "./CodeQualityMeter";
+import { CodeQualityMeter } from "./CodeQualityMeter";
 import OverviewSection from "./OverviewSection";
 import ComplexityDisplay from "./ComplexityDisplay";
 import CodeSmellsDisplay from "./CodeSmellsDisplay";
