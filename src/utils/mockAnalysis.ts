@@ -12,6 +12,11 @@ import {
   generateTestCasesFromCode, 
   categorizeViolations
 } from "./codeAnalysis";
+import { 
+  analyzeTimeComplexity, 
+  analyzeSpaceComplexity, 
+  detectCodeSmells 
+} from "./complexityAnalysis";
 
 export const generateMockAnalysis = (code: string, language: string): CodeAnalysis => {
   // Calculate metrics using enhanced SonarQube-aligned algorithms
@@ -44,6 +49,18 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
   // Get code metrics with enhanced detail
   const metrics = getCodeMetrics(code, language);
   
+  // Add new complexity analysis
+  const timeComplexity = analyzeTimeComplexity(code, language);
+  const spaceComplexity = analyzeSpaceComplexity(code, language);
+  
+  const complexityAnalysis = {
+    timeComplexity,
+    spaceComplexity
+  };
+  
+  // Add code smells detection
+  const codeSmells = detectCodeSmells(code, language);
+  
   // Generate test cases with SonarQube-style methodology
   const testCases = generateTestCasesFromCode(code, language);
   
@@ -72,7 +89,9 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
     testCases,
     aiSuggestions,
     metrics,
-    overallGrade
+    overallGrade,
+    complexityAnalysis,
+    codeSmells
   };
 };
 

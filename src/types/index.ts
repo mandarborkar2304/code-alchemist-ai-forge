@@ -1,4 +1,3 @@
-
 export interface CodeQualityRating {
   score: 'A' | 'B' | 'C' | 'D';
   description: string;
@@ -18,6 +17,9 @@ export interface CodeViolations {
   }[];
 }
 
+// Import new complexity types
+import { ComplexityAnalysis, CodeSmellsAnalysis } from './complexityTypes';
+
 export interface CodeAnalysis {
   cyclomaticComplexity: CodeQualityRating;
   maintainability: CodeQualityRating;
@@ -28,6 +30,12 @@ export interface CodeAnalysis {
   overallGrade?: 'A' | 'B' | 'C' | 'D'; // Overall code quality grade
   metrics?: MetricsResult;
   testCases: TestCase[]; // Added TestCase array to the CodeAnalysis interface
+  
+  // New complexity analysis
+  complexityAnalysis?: ComplexityAnalysis;
+  
+  // New code smells detection
+  codeSmells?: CodeSmellsAnalysis;
 }
 
 export interface ProgrammingLanguage {
@@ -72,3 +80,6 @@ export interface ReliabilityIssue {
   codeContext?: string;
   pattern?: string;
 }
+
+// Re-export complexity types
+export * from './complexityTypes';
