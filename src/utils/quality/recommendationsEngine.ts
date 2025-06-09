@@ -198,7 +198,7 @@ if (!user.hasPermission) return;
 function generateReliabilityRecommendations(analysis: CodeAnalysis): Recommendation[] {
   const recommendations: Recommendation[] = [];
   
-  if (analysis.reliability?.score && analysis.reliability.score < 80) {
+  if (analysis.reliability?.score && typeof analysis.reliability.score === 'number' && analysis.reliability.score < 80) {
     const issues = analysis.reliability.issues || [];
     
     if (Array.isArray(issues) && issues.length > 0) {
