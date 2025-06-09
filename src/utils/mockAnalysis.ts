@@ -12,9 +12,9 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
   const maintainabilityScore = Math.max(0, 100 - Math.floor(codeLength / 100));
   const complexityScore = Math.max(0, 100 - Math.floor(lines / 3));
   
-  const reliabilityGrade = getGradeFromScore(reliabilityScore);
-  const maintainabilityGrade = getGradeFromScore(maintainabilityScore);
-  const complexityGrade = getGradeFromScore(complexityScore);
+  const reliabilityGrade = getGradeFromScore(reliabilityScore, 'reliability');
+  const maintainabilityGrade = getGradeFromScore(maintainabilityScore, 'maintainability');
+  const complexityGrade = getGradeFromScore(complexityScore, 'complexity');
   
   const hasErrors = code.includes('error') || code.includes('Exception');
   const hasSecurityVulnerability = code.includes('SQLInjection') || code.includes('XSS');
@@ -31,7 +31,6 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
     summary: analysisSummary,
     metrics: {
       linesOfCode: lines,
-      codeLength: codeLength,
       commentDensity: Math.random() * 10,
       indentation: 2,
       readability: Math.random() * 10,
@@ -50,7 +49,7 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
       technicalDebt: Math.random() * 100
     },
     cyclomaticComplexity: {
-      score: complexityScore,
+      score: complexityGrade,
       grade: complexityGrade,
       explanation: 'Mock cyclomatic complexity calculation'
     },
@@ -85,7 +84,7 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
         }
       },
       score: Math.max(60, 100 - Math.floor(lines / 5)),
-      grade: getGradeFromScore(Math.max(60, 100 - Math.floor(lines / 5)))
+      grade: getGradeFromScore(Math.max(60, 100 - Math.floor(lines / 5)), 'codeSmells')
     },
     recommendations: {
       recommendations: generateMockRecommendations(code, language, lines),
@@ -102,7 +101,6 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
       }
     },
     violations: {
-      violations: [],
       summary: {
         totalViolations: 0,
         sonarQubeBreakdown: { blocker: 0, critical: 0, major: 0, minor: 0, info: 0 },
@@ -110,20 +108,12 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
       },
       grade: 'A'
     },
-    aiSuggestions: [
-      {
-        type: 'improvement',
-        description: 'Consider adding more comments for better code documentation',
-        confidence: 0.8,
-        lineNumber: 1
-      }
-    ],
+    aiSuggestions: 'Consider adding more comments for better code documentation',
     testCases: [
       {
         input: 'sample input',
         expectedOutput: 'sample output',
-        passed: true,
-        executionTime: 100
+        passed: true
       }
     ]
   };
