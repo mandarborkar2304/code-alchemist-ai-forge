@@ -1,3 +1,4 @@
+
 import { CodeAnalysis, ReliabilityIssue } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,13 +14,15 @@ import OverviewSection from "./OverviewSection";
 import ComplexityDisplay from "./ComplexityDisplay";
 import CodeSmellsDisplay from "./CodeSmellsDisplay";
 import AreaOfImprovements from "./AreaOfImprovements";
+import AIRecommendations from "./AIRecommendations";
 
 interface CodeAnalysisDisplayProps {
   analysis: CodeAnalysis | null;
+  language: string;
   onApplyCorrection: (code: string) => void;
 }
 
-const CodeAnalysisDisplay = ({ analysis, onApplyCorrection }: CodeAnalysisDisplayProps) => {
+const CodeAnalysisDisplay = ({ analysis, language, onApplyCorrection }: CodeAnalysisDisplayProps) => {
   const [activeTab, setActiveTab] = useState("overview");
 
   if (!analysis) {
@@ -194,28 +197,11 @@ const CodeAnalysisDisplay = ({ analysis, onApplyCorrection }: CodeAnalysisDispla
               <AreaOfImprovements analysis={analysis} />
               
               {/* AI Recommendations */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Lightbulb className="h-4 w-4 text-amber-600" />
-                    AI Recommendations
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="prose prose-sm max-w-none">
-                    <ReactMarkdown>{analysis.aiSuggestions}</ReactMarkdown>
-                  </div>
-                  
-                  {analysis.correctedCode && (
-                    <div className="mt-4 pt-4 border-t">
-                      <Button onClick={handleApplyCorrection} size="sm" className="gap-2">
-                        <CheckCircle className="h-4 w-4" />
-                        Apply Suggested Improvements
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <AIRecommendations 
+                analysis={analysis} 
+                language={language}
+                onApplyCorrection={handleApplyCorrection} 
+              />
             </div>
           </TabsContent>
         </div>

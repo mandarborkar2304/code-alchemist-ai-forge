@@ -122,6 +122,7 @@ const Editor = () => {
           <ResizablePanel defaultSize={50} minSize={30}>
             <AnalysisPanel 
               analysis={analysis} 
+              language={selectedLanguage.id}
               onApplyCorrection={handleApplyCorrection} 
             />
           </ResizablePanel>
