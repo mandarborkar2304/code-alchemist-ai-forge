@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { AlertTriangle, CheckCircle, Info, XCircle, Lightbulb, TestTube, Code2, BarChart3, TrendingUp, AlertCircle, Brain } from "lucide-react";
+import { AlertTriangle, CheckCircle, Info, XCircle, Lightbulb, TestTube, Code2, BarChart3, TrendingUp, AlertCircle } from "lucide-react";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import TestCaseDisplay from "./TestCaseDisplay";
@@ -65,9 +65,8 @@ const CodeAnalysisDisplay = ({ analysis, language, onApplyCorrection }: CodeAnal
 
   return (
     <div className="h-full flex flex-col">
-      {/* Main Analysis Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview" className="text-xs">
             <BarChart3 className="h-3 w-3 mr-1" />
             Overview
@@ -87,10 +86,6 @@ const CodeAnalysisDisplay = ({ analysis, language, onApplyCorrection }: CodeAnal
           <TabsTrigger value="tests" className="text-xs">
             <TestTube className="h-3 w-3 mr-1" />
             Tests
-          </TabsTrigger>
-          <TabsTrigger value="improvements" className="text-xs">
-            <Lightbulb className="h-3 w-3 mr-1" />
-            Improvements
           </TabsTrigger>
         </TabsList>
 
@@ -195,33 +190,22 @@ const CodeAnalysisDisplay = ({ analysis, language, onApplyCorrection }: CodeAnal
           </TabsContent>
 
           <TabsContent value="tests" className="mt-0">
-            <TestCaseDisplay testCases={analysis.testCases} />
-          </TabsContent>
-
-          <TabsContent value="improvements" className="mt-0">
-            <AreaOfImprovements analysis={analysis} />
+            <div className="space-y-4">
+              <TestCaseDisplay testCases={analysis.testCases} />
+              
+              {/* Area of Improvements */}
+              <AreaOfImprovements analysis={analysis} />
+              
+              {/* AI Recommendations */}
+              <AIRecommendations 
+                analysis={analysis} 
+                language={language}
+                onApplyCorrection={handleApplyCorrection} 
+              />
+            </div>
           </TabsContent>
         </div>
       </Tabs>
-
-      {/* AI Recommendations - Separate Final Section */}
-      <div className="mt-6 border-t pt-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Brain className="h-5 w-5 text-purple-600" />
-              AI Recommendations
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <AIRecommendations 
-              analysis={analysis} 
-              language={language}
-              onApplyCorrection={handleApplyCorrection} 
-            />
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 };
