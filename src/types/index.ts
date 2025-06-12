@@ -81,5 +81,18 @@ export interface ReliabilityIssue {
   pattern?: string;
 }
 
+export interface AIImprovementRequest {
+  code: string;
+  language: string;
+}
+
+
+export interface Improvement {
+  type: 'critical' | 'high' | 'medium' | 'low';
+  category: string;
+  title: string;
+  description: string;
+  impact: string;
+}
 // Re-export complexity types
 export * from './complexityTypes';

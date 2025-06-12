@@ -1,74 +1,53 @@
-
+import { useEffect, useState } from "react";
 import { CodeAnalysis } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Lightbulb, CheckCircle, Brain, Zap } from "lucide-react";
+import { Lightbulb, CheckCircle, Brain, Zap, Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { generateAIRecommendations } from "@/utils/ai/codeInsights";
 
 interface AIRecommendationsProps {
   analysis: CodeAnalysis;
   language: string;
+  code: string;
   onApplyCorrection: (code: string) => void;
 }
 
-const AIRecommendations = ({ analysis, language, onApplyCorrection }: AIRecommendationsProps) => {
+const AIRecommendations = ({ analysis, language, code, onApplyCorrection }: AIRecommendationsProps) => {
+  const [loading, setLoading] = useState(true);
+  const [aiSuggestions, setAiSuggestions] = useState<string>("");
+  const [bestPractices, setBestPractices] = useState<string[]>([]);
+  const [correctedCode, setCorrectedCode] = useState<string>("");
+
+  useEffect(() => {
+    async function fetchAI() {
+      setLoading(true);
+      const aiOutput = await generateAIRecommendations(code, language, analysis);
+      setAiSuggestions(aiOutput.aiSuggestions);
+      setBestPractices(aiOutput.bestPractices);
+      setCorrectedCode(aiOutput.correctedCode);
+      setLoading(false);
+    }
+    fetchAI();
+  }, [code, language, analysis]);
+
   const handleApplyCorrection = () => {
-    if (analysis.correctedCode) {
-      onApplyCorrection(analysis.correctedCode);
+    if (correctedCode) {
+      onApplyCorrection(correctedCode);
     }
   };
 
-  const getLanguageSpecificRecommendations = () => {
-    const recommendations: string[] = [];
-    
-    // Language-specific recommendations based on detected issues
-    if (language === 'javascript' || language === 'nodejs') {
-      if (analysis.violations.major > 0) {
-        recommendations.push("Consider using ESLint with strict rules to catch potential issues early");
-        recommendations.push("Implement proper error handling with try-catch blocks for async operations");
-      }
-      
-      if (analysis.metrics?.averageFunctionLength > 30) {
-        recommendations.push("Break down large functions using the single responsibility principle");
-      }
-    } else if (language === 'python' || language === 'python3' || language === 'pythonml') {
-      if (analysis.violations.major > 0) {
-        recommendations.push("Follow PEP 8 style guidelines for better code readability");
-        recommendations.push("Use type hints to improve code documentation and IDE support");
-      }
-      
-      if (analysis.codeSmells && analysis.codeSmells.majorCount > 0) {
-        recommendations.push("Consider using dataclasses or Pydantic models for better data structure");
-      }
-    } else if (language === 'java') {
-      if (analysis.violations.major > 0) {
-        recommendations.push("Follow Java naming conventions and use proper access modifiers");
-        recommendations.push("Implement proper exception handling with specific exception types");
-      }
-      
-      if (analysis.metrics?.cyclomaticComplexity > 10) {
-        recommendations.push("Apply SOLID principles to reduce complexity and improve maintainability");
-      }
-    }
-    
-    // Generic recommendations based on metrics
-    if (analysis.metrics?.commentPercentage < 15) {
-      recommendations.push("Add meaningful comments and documentation to improve code understanding");
-    }
-    
-    if (analysis.complexityAnalysis?.timeComplexity.notation.includes('O(n²)')) {
-      recommendations.push("Consider optimizing algorithms to reduce time complexity");
-    }
-    
-    return recommendations;
-  };
-
-  const languageRecommendations = getLanguageSpecificRecommendations();
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-40">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      {/* AI-Generated Suggestions */}
       <Card>
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
@@ -78,13 +57,12 @@ const AIRecommendations = ({ analysis, language, onApplyCorrection }: AIRecommen
         </CardHeader>
         <CardContent>
           <div className="prose prose-sm max-w-none">
-            <ReactMarkdown>{analysis.aiSuggestions}</ReactMarkdown>
+            <ReactMarkdown>{aiSuggestions}</ReactMarkdown>
           </div>
         </CardContent>
       </Card>
 
-      {/* Language-Specific Recommendations */}
-      {languageRecommendations.length > 0 && (
+      {bestPractices.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
@@ -94,7 +72,7 @@ const AIRecommendations = ({ analysis, language, onApplyCorrection }: AIRecommen
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {languageRecommendations.map((recommendation, index) => (
+              {bestPractices.map((recommendation, index) => (
                 <div key={index} className="flex items-start gap-2 p-2 rounded border">
                   <Lightbulb className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
                   <span className="text-sm">{recommendation}</span>
@@ -105,8 +83,7 @@ const AIRecommendations = ({ analysis, language, onApplyCorrection }: AIRecommen
         </Card>
       )}
 
-      {/* Apply Corrections */}
-      {analysis.correctedCode && (
+      {correctedCode && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
@@ -116,7 +93,7 @@ const AIRecommendations = ({ analysis, language, onApplyCorrection }: AIRecommen
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
-              AI has generated improved code based on the detected issues. Review and apply if appropriate.
+              AI has generated improved code based on the detected issues.
             </p>
             <Button onClick={handleApplyCorrection} size="sm" className="gap-2">
               <CheckCircle className="h-4 w-4" />
