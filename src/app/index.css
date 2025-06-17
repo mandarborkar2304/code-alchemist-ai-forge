@@ -1,0 +1,185 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Global Theme Colors */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 267 84% 64%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 7% 15%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 5% 12%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 240 5% 15%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5% 15%;
+    --input: 240 5% 15%;
+    --ring: 267 84% 64%;
+    --radius: 0.5rem;
+
+    /* Sidebar Colors */
+    --sidebar-background: 240 10% 3.9%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 267 84% 64%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 5% 15%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 240 5% 15%;
+    --sidebar-ring: 267 84% 64%;
+
+    /* Code Editor Colors */
+    --code: 240 10% 10%;
+    --code-foreground: #e6e6e6;
+    --code-red: 0 100% 50%;
+    --code-yellow: 60 100% 50%;
+    --code-green: 120 100% 50%;
+    --code-blue: 210 100% 60%;
+    --code-purple: 270 100% 60%;
+  }
+
+  *::selection {
+    background-color: hsl(var(--primary) / 0.3);
+    color: hsl(var(--foreground));
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    @apply antialiased bg-background text-foreground;
+    font-feature-settings: "ss01", "ss02", "cv01", "cv02", "cv03";
+    background-image: radial-gradient(circle at 25% 25%, rgba(124, 58, 237, 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 75% 75%, rgba(124, 58, 237, 0.05) 0%, transparent 50%);
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+}
+
+@layer utilities {
+  .neo-blur {
+    @apply border backdrop-blur-lg bg-black/40 border-white/10;
+  }
+
+  .text-gradient-primary {
+    @apply text-transparent bg-gradient-to-br from-primary to-primary/60 bg-clip-text;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-muted;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  .code-editor-container {
+    @apply w-full h-full resize-none;
+    font-family: 'Fira Code', 'Consolas', monospace;
+  }
+
+  [data-panel-group] {
+    @apply border-none !important;
+  }
+
+  [data-panel-handle] {
+    @apply transition-colors duration-200;
+    width: 1px !important;
+    background-color: hsl(var(--border));
+  }
+
+  [data-panel-handle]:hover {
+    @apply bg-primary/30;
+  }
+
+  [data-panel-handle][data-panel-handle-active] {
+    @apply bg-primary/50;
+  }
+
+  [data-panel-handle] div {
+    @apply transition-opacity opacity-0;
+  }
+
+  [data-panel-handle]:hover div,
+  [data-panel-handle][data-panel-handle-active] div {
+    @apply opacity-100;
+  }
+
+  .syntax-keyword {
+    color: #569cd6;
+  }
+
+  .syntax-string {
+    color: #ce9178;
+  }
+
+  .syntax-number {
+    color: #b5cea8;
+  }
+
+  .syntax-comment {
+    color: #6a9955;
+  }
+
+  .syntax-function {
+    color: #dcdcaa;
+  }
+
+  .syntax-class {
+    color: #4ec9b0;
+  }
+
+  .syntax-operator {
+    color: #d4d4d4;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0% {
+      transform: translateY(0px);
+    }
+
+    50% {
+      transform: translateY(-10px);
+    }
+
+    100% {
+      transform: translateY(0px);
+    }
+  }
+
+  .hero-glow {
+    box-shadow: 0 0 30px 5px rgba(124, 58, 237, 0.3);
+  }
+}

@@ -1,0 +1,27 @@
+{
+  // Disable default CSS validation (avoids Unknown at rule @tailwind)
+  "css.validate": false,
+
+  // Enable Tailwind IntelliSense inside TS, TSX files
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript"
+  },
+
+  // Enable quick suggestions inside string templates (optional but helps)
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+
+  // Optional: make suggestions faster
+  "editor.suggest.preview": true,
+
+  // Optional: formatting
+  "editor.formatOnSave": true,
+
+  // Optional: show Tailwind class colors inline
+  "tailwindCSS.experimental.classRegex": [
+    "clsx\\(([^)]*)\\)",
+    "cn\\(([^)]*)\\)"
+  ]
+}
