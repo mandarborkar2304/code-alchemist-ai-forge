@@ -20,18 +20,20 @@ import AIRecommendations from "./AIRecommendations";
 interface CodeAnalysisDisplayProps {
   analysis: CodeAnalysis | null;
   language: string;
-  originalCode: string;
-  improvements: Improvement[];
   onApplyCorrection: (code: string) => void;
 }
 
 const CodeAnalysisDisplay = ({
   analysis,
   language,
-  originalCode,
-  improvements,
   onApplyCorrection
 }: CodeAnalysisDisplayProps) => {
+
+
+  if (!analysis) return null;
+
+  const originalCode = analysis.originalCode;
+  const improvements = analysis.improvements;
 
   const [activeTab, setActiveTab] = useState("overview");
   if (!analysis) {
