@@ -97,7 +97,7 @@ export const generateMockAnalysis = (code: string, language: string): CodeAnalys
 
 // Generate Java-specific SonarQube-style suggestions
 function generateSonarQubeStyleJavaSuggestions(code: string, violations: any, metrics: any, issues: ReliabilityIssue[]): string {
-  let suggestions = "# Code Analysis\n\n";
+  let suggestions = "# SonarQube-Style Code Analysis\n\n";
   
   // Detect competitive programming context
   const isCompetitiveProgramming = code.includes("public static void main") &&
