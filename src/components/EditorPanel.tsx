@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { LanguageSelector } from "@/components/LanguageSelector";
@@ -5,7 +6,7 @@ import { ProgrammingLanguage } from "@/types";
 import { Code, Brain, RefreshCw, FilePlus, File } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { programmingLanguages } from "@/data/languages";
-import { detectLanguageViaAI } from '@/utils/ai/codeExecution';
+import { detectCodeLanguage } from "@/utils/codeExecution";
 import { useToast } from "@/hooks/use-toast";
 import { CodeAnalysis } from "@/types";
 import TabsCodeEditor, { CodeFile } from "@/components/TabsCodeEditor";
@@ -45,15 +46,18 @@ const EditorPanel = ({
 }: EditorPanelProps) => {
   const { toast } = useToast();
   const [hasLanguageMismatch, setHasLanguageMismatch] = useState(false);
-
+  
+  // Create files array for tabs editor
   const [files, setFiles] = useState<CodeFile[]>([]);
   const [activeFileId, setActiveFileId] = useState<string>('');
   const [fileCounter, setFileCounter] = useState(1);
-
+  
+  // Setup initial files based on selected language
   useEffect(() => {
     let newFiles: CodeFile[] = [];
-
+    
     if (selectedLanguage.id === 'web') {
+      // Create separate files for HTML, CSS, JS
       newFiles = [
         { id: 'html', name: 'index.html', language: programmingLanguages.find(lang => lang.id === 'html') || selectedLanguage, content: htmlCode },
         { id: 'css', name: 'styles.css', language: programmingLanguages.find(lang => lang.id === 'css') || selectedLanguage, content: cssCode },
@@ -61,17 +65,21 @@ const EditorPanel = ({
       ];
       setActiveFileId('html');
     } else {
+      // Create a single file for the selected language
       const fileName = `main${selectedLanguage.fileExtension}`;
       newFiles = [
         { id: 'main', name: fileName, language: selectedLanguage, content: code }
       ];
       setActiveFileId('main');
     }
+    
     setFiles(newFiles);
   }, [selectedLanguage.id]);
-
+  
+  // Update files when code changes
   useEffect(() => {
     if (selectedLanguage.id !== 'web' && files.length > 0) {
+      // Update main file content
       const mainFile = files.find(file => file.id === 'main');
       if (mainFile && mainFile.content !== code) {
         setFiles(prev => prev.map(file => 
@@ -80,9 +88,11 @@ const EditorPanel = ({
       }
     }
   }, [code, selectedLanguage.id]);
-
+  
+  // Update html, css, js files when their content changes
   useEffect(() => {
     if (selectedLanguage.id === 'web') {
+      // Update html file content
       setFiles(prev => prev.map(file => 
         file.id === 'html' ? { ...file, content: htmlCode } :
         file.id === 'css' ? { ...file, content: cssCode } :
@@ -90,7 +100,8 @@ const EditorPanel = ({
       ));
     }
   }, [htmlCode, cssCode, jsCode, selectedLanguage.id]);
-
+  
+  // Handle file content changes
   const handleFileContentChange = (fileId: string, newContent: string) => {
     if (selectedLanguage.id === 'web') {
       if (fileId === 'html') {
@@ -100,39 +111,48 @@ const EditorPanel = ({
       } else if (fileId === 'js') {
         setJsCode(newContent);
       } else {
-        setFiles(prev => prev.map(file => file.id === fileId ? { ...file, content: newContent } : file));
+        // For additional files in web mode
+        setFiles(prev => prev.map(file => 
+          file.id === fileId ? { ...file, content: newContent } : file
+        ));
       }
     } else {
       if (fileId === 'main') {
         setCode(newContent);
       } else {
-        setFiles(prev => prev.map(file => file.id === fileId ? { ...file, content: newContent } : file));
+        // For additional files in non-web mode
+        setFiles(prev => prev.map(file => 
+          file.id === fileId ? { ...file, content: newContent } : file
+        ));
       }
     }
   };
-
+  
+  // Add a new file
   const handleAddFile = () => {
     const newFileId = `file-${fileCounter}`;
     const newFileName = `new-file-${fileCounter}${selectedLanguage.fileExtension}`;
-
+    
     const newFile: CodeFile = {
       id: newFileId,
       name: newFileName,
       language: selectedLanguage,
       content: ''
     };
-
+    
     setFiles(prev => [...prev, newFile]);
     setActiveFileId(newFileId);
     setFileCounter(prev => prev + 1);
-
+    
     toast({
       title: "File Added",
       description: `Created new file: ${newFileName}`,
     });
   };
-
+  
+  // Remove a file
   const handleRemoveFile = (fileId: string) => {
+    // Don't remove main file or html/css/js files in web mode
     if (fileId === 'main' || (selectedLanguage.id === 'web' && ['html', 'css', 'js'].includes(fileId))) {
       toast({
         title: "Cannot Remove File",
@@ -141,10 +161,11 @@ const EditorPanel = ({
       });
       return;
     }
-
+    
+    // Find next active file
     const fileIndex = files.findIndex(file => file.id === fileId);
     let nextActiveId = activeFileId;
-
+    
     if (activeFileId === fileId) {
       if (fileIndex > 0) {
         nextActiveId = files[fileIndex - 1].id;
@@ -154,35 +175,30 @@ const EditorPanel = ({
         nextActiveId = 'main';
       }
     }
-
+    
     setFiles(prev => prev.filter(file => file.id !== fileId));
     setActiveFileId(nextActiveId);
-
+    
     toast({
       title: "File Removed",
       description: `Removed file: ${files.find(file => file.id === fileId)?.name}`,
     });
   };
 
-  // ✅ FIXED PART — async detection hook
   useEffect(() => {
-    const detectLanguage = async () => {
-      if (code.trim() && selectedLanguage.id !== 'web') {
-        const detectedLang = await detectLanguageViaAI(code);
-        if (detectedLang && detectedLang.toLowerCase() !== selectedLanguage.id.toLowerCase()) {
-          setHasLanguageMismatch(true);
-          toast({
-            title: "Language Mismatch Detected",
-            description: `Selected compiler is ${selectedLanguage.name}, but code appears to be ${detectedLang}. Please verify your input.`,
-            variant: "destructive"
-          });
-        } else {
-          setHasLanguageMismatch(false);
-        }
+    if (code.trim() && selectedLanguage.id !== 'web') {
+      const detectedLang = detectCodeLanguage(code);
+      if (detectedLang && detectedLang !== selectedLanguage.id) {
+        setHasLanguageMismatch(true);
+        toast({
+          title: "Language Mismatch Detected",
+          description: `Selected compiler is ${selectedLanguage.name}, but code appears to be ${detectedLang}. Please verify your input.`,
+          variant: "destructive"
+        });
+      } else {
+        setHasLanguageMismatch(false);
       }
-    };
-
-    detectLanguage();
+    }
   }, [code, selectedLanguage, toast]);
 
   const handleAnalyzeClick = () => {
@@ -225,12 +241,12 @@ const EditorPanel = ({
           </Button>
           <Button variant="default" size="sm" disabled={isAnalyzing || hasLanguageMismatch} onClick={handleAnalyzeClick} className="gap-1 h-8 mx-[8px]">
             {isAnalyzing ? <>
-              <span className="animate-spin h-3 w-3 border-2 border-t-transparent border-r-transparent rounded-full"></span>
-              Analyzing
-            </> : <>
-              <Brain className="h-3 w-3" />
-              Analyze
-            </>}
+                <span className="animate-spin h-3 w-3 border-2 border-t-transparent border-r-transparent rounded-full"></span>
+                Analyzing
+              </> : <>
+                <Brain className="h-3 w-3" />
+                Analyze
+              </>}
           </Button>
         </div>
       </div>

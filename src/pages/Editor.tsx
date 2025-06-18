@@ -26,12 +26,12 @@ const Editor = () => {
 
   const handleAnalyzeCode = () => {
     let codeToAnalyze = code;
-
+    
     // If web is selected, concatenate the code
     if (selectedLanguage.id === "web") {
       codeToAnalyze = `HTML:\n${htmlCode}\n\nCSS:\n${cssCode}\n\nJS:\n${jsCode}`;
     }
-
+    
     if (!codeToAnalyze.trim()) {
       toast({
         title: "Empty Code",
@@ -42,13 +42,13 @@ const Editor = () => {
     }
 
     setIsAnalyzing(true);
-
+    
     // Simulate analysis delay
     setTimeout(() => {
       const result = generateMockAnalysis(codeToAnalyze, selectedLanguage.id);
       setAnalysis(result);
       setIsAnalyzing(false);
-
+      
       toast({
         title: "Analysis Complete",
         description: "Your code has been analyzed successfully.",
@@ -63,14 +63,14 @@ const Editor = () => {
       const htmlMatch = correctedCode.match(/HTML:\n([\s\S]*?)\n\nCSS:/);
       const cssMatch = correctedCode.match(/CSS:\n([\s\S]*?)\n\nJS:/);
       const jsMatch = correctedCode.match(/JS:\n([\s\S]*?)$/);
-
+      
       if (htmlMatch) setHtmlCode(htmlMatch[1]);
       if (cssMatch) setCssCode(cssMatch[1]);
       if (jsMatch) setJsCode(jsMatch[1]);
     } else {
       setCode(correctedCode);
     }
-
+    
     toast({
       title: "Correction Applied",
       description: "The improved code has been applied to the editor.",
@@ -92,10 +92,10 @@ const Editor = () => {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Header />
-
+      
       <main className="flex-1 container mx-auto px-4 py-2">
-        <ResizablePanelGroup
-          direction="horizontal"
+        <ResizablePanelGroup 
+          direction="horizontal" 
           className="h-[calc(100vh-5rem)] border-none"
         >
           <ResizablePanel defaultSize={50} minSize={30}>
@@ -116,19 +116,19 @@ const Editor = () => {
               analysisResults={analysis}
             />
           </ResizablePanel>
-
+          
           <ResizableHandle withHandle />
-
+          
           <ResizablePanel defaultSize={50} minSize={30}>
-            <AnalysisPanel
-              analysis={analysis}
+            <AnalysisPanel 
+              analysis={analysis} 
               language={selectedLanguage.id}
-              onApplyCorrection={handleApplyCorrection}
+              onApplyCorrection={handleApplyCorrection} 
             />
           </ResizablePanel>
         </ResizablePanelGroup>
       </main>
-
+      
       <Footer />
     </div>
   );

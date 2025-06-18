@@ -1,6 +1,4 @@
-"use client";
-
-import { CodeAnalysis, Improvement, ReliabilityIssue } from "@/types";
+import { CodeAnalysis, ReliabilityIssue } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,33 +14,24 @@ import ComplexityDisplay from "./ComplexityDisplay";
 import CodeSmellsDisplay from "./CodeSmellsDisplay";
 import AreaOfImprovements from "./AreaOfImprovements";
 import AIRecommendations from "./AIRecommendations";
-
 interface CodeAnalysisDisplayProps {
   analysis: CodeAnalysis | null;
   language: string;
   onApplyCorrection: (code: string) => void;
 }
-
 const CodeAnalysisDisplay = ({
   analysis,
   language,
   onApplyCorrection
 }: CodeAnalysisDisplayProps) => {
-
-
-  if (!analysis) return null;
-
-  const originalCode = analysis.originalCode;
-  const improvements = analysis.improvements;
-
   const [activeTab, setActiveTab] = useState("overview");
   if (!analysis) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">
-      <div className="text-center">
-        <Code2 className="mx-auto h-12 w-12 mb-4 opacity-50" />
-        <p>No analysis available. Submit your code to get detailed insights.</p>
-      </div>
-    </div>;
+        <div className="text-center">
+          <Code2 className="mx-auto h-12 w-12 mb-4 opacity-50" />
+          <p>No analysis available. Submit your code to get detailed insights.</p>
+        </div>
+      </div>;
   }
   const handleApplyCorrection = () => {
     if (analysis.correctedCode) {
@@ -50,135 +39,135 @@ const CodeAnalysisDisplay = ({
     }
   };
   return <div className="h-full flex flex-col">
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-      <TabsList className="grid w-full grid-cols-7">
-        <TabsTrigger value="overview" className="text-xs">
-          <BarChart3 className="h-3 w-3 mr-1" />
-          Overview
-        </TabsTrigger>
-        <TabsTrigger value="violations" className="text-xs">
-          <AlertTriangle className="h-3 w-3 mr-1" />
-          Violations
-        </TabsTrigger>
-        <TabsTrigger value="complexity" className="text-xs">
-          <TrendingUp className="h-3 w-3 mr-1" />
-          Complexity
-        </TabsTrigger>
-        <TabsTrigger value="smells" className="text-xs">
-          <AlertCircle className="h-3 w-3 mr-1" />
-          Code Smells
-        </TabsTrigger>
-        <TabsTrigger value="tests" className="text-xs">
-          <TestTube className="h-3 w-3 mr-1" />
-          Tests
-        </TabsTrigger>
-        <TabsTrigger value="improvements" className="text-xs">
-          <Lightbulb className="h-3 w-3 mr-1" />
-          Improvements
-        </TabsTrigger>
-        <TabsTrigger value="ai-insights" className="text-xs">
-          <Brain className="h-3 w-3 mr-1" />
-          AI Insights
-        </TabsTrigger>
-      </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+        <TabsList className="grid w-full grid-cols-7">
+          <TabsTrigger value="overview" className="text-xs">
+            <BarChart3 className="h-3 w-3 mr-1" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="violations" className="text-xs">
+            <AlertTriangle className="h-3 w-3 mr-1" />
+            Violations
+          </TabsTrigger>
+          <TabsTrigger value="complexity" className="text-xs">
+            <TrendingUp className="h-3 w-3 mr-1" />
+            Complexity
+          </TabsTrigger>
+          <TabsTrigger value="smells" className="text-xs">
+            <AlertCircle className="h-3 w-3 mr-1" />
+            Code Smells
+          </TabsTrigger>
+          <TabsTrigger value="tests" className="text-xs">
+            <TestTube className="h-3 w-3 mr-1" />
+            Tests
+          </TabsTrigger>
+          <TabsTrigger value="improvements" className="text-xs">
+            <Lightbulb className="h-3 w-3 mr-1" />
+            Improvements
+          </TabsTrigger>
+          <TabsTrigger value="ai-insights" className="text-xs">
+            <Brain className="h-3 w-3 mr-1" />
+            AI Insights
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="flex-1 mt-4 overflow-auto">
-        <TabsContent value="overview" className="mt-0">
-          <OverviewSection analysis={analysis} />
-        </TabsContent>
+        <div className="flex-1 mt-4 overflow-auto">
+          <TabsContent value="overview" className="mt-0">
+            <OverviewSection analysis={analysis} />
+          </TabsContent>
 
-        <TabsContent value="violations" className="mt-0">
-          <div className="space-y-4">
-            {/* Violations Summary */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-orange-600" />
-                  Violations Summary
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-4">
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-red-100 text-red-800 border-red-200">
-                      {analysis.violations.major} Major
-                    </Badge>
+          <TabsContent value="violations" className="mt-0">
+            <div className="space-y-4">
+              {/* Violations Summary */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-orange-600" />
+                    Violations Summary
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-4">
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-red-100 text-red-800 border-red-200">
+                        {analysis.violations.major} Major
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
+                        {analysis.violations.minor} Minor
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
-                      {analysis.violations.minor} Minor
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            {/* Violations Details */}
-            {analysis.violations.details.length > 0 && <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Detailed Issues</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {analysis.violations.details.map((detail, index) => <div key={index} className="flex items-start gap-2 p-2 rounded border">
-                    <AlertTriangle className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-sm">{detail}</span>
-                  </div>)}
-                </div>
-              </CardContent>
-            </Card>}
+              {/* Violations Details */}
+              {analysis.violations.details.length > 0 && <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Detailed Issues</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {analysis.violations.details.map((detail, index) => <div key={index} className="flex items-start gap-2 p-2 rounded border">
+                          <AlertTriangle className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                          <span className="text-sm">{detail}</span>
+                        </div>)}
+                    </div>
+                  </CardContent>
+                </Card>}
 
-            {/* Line References */}
-            {analysis.violations.lineReferences && analysis.violations.lineReferences.length > 0 && <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Line-by-Line Issues</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {analysis.violations.lineReferences.map((ref, index) => <div key={index} className="flex items-start gap-2 p-2 rounded border">
-                    <Badge variant="outline" className="text-xs">
-                      Line {ref.line}
-                    </Badge>
-                    <Badge className={ref.severity === 'major' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}>
-                      {ref.severity}
-                    </Badge>
-                    <span className="text-sm">{ref.issue}</span>
-                  </div>)}
-                </div>
-              </CardContent>
-            </Card>}
-          </div>
-        </TabsContent>
+              {/* Line References */}
+              {analysis.violations.lineReferences && analysis.violations.lineReferences.length > 0 && <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Line-by-Line Issues</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {analysis.violations.lineReferences.map((ref, index) => <div key={index} className="flex items-start gap-2 p-2 rounded border">
+                          <Badge variant="outline" className="text-xs">
+                            Line {ref.line}
+                          </Badge>
+                          <Badge className={ref.severity === 'major' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}>
+                            {ref.severity}
+                          </Badge>
+                          <span className="text-sm">{ref.issue}</span>
+                        </div>)}
+                    </div>
+                  </CardContent>
+                </Card>}
+            </div>
+          </TabsContent>
 
-        <TabsContent value="complexity" className="mt-0">
-          {analysis.complexityAnalysis ? <ComplexityDisplay analysis={analysis.complexityAnalysis} /> : <Card>
-            <CardContent className="flex items-center justify-center h-32">
-              <p className="text-muted-foreground">Complexity analysis not available</p>
-            </CardContent>
-          </Card>}
-        </TabsContent>
+          <TabsContent value="complexity" className="mt-0">
+            {analysis.complexityAnalysis ? <ComplexityDisplay analysis={analysis.complexityAnalysis} /> : <Card>
+                <CardContent className="flex items-center justify-center h-32">
+                  <p className="text-muted-foreground">Complexity analysis not available</p>
+                </CardContent>
+              </Card>}
+          </TabsContent>
 
-        <TabsContent value="smells" className="mt-0">
-          {analysis.codeSmells ? <CodeSmellsDisplay analysis={analysis.codeSmells} /> : <Card>
-            <CardContent className="flex items-center justify-center h-32">
-              <p className="text-muted-foreground">Code smells analysis not available</p>
-            </CardContent>
-          </Card>}
-        </TabsContent>
+          <TabsContent value="smells" className="mt-0">
+            {analysis.codeSmells ? <CodeSmellsDisplay analysis={analysis.codeSmells} /> : <Card>
+                <CardContent className="flex items-center justify-center h-32">
+                  <p className="text-muted-foreground">Code smells analysis not available</p>
+                </CardContent>
+              </Card>}
+          </TabsContent>
 
-        <TabsContent value="tests" className="mt-0">
-          <TestCaseDisplay testCases={analysis.testCases} />
-        </TabsContent>
+          <TabsContent value="tests" className="mt-0">
+            <TestCaseDisplay testCases={analysis.testCases} />
+          </TabsContent>
 
-        <TabsContent value="improvements" className="mt-0">
-          <AreaOfImprovements improvements={improvements} />
-        </TabsContent>
+          <TabsContent value="improvements" className="mt-0">
+            <AreaOfImprovements analysis={analysis} />
+          </TabsContent>
 
-        <TabsContent value="ai-insights" className="mt-0">
-          <AIRecommendations analysis={analysis} language={language} code={originalCode} onApplyCorrection={handleApplyCorrection} />
-        </TabsContent>
-      </div>
-    </Tabs>
-  </div>;
+          <TabsContent value="ai-insights" className="mt-0">
+            <AIRecommendations analysis={analysis} language={language} onApplyCorrection={handleApplyCorrection} />
+          </TabsContent>
+        </div>
+      </Tabs>
+    </div>;
 };
 export default CodeAnalysisDisplay;
